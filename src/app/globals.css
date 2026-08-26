@@ -1,0 +1,319 @@
+@import "tailwindcss";
+
+/*
+  Wedding OS design language.
+
+  Editorial wedding book, not a SaaS dashboard. Warm ivory ground, generous
+  whitespace, hairline rules instead of boxes, and display type doing the work
+  that cards used to do.
+*/
+
+/*
+  Optional licensed display face. If `public/fonts/golden-hour.woff2` exists it
+  takes over everywhere; if it doesn't, CSS quietly falls through to Fraunces.
+  No build step, no code change.
+*/
+@font-face {
+  font-family: "Golden Hour";
+  src: url("/fonts/golden-hour.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  /* ── Ground and surfaces ── */
+  --color-canvas: #fbf8f3;
+  --color-canvas-deep: #f4efe6;
+  --color-surface: #ffffff;
+  --color-surface-soft: #fdfbf8;
+  --color-surface-sunken: #f6f2ea;
+
+  /* ── Ink ── */
+  --color-ink: #1a1714;
+  --color-ink-soft: #55504a;
+  --color-ink-muted: #8a8078;
+  --color-ink-faint: #b4aaa0;
+
+  /* ── Lines — hairlines carry the layout now ── */
+  --color-line: #e9e1d5;
+  --color-line-soft: #f2ebe0;
+  --color-line-strong: #d9cec0;
+
+  /* ── Event accents. Muted and identifying, never saturating. ── */
+  --color-haldi: #c08a2e;          /* marigold / turmeric */
+  --color-haldi-soft: #faf2e0;
+  --color-mehendi: #6f7f56;        /* sage / henna */
+  --color-mehendi-soft: #eff2e8;
+  --color-sangeet: #7c6288;        /* dusty plum */
+  --color-sangeet-soft: #f3eef5;
+  --color-shaadi: #9d4a58;         /* deep muted rose */
+  --color-shaadi-soft: #f9ecee;
+  --color-reception: #b8734f;      /* champagne terracotta */
+  --color-reception-soft: #faefe7;
+
+  /* ── General accents ── */
+  --color-saffron: #bd6b3a;
+  --color-saffron-soft: #f8ece3;
+  --color-rose: #9d4a58;
+  --color-rose-soft: #f9ecee;
+  --color-olive: #6f7f56;
+  --color-olive-soft: #eff2e8;
+  --color-indigo: #4b5474;
+  --color-indigo-soft: #ecedf3;
+  --color-plum: #7c6288;
+  --color-plum-soft: #f3eef5;
+  --color-teal: #3d7770;
+  --color-teal-soft: #e7f1ef;
+  --color-sky: #4e7392;
+  --color-sky-soft: #eaf0f5;
+  --color-amber: #b08029;
+  --color-amber-soft: #faf1de;
+  --color-slate: #6b7280;
+  --color-slate-soft: #eef0f3;
+
+  /* ── Severity ── */
+  --color-critical: #a03a3a;
+  --color-critical-soft: #fbecea;
+  --color-important: #bd6b3a;
+  --color-important-soft: #f9ece2;
+  --color-attention: #b08029;
+  --color-attention-soft: #faf2e0;
+  --color-info: #4e7392;
+  --color-info-soft: #ecf1f6;
+  --color-positive: #4a7c59;
+  --color-positive-soft: #eaf3ec;
+
+  /* ── Type ──
+     Golden Hour first (only resolves if the file is present), then the
+     self-hosted Fraunces, then system serifs. */
+  --font-display: "Golden Hour", var(--font-display-loaded), "Iowan Old Style",
+    "Palatino Linotype", Palatino, Georgia, serif;
+  --font-sans: var(--font-sans-loaded), ui-sans-serif, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, monospace;
+
+  /* ── Elevation — barely there ── */
+  --shadow-flat: 0 1px 2px rgba(26, 23, 20, 0.03);
+  --shadow-raised: 0 1px 3px rgba(26, 23, 20, 0.04),
+    0 10px 28px -14px rgba(26, 23, 20, 0.09);
+  --shadow-float: 0 2px 6px rgba(26, 23, 20, 0.05),
+    0 18px 50px -18px rgba(26, 23, 20, 0.15);
+  --shadow-overlay: 0 28px 70px -22px rgba(26, 23, 20, 0.3);
+
+  --radius-card: 12px;
+  --radius-panel: 18px;
+
+  /* Shared easing so JS and CSS motion agree. */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    /* The tightened tracking the brief asks for — applied globally to UI text. */
+    letter-spacing: -0.011em;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+
+  /* Display type wants looser tracking than the UI default. */
+  .font-display {
+    letter-spacing: -0.02em;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-saffron) 20%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-saffron);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  input, textarea, select, button {
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-faint);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  .surface {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-flat);
+  }
+
+  .surface-raised {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .glass {
+    background: color-mix(in srgb, var(--color-canvas) 76%, transparent);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  }
+
+  /* Small caps label above a section — the main structural device now that
+     there are far fewer cards. */
+  .eyebrow {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+  }
+
+  /* Editorial section heading with a hairline that runs to the edge. */
+  .rule-heading {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .rule-heading::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-line);
+  }
+
+  .hairline {
+    height: 1px;
+    background: linear-gradient(
+      to right, transparent, var(--color-line), transparent
+    );
+  }
+
+  /* Soft photographic wash used behind the hero. */
+  .photo-fade {
+    -webkit-mask-image: linear-gradient(
+      to left, rgba(0,0,0,1) 0%, rgba(0,0,0,0.75) 35%, rgba(0,0,0,0) 88%
+    );
+    mask-image: linear-gradient(
+      to left, rgba(0,0,0,1) 0%, rgba(0,0,0,0.75) 35%, rgba(0,0,0,0) 88%
+    );
+  }
+
+  .photo-fade-bottom {
+    -webkit-mask-image: linear-gradient(
+      to top, rgba(0,0,0,0) 0%, rgba(0,0,0,0.9) 45%, rgba(0,0,0,1) 100%
+    );
+    mask-image: linear-gradient(
+      to top, rgba(0,0,0,0) 0%, rgba(0,0,0,0.9) 45%, rgba(0,0,0,1) 100%
+    );
+  }
+}
+
+@layer utilities {
+  .transition-natural {
+    transition-timing-function: var(--ease-out-quint);
+  }
+
+  .animate-rise {
+    animation: rise 420ms var(--ease-out-quint) both;
+  }
+  .animate-fade {
+    animation: fade 260ms var(--ease-out-quint) both;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes shimmer {
+    100% { transform: translateX(100%); }
+  }
+
+  /* A single, restrained attention cue. Used when a critical figure changes —
+     never decoratively. */
+  @keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-2px); }
+    75% { transform: translateX(2px); }
+  }
+  .animate-nudge {
+    animation: nudge 380ms var(--ease-in-out-soft);
+  }
+
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-surface-sunken);
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg, transparent,
+      color-mix(in srgb, white 65%, transparent), transparent
+    );
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+/* Anyone who asked for less motion gets a static interface, not a slower one. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton::after { animation: none; }
+}
