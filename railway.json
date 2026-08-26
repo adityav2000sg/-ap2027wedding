@@ -5,7 +5,7 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "npx prisma migrate deploy && npm run start",
+    "startCommand": "npx prisma migrate deploy && npx next start -H 0.0.0.0 -p 3000",
     "healthcheckPath": "/login",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
