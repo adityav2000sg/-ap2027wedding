@@ -80,7 +80,37 @@ function cleanLabel(value: string | null): string | null {
 }
 
 async function main() {
-  console.log("→ Clearing existing data…");
+  // ── Guard ────────────────────────────────────────────────────────────────
+  // Seeding is destructive: it drops the wedding and everything hanging off it.
+  // That's fine against an empty database, but once there is real work in here
+  // — RSVPs collected, payments logged, photos uploaded — an accidental
+  // `npm run db:seed` would silently destroy it. So: refuse, and say why.
+  const existing = await db.wedding.findFirst({
+    select: { id: true, partnerAName: true, partnerBName: true },
+  });
+
+  if (existing && process.env.SEED_FORCE !== "yes") {
+    const [guests, media, payments] = await Promise.all([
+      db.guest.count({ where: { weddingId: existing.id } }),
+      db.mediaAsset.count({ where: { weddingId: existing.id } }),
+      db.payment.count({ where: { weddingId: existing.id } }),
+    ]);
+
+    console.error(
+      `\n✗ There is already a wedding in this database ` +
+      `(${existing.partnerAName} & ${existing.partnerBName}) with ` +
+      `${guests} guests, ${media} uploaded files and ${payments} payments.\n\n` +
+      `  Seeding would delete all of it, including anything added since.\n` +
+      `  If you genuinely want to wipe and rebuild:\n\n` +
+      `      SEED_FORCE=yes npm run db:seed\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  if (existing) {
+    console.log("→ SEED_FORCE set — clearing existing data…");
+  }
   await db.wedding.deleteMany({});
   await db.user.deleteMany({});
 
