@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=20.9.0 <21"
+    "node": ">=22 <23"
   },
   "description": "Wedding Operating System \u2014 Avantika & Prateek, 16\u201319 June 2027",
   "scripts": {
