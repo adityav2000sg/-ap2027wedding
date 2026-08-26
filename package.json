@@ -2,7 +2,10 @@
   "name": "ap-wedding-os",
   "version": "1.0.0",
   "private": true,
-  "description": "Wedding Operating System — Avantika & Prateek, 16–19 June 2027",
+  "engines": {
+    "node": ">=20.9.0 <21"
+  },
+  "description": "Wedding Operating System \u2014 Avantika & Prateek, 16\u201319 June 2027",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
