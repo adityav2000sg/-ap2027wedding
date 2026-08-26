@@ -1613,3 +1613,25 @@ model ChangeApplication {
   @@index([weddingId, appliedAt])
   @@map("change_applications")
 }
+
+/// A one-time sign-in code sent by email.
+///
+/// The code itself is never stored — only a hash — so a database leak can't be
+/// replayed into a login. Codes are single-use, short-lived, and attempt-capped
+/// so they can't be brute-forced (a 6-digit code is only 10^6 wide).
+model LoginCode {
+  id          String    @id @default(cuid())
+  email       String
+  codeHash    String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  /// Failed verifications. Burned after too many.
+  attempts    Int       @default(0)
+  /// Coarse origin info, kept for spotting abuse.
+  requestedIp String?
+  createdAt   DateTime  @default(now())
+
+  @@index([email, createdAt])
+  @@index([expiresAt])
+  @@map("login_codes")
+}

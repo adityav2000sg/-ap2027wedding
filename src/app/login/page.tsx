@@ -18,15 +18,13 @@ export default async function LoginPage() {
     },
   });
 
-  // Offer the seeded family as one-click sign-ins while developing.
-  const demoUsers =
-    process.env.NODE_ENV === "production"
-      ? []
-      : await db.weddingMember.findMany({
-          include: { user: true },
-          orderBy: { createdAt: "asc" },
-          take: 9,
-        });
+  // Listing the accounts is a convenience for a nine-person family app, not a
+  // leak — these are the couple's own relatives, and the code still has to
+  // reach the actual inbox.
+  const members = await db.weddingMember.findMany({
+    include: { user: { select: { email: true } } },
+    orderBy: { createdAt: "asc" },
+  });
 
   const days = wedding
     ? daysBetween(new Date(), wedding.startDate)
@@ -76,15 +74,7 @@ export default async function LoginPage() {
       </section>
 
       <section className="flex items-center justify-center px-6 py-12">
-        <LoginForm
-          demoUsers={demoUsers.map((member) => ({
-            email: member.user.email,
-            name: member.user.name,
-            relation: member.relation,
-            role: member.role,
-            tone: member.user.avatarTone,
-          }))}
-        />
+        <LoginForm knownEmails={members.map((m) => m.user.email)} />
       </section>
     </main>
   );

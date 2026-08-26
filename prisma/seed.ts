@@ -119,15 +119,15 @@ async function main() {
   const password = await hashPassword("wedding2027");
 
   const people = [
-    { key: "avantika", name: "Avantika Chowdhry", email: "avantika@apwedding.com", tone: "rose", role: "OWNER" as const, relation: "Bride" },
-    { key: "prateek", name: "Prateek Mehan", email: "prateek@apwedding.com", tone: "indigo", role: "OWNER" as const, relation: "Groom" },
-    { key: "namrita", name: "Namrita Chowdhry", email: "namrita@apwedding.com", tone: "plum", role: "ADMIN" as const, relation: "Bride's Mother" },
-    { key: "dheeraj", name: "Dheeraj Chowdhry", email: "dheeraj@apwedding.com", tone: "saffron", role: "ADMIN" as const, relation: "Bride's Father" },
-    { key: "preeti", name: "Preeti Mehan", email: "preeti@apwedding.com", tone: "teal", role: "ADMIN" as const, relation: "Groom's Mother" },
-    { key: "ajay", name: "Ajay Mehan", email: "ajay@apwedding.com", tone: "olive", role: "ADMIN" as const, relation: "Groom's Father" },
-    { key: "anousha", name: "Anousha Chowdhry", email: "anousha@apwedding.com", tone: "amber", role: "FAMILY" as const, relation: "Bride's Sister" },
-    { key: "trisha", name: "Trisha Mehan", email: "trisha@apwedding.com", tone: "sky", role: "FAMILY" as const, relation: "Groom's Sister" },
-    { key: "aditya", name: "Aditya Vaidya", email: "aditya@apwedding.com", tone: "slate", role: "FAMILY" as const, relation: "Anousha's Partner" },
+    { key: "avantika", name: "Avantika Chowdhry", email: "avantika.chowdhry@gmail.com", tone: "rose", role: "OWNER" as const, relation: "Bride" },
+    { key: "prateek", name: "Prateek Mehan", email: "prateek.mehan98@gmail.com", tone: "indigo", role: "OWNER" as const, relation: "Groom" },
+    { key: "namrita", name: "Namrita Chowdhry", email: "namrita.chowdhry@gmail.com", tone: "plum", role: "ADMIN" as const, relation: "Bride's Mother" },
+    { key: "dheeraj", name: "Dheeraj Chowdhry", email: "dheeraj.chowdhry@gmail.com", tone: "saffron", role: "ADMIN" as const, relation: "Bride's Father" },
+    { key: "preeti", name: "Preeti Mehan", email: "preeti.mehan1975@gmail.com", tone: "teal", role: "ADMIN" as const, relation: "Groom's Mother" },
+    { key: "ajay", name: "Ajay Mehan", email: "ajaymehan@hotmail.com", tone: "olive", role: "ADMIN" as const, relation: "Groom's Father" },
+    { key: "anousha", name: "Anousha Chowdhry", email: "chowdhry.anousha@gmail.com", tone: "amber", role: "FAMILY" as const, relation: "Bride's Sister" },
+    { key: "trisha", name: "Trisha Mehan", email: "trisha.mehan95@gmail.com", tone: "sky", role: "FAMILY" as const, relation: "Groom's Sister" },
+    { key: "aditya", name: "Aditya Vaidya", email: "adityavaidya2000@gmail.com", tone: "slate", role: "FAMILY" as const, relation: "Anousha's Partner" },
   ];
 
   // The couple and both sets of parents think in different currencies —
@@ -172,9 +172,8 @@ async function main() {
         passwordHash: password,
         avatarTone: person.tone,
         displayCurrency: currencyByKey[person.key] ?? "GBP",
-        // Everyone signs in with the shared starter password and is prompted
-        // to set their own.
-        mustSetPassword: true,
+        // Sign-in is by emailed code, so there is no password to set.
+        mustSetPassword: false,
       },
     });
     const member = await db.weddingMember.create({
@@ -507,7 +506,7 @@ async function main() {
     `\n✓ ${counts[0]} guests in ${counts[1]} households · ${counts[2]} tasks · ` +
     `${counts[3]} vendors · ${counts[4]} room allocations`,
   );
-  console.log("\n  Accounts (password: wedding2027)");
+  console.log("\n  Accounts — sign in with a code sent to these addresses");
   for (const person of people) {
     console.log(`   ${person.email.padEnd(28)} ${person.name} — ${person.relation}`);
   }

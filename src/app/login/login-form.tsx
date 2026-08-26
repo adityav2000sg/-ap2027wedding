@@ -1,27 +1,38 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+/**
+ * Sign in with a code sent by email.
+ *
+ * Two steps, one screen. No passwords to remember, share or leak — which for a
+ * family app beats anything they'd have written on a sticky note.
+ */
 
-import { Avatar, Button, Separator } from "@/components/ui/primitives";
+import * as React from "react";
+import { useActionState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+
+import { Button } from "@/components/ui/primitives";
 import { FormField, Input } from "@/components/ui/form";
-import { ROLE_LABEL } from "@/server/permissions";
-import type { MemberRole } from "@prisma/client";
-import { signIn, signInAsDemoUser, type LoginState } from "./actions";
+import { MailIcon } from "@/components/ui/icons";
+import { sendCode, submitCode, type RequestState, type VerifyState } from "./actions";
 
-interface DemoUser {
-  email: string;
-  name: string;
-  relation: string;
-  role: MemberRole;
-  tone: string;
-}
-
-export function LoginForm({ demoUsers }: { demoUsers: DemoUser[] }) {
-  const [state, formAction, pending] = useActionState<LoginState, FormData>(
-    signIn,
+export function LoginForm({ knownEmails }: { knownEmails: string[] }) {
+  const reduce = useReducedMotion();
+  const [request, requestAction, sending] = useActionState<RequestState | undefined, FormData>(
+    sendCode,
     undefined,
   );
-  const [switching, startSwitching] = useTransition();
+  const [verify, verifyAction, verifying] = useActionState<VerifyState | undefined, FormData>(
+    submitCode,
+    undefined,
+  );
+
+  const sent = request?.sent === true;
+  const codeRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (sent) codeRef.current?.focus();
+  }, [sent]);
 
   return (
     <div className="w-full max-w-sm">
@@ -29,111 +40,143 @@ export function LoginForm({ demoUsers }: { demoUsers: DemoUser[] }) {
         <h1 className="font-display text-[32px] leading-tight text-ink">
           Avantika <span className="text-saffron">&</span> Prateek
         </h1>
-        <p className="mt-1 text-[13px] text-ink-muted">Wedding Operating System</p>
       </div>
 
-      <h2 className="font-display text-[22px] text-ink">Sign in</h2>
-      <p className="mt-1 text-[13px] text-ink-muted">
-        Welcome back. Pick up where the family left off.
-      </p>
-
-      <form action={formAction} className="mt-6 space-y-4">
-        <FormField label="Email" htmlFor="email">
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.in"
-            required
-          />
-        </FormField>
-
-        <FormField label="Password" htmlFor="password">
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            placeholder="••••••••"
-            required
-          />
-        </FormField>
-
-        {state?.error ? (
-          <p
-            role="alert"
-            className="rounded-lg border border-critical/20 bg-critical-soft px-3 py-2 text-[12.5px] text-critical"
-          >
-            {state.error}
-          </p>
-        ) : null}
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          className="w-full"
-          disabled={pending}
+      {!sent ? (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
         >
-          {pending ? "Signing in…" : "Sign in"}
-        </Button>
-      </form>
-
-      {demoUsers.length > 0 ? (
-        <div className="mt-8">
-          <div className="flex items-center gap-3">
-            <Separator className="flex-1" />
-            <span className="text-[11px] font-medium tracking-wide text-ink-faint uppercase">
-              Or continue as
-            </span>
-            <Separator className="flex-1" />
-          </div>
-
-          <p className="mt-3 text-[12px] leading-relaxed text-ink-muted">
-            Everyone has their own account. You all see the whole wedding — the
-            difference is what each person can change, and who the work is
-            assigned to.
+          <h2 className="font-display text-[24px] text-ink">Sign in</h2>
+          <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
+            Enter your email and we'll send you a six-digit code. No password to
+            remember.
           </p>
 
-          <div className="mt-3 grid gap-1.5">
-            {demoUsers.map((user) => (
-              <button
-                key={user.email}
-                type="button"
-                disabled={switching}
-                onClick={() =>
-                  startSwitching(async () => {
-                    await signInAsDemoUser(user.email);
-                  })
-                }
-                className="flex items-center gap-2.5 rounded-lg border border-line bg-surface px-2.5 py-2 text-left transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken disabled:opacity-50"
+          <form action={requestAction} className="mt-6 space-y-4">
+            <FormField label="Email" htmlFor="email">
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                autoFocus
+                required
+                defaultValue={request?.email ?? ""}
+                placeholder="you@example.com"
+              />
+            </FormField>
+
+            {request?.error ? (
+              <p
+                role="alert"
+                className="rounded-lg border border-critical/20 bg-critical-soft px-3 py-2 text-[12.5px] text-critical"
               >
-                <Avatar name={user.name} tone={user.tone} size="md" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] text-ink">
-                    {user.name}
-                  </span>
-                  <span className="block truncate text-[11.5px] text-ink-muted">
-                    {user.relation}
-                  </span>
-                </span>
-                <span className="shrink-0 text-[11px] text-ink-faint">
-                  {ROLE_LABEL[user.role]}
-                </span>
-              </button>
-            ))}
-          </div>
+                {request.error}
+              </p>
+            ) : null}
 
-          <p className="mt-3 text-center text-[11.5px] text-ink-faint">
-            Starter password for everyone is{" "}
-            <code className="rounded bg-surface-sunken px-1 py-0.5 text-ink-muted">
-              wedding2027
-            </code>
-            {" "}— change it once you're in.
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="w-full"
+              disabled={sending}
+            >
+              {sending ? "Sending…" : "Email me a code"}
+            </Button>
+          </form>
+
+          {knownEmails.length > 0 ? (
+            <div className="mt-7">
+              <p className="mb-2 text-[11.5px] text-ink-faint">
+                Accounts on this wedding
+              </p>
+              <ul className="space-y-0.5">
+                {knownEmails.map((email) => (
+                  <li key={email} className="text-[12px] text-ink-muted">
+                    {email}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </motion.div>
+      ) : (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <span className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-saffron-soft text-saffron">
+            <MailIcon size={17} />
+          </span>
+
+          <h2 className="font-display text-[24px] text-ink">Check your email</h2>
+          <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
+            If <span className="text-ink">{request?.email}</span> is on the
+            wedding, a six-digit code is on its way. It expires in ten minutes.
           </p>
-        </div>
-      ) : null}
+
+          {request?.devCode ? (
+            <p className="mt-3 rounded-lg border border-attention/25 bg-attention-soft px-3 py-2 text-[12.5px] text-attention">
+              No email provider configured, so here's the code:{" "}
+              <span className="tabular font-semibold">{request.devCode}</span>
+            </p>
+          ) : null}
+
+          <form action={verifyAction} className="mt-6 space-y-4">
+            <input type="hidden" name="email" value={request?.email ?? ""} />
+
+            <FormField label="Six-digit code" htmlFor="code">
+              <Input
+                ref={codeRef}
+                id="code"
+                name="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={7}
+                required
+                placeholder="000000"
+                className="tabular text-center text-[22px] tracking-[0.3em]"
+              />
+            </FormField>
+
+            {verify?.error ? (
+              <p
+                role="alert"
+                className="rounded-lg border border-critical/20 bg-critical-soft px-3 py-2 text-[12.5px] text-critical"
+              >
+                {verify.error}
+              </p>
+            ) : null}
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="w-full"
+              disabled={verifying}
+            >
+              {verifying ? "Checking…" : "Sign in"}
+            </Button>
+          </form>
+
+          <form action={requestAction} className="mt-4 text-center">
+            <input type="hidden" name="email" value={request?.email ?? ""} />
+            <button
+              type="submit"
+              disabled={sending}
+              className="text-[12.5px] text-ink-muted underline-offset-2 transition-colors hover:text-saffron hover:underline disabled:opacity-50"
+            >
+              {sending ? "Sending…" : "Send another code"}
+            </button>
+          </form>
+        </motion.div>
+      )}
     </div>
   );
 }
