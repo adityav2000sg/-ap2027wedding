@@ -122,10 +122,14 @@
 
   body {
     background-color: var(--color-canvas);
+    /* Warmer, more celebratory wash — the event colours bleed in from the
+       corners so every page sits on colour rather than flat cream. */
     background-image:
-      radial-gradient(ellipse 80% 50% at 20% -10%, color-mix(in oklab, var(--color-haldi) 12%, transparent), transparent),
-      radial-gradient(ellipse 60% 40% at 85% 0%, color-mix(in oklab, var(--color-shaadi) 10%, transparent), transparent),
-      radial-gradient(ellipse 50% 30% at 50% 100%, color-mix(in oklab, var(--color-mehendi) 8%, transparent), transparent);
+      radial-gradient(ellipse 75% 45% at 15% -8%, color-mix(in oklab, var(--color-haldi) 20%, transparent), transparent),
+      radial-gradient(ellipse 55% 40% at 88% 2%, color-mix(in oklab, var(--color-shaadi) 16%, transparent), transparent),
+      radial-gradient(ellipse 60% 35% at 92% 55%, color-mix(in oklab, var(--color-sangeet) 10%, transparent), transparent),
+      radial-gradient(ellipse 60% 35% at 50% 108%, color-mix(in oklab, var(--color-mehendi) 12%, transparent), transparent);
+    background-attachment: fixed;
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 14px;
@@ -187,10 +191,24 @@
 
 @layer components {
   .surface {
-    background: var(--color-surface);
+    background: linear-gradient(
+      160deg,
+      var(--color-surface),
+      color-mix(in oklab, var(--color-saffron-soft) 45%, var(--color-surface))
+    );
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-flat);
+  }
+
+  /* Warm gradient clipped to text — for headline figures and accents. */
+  .gradient-text {
+    background: linear-gradient(
+      120deg, var(--color-saffron), var(--color-rose) 55%, var(--color-sangeet)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .surface-raised {
@@ -207,13 +225,24 @@
   }
 
   /* Small caps label above a section — the main structural device now that
-     there are far fewer cards. */
+     there are far fewer cards. Warmed to saffron and led by a small tick so
+     each section announces itself with a touch of colour. */
   .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
     font-size: 10.5px;
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--color-ink-muted);
+    color: var(--color-saffron);
+  }
+  .eyebrow::before {
+    content: "";
+    width: 1.15em;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(to right, var(--color-saffron), var(--color-rose));
   }
 
   /* Editorial section heading with a hairline that runs to the edge. */
@@ -226,13 +255,20 @@
     content: "";
     flex: 1;
     height: 1px;
-    background: var(--color-line);
+    background: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--color-saffron) 35%, var(--color-line)),
+      var(--color-line) 40%,
+      transparent
+    );
   }
 
   .hairline {
     height: 1px;
     background: linear-gradient(
-      to right, transparent, var(--color-line), transparent
+      to right, transparent,
+      color-mix(in oklab, var(--color-saffron) 22%, var(--color-line)),
+      transparent
     );
   }
 

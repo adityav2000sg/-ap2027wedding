@@ -10,6 +10,7 @@ import "server-only";
 
 import { formatMediumDate } from "@/lib/dates";
 import { formatCompactMoney } from "@/lib/money";
+import { buildConverter } from "@/domain/currency";
 import { VENDOR_CATEGORY_LABEL, VENDOR_STATUS_TEXT } from "@/domain/impact";
 import { TASK_STATUS_LABEL } from "@/domain/tasks";
 import type { WeddingSnapshot } from "@/domain/types";
@@ -78,7 +79,13 @@ export function searchWedding(
   const results: SearchResult[] = [];
   const canSeeMoney = viewer.permissions.has("budget.view");
   const canSeeDocs = viewer.permissions.has("documents.view");
-  const base = snapshot.wedding.baseCurrency;
+  // Results are read alongside the rest of the app, so they use the reader's
+  // currency rather than whatever each payment was entered in.
+  const converter = buildConverter(
+    snapshot.rates,
+    viewer.displayCurrency || snapshot.wedding.baseCurrency,
+    snapshot.today,
+  );
 
   const householdById = new Map(snapshot.households.map((h) => [h.id, h]));
   const eventById = new Map(snapshot.events.map((e) => [e.id, e]));
@@ -163,7 +170,7 @@ export function searchWedding(
           id: payment.id,
           type: "payment",
           title: payment.label,
-          subtitle: `${formatCompactMoney(payment.amount, payment.currency)} · due ${formatMediumDate(payment.dueDate)}${vendor ? ` · ${vendor.businessName}` : ""}`,
+          subtitle: `${formatCompactMoney(converter.toBase(payment.amount, payment.currency), converter.base)} · due ${formatMediumDate(payment.dueDate)}${vendor ? ` · ${vendor.businessName}` : ""}`,
           href: `/budget?view=payments&payment=${payment.id}`,
           score: value,
         });
@@ -223,6 +230,5 @@ export function searchWedding(
     }
   }
 
-  void base;
   return results.sort((a, b) => b.score - a.score).slice(0, limit);
 }

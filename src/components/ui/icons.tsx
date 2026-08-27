@@ -74,6 +74,9 @@ export const SearchIcon = (p: IconProps) => (
 export const PlusIcon = (p: IconProps) => (
   <Icon {...p}><path d="M8 3.5v9M3.5 8h9" /></Icon>
 );
+export const PencilIcon = (p: IconProps) => (
+  <Icon {...p}><path d="M10.5 2.5l3 3L6 13l-3.5.5L3 10l7.5-7.5z" /><path d="M9 4l3 3" /></Icon>
+);
 export const ChevronRightIcon = (p: IconProps) => (
   <Icon {...p}><path d="M6 3.5L10.5 8 6 12.5" /></Icon>
 );

@@ -134,7 +134,7 @@ export async function recordProposal(
       }
 
       const change = { type: action, ...args } as unknown as PlannedChange;
-      impact = analyseChange(snapshot, change);
+      impact = analyseChange(snapshot, change, viewer.displayCurrency);
     } catch (error) {
       blocked =
         error instanceof Error ? error.message : "That change couldn't be modelled.";

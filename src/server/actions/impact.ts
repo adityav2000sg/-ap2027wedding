@@ -128,7 +128,7 @@ export async function previewChange(input: unknown) {
     requirePermission(viewer, PERMISSION_FOR[change.type]);
 
     const snapshot = await fetchSnapshot(viewer.weddingId);
-    const report = redactForViewer(analyseChange(snapshot, change), viewer);
+    const report = redactForViewer(analyseChange(snapshot, change, viewer.displayCurrency), viewer);
 
     return {
       report,
@@ -177,12 +177,12 @@ export async function applyChange(
       return {
         applied: false,
         stale: true,
-        report: redactForViewer(analyseChange(snapshot, change), viewer),
+        report: redactForViewer(analyseChange(snapshot, change, viewer.displayCurrency), viewer),
         fingerprint: current,
       } satisfies ApplyResult;
     }
 
-    const report = analyseChange(snapshot, change);
+    const report = analyseChange(snapshot, change, viewer.displayCurrency);
 
     // ── Atomicity ──────────────────────────────────────────────────────────
     await db.$transaction(async (tx) => {

@@ -13,17 +13,24 @@ import { formatCompactMoney, formatPercent } from "@/lib/money";
 import { AnimatedNumber } from "@/components/ui/motion";
 import { Tooltip } from "@/components/ui/overlays";
 
-export interface PulseMetric {
+interface PulseMetricBase {
   key: string;
-  value: number;
-  /** Renders the animated value — e.g. money formatting or a % suffix. */
-  format?: "money-compact" | "percent" | "plain";
-  currency?: string;
   label: string;
   detail?: string;
   href?: string;
   tone?: "default" | "warning" | "critical" | "positive";
 }
+
+/**
+ * A money metric must name its currency. That's a deliberate union rather than
+ * an optional field with a fallback: a defaulted symbol is how a figure ends up
+ * reading "£401K" when the reader asked for dollars.
+ */
+export type PulseMetric = PulseMetricBase &
+  (
+    | { value: number; format: "money-compact"; currency: string }
+    | { value: number; format?: "percent" | "plain"; currency?: never }
+  );
 
 export function PlanningPulse({ metrics }: { metrics: PulseMetric[] }) {
   const reduce = useReducedMotion();
@@ -97,7 +104,7 @@ export function PlanningPulse({ metrics }: { metrics: PulseMetric[] }) {
 function formatMetric(value: number, metric: PulseMetric): string {
   if (metric.format === "percent") return formatPercent(value, 0);
   if (metric.format === "money-compact") {
-    return formatCompactMoney(value, metric.currency ?? "GBP");
+    return formatCompactMoney(value, metric.currency);
   }
   return Math.round(value).toLocaleString("en-GB");
 }

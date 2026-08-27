@@ -40,6 +40,8 @@ export default async function BudgetPage({
   const vendorById = new Map(snapshot.vendors.map((v) => [v.id, v.businessName]));
   const eventById = new Map(snapshot.events.map((e) => [e.id, e.name]));
   const payerById = new Map(snapshot.payers.map((p) => [p.id, p.name]));
+  const rawItemById = new Map(snapshot.budgetItems.map((i) => [i.id, i]));
+  const rawCategoryById = new Map(snapshot.categories.map((c) => [c.id, c]));
 
   return (
     <BudgetWorkspace
@@ -52,6 +54,7 @@ export default async function BudgetPage({
         id: category.categoryId,
         name: category.name,
         tone: category.accentTone,
+        allocatedNative: rawCategoryById.get(category.categoryId)?.allocatedAmount ?? 0,
         allocated: category.allocated,
         forecast: category.forecast,
         variance: category.variance,
@@ -73,8 +76,34 @@ export default async function BudgetPage({
           eventName: item.eventId ? eventById.get(item.eventId) ?? null : null,
           nativeCurrency: item.currency,
           nativeForecast: item.nativeForecast,
+          edit: (() => {
+            const raw = rawItemById.get(item.itemId);
+            if (!raw) return null;
+            return {
+              id: raw.id,
+              categoryId: raw.categoryId,
+              name: raw.name,
+              description: raw.description,
+              eventId: raw.eventId,
+              vendorId: raw.vendorId,
+              costModel: raw.costModel,
+              guestBasis: raw.guestBasis,
+              currency: raw.currency,
+              allocatedAmount: raw.allocatedAmount,
+              fixedAmount: raw.fixedAmount,
+              unitRate: raw.unitRate,
+              unitQuantity: raw.unitQuantity,
+              estimateAmount: raw.estimateAmount,
+              quoteAmount: raw.quoteAmount,
+              negotiatedAmount: raw.negotiatedAmount,
+              contractedAmount: raw.contractedAmount,
+            };
+          })(),
         })),
       }))}
+      events={snapshot.events.map((e) => ({ id: e.id, name: e.name }))}
+      vendors={snapshot.vendors.map((v) => ({ id: v.id, name: v.businessName }))}
+      baseCurrency={snapshot.wedding.baseCurrency}
       payments={snapshot.payments
         .slice()
         .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())

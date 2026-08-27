@@ -192,7 +192,11 @@ export async function updateBudgetItem(input: unknown) {
 export async function previewBudgetItemChange(id: string, patch: Record<string, unknown>) {
   return withAction("budget.view", async (viewer) => {
     const snapshot = await fetchSnapshot(viewer.weddingId);
-    return analyseChange(snapshot, { type: "budgetItem.update", itemId: id, patch });
+    return analyseChange(
+      snapshot,
+      { type: "budgetItem.update", itemId: id, patch },
+      viewer.displayCurrency,
+    );
   });
 }
 

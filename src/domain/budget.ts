@@ -204,7 +204,7 @@ export function computeItemForecast(
     source,
     quantity: modelled.quantity,
     unitRate: item.unitRate,
-    explanation: buildExplanation(item, source, modelled, nativeForecast),
+    explanation: buildExplanation(item, source, modelled, nativeForecast, converter),
     paid,
     scheduled,
     remainingPayable: round2(Math.max(0, forecast - paid)),
@@ -268,13 +268,22 @@ function computeModelledAmount(
   }
 }
 
+/**
+ * The derivation, written in the currency the reader has chosen.
+ *
+ * The native figure is never lost — the UI prints it underneath whenever it
+ * differs — but the *explanation* has to agree with the total it explains, or a
+ * £173,704 line ends up justified by a $1,750 rate.
+ */
 function buildExplanation(
   item: BudgetItemNode,
   source: ForecastSource,
   modelled: ModelledAmount,
   amount: number,
+  converter: Converter,
 ): string {
-  const money = (n: number) => formatMoney(n, item.currency);
+  const money = (n: number) =>
+    formatMoney(converter.toBase(n, item.currency), converter.base);
   switch (source) {
     case "contracted":
       return `Contracted at ${money(amount)}`;

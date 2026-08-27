@@ -18,18 +18,22 @@ import { formatCompactMoney, formatMoney } from "@/lib/money";
 import { Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
 import { Tooltip } from "@/components/ui/overlays";
 import { AnimatedNumber, Sparkline } from "@/components/ui/motion";
+import { PlusIcon, PencilIcon } from "@/components/ui/icons";
 import { markPaymentPaid } from "@/server/actions/budget";
 import { useRouter } from "next/navigation";
+import { BudgetEditor, type EditorIntent, type EditableItem } from "./budget-editor";
 
 interface Item {
   id: string; name: string; allocated: number; forecast: number; variance: number;
   source: string; explanation: string; isVariable: boolean; quantity: number | null;
   paid: number; vendorName: string | null; eventName: string | null;
   nativeCurrency: string; nativeForecast: number;
+  edit: EditableItem | null;
 }
 interface Category {
-  id: string; name: string; tone: string; allocated: number; forecast: number;
-  variance: number; variancePercent: number; paid: number; committed: number; items: Item[];
+  id: string; name: string; tone: string; allocated: number; allocatedNative: number;
+  forecast: number; variance: number; variancePercent: number;
+  paid: number; committed: number; items: Item[];
 }
 interface Payment {
   id: string; label: string; amount: number; nativeAmount: number; nativeCurrency: string;
@@ -48,7 +52,8 @@ const PAYMENT_VARIANT: Record<string, "neutral" | "info" | "attention" | "positi
 };
 
 export function BudgetWorkspace({
-  finance, categories, payments, payers, history, drivers, currency, canEdit, canPay, initialView,
+  finance, categories, payments, payers, history, drivers, currency,
+  canEdit, canPay, initialView, events, vendors, baseCurrency,
 }: {
   finance: {
     totalBudget: number; forecast: number; variance: number; committed: number;
@@ -64,12 +69,16 @@ export function BudgetWorkspace({
   canEdit: boolean;
   canPay: boolean;
   initialView: string;
+  events: { id: string; name: string }[];
+  vendors: { id: string; name: string }[];
+  baseCurrency: string;
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
   const [view, setView] = React.useState(initialView);
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [paying, setPaying] = React.useState<string | null>(null);
+  const [editor, setEditor] = React.useState<EditorIntent | null>(null);
 
   const worst = categories
     .filter((c) => c.variance > 0)
@@ -189,22 +198,35 @@ export function BudgetWorkspace({
       {/* ── By category ─────────────────────────────────────────────────── */}
       {view === "categories" ? (
         <>
-          {worst.length > 0 ? (
-            <p className="mb-5 text-[13px] text-ink-soft">
-              <span className="font-medium text-ink">{worst[0].name}</span> is{" "}
-              <span className="font-medium text-critical">
-                {formatMoney(worst[0].variance, currency)}
-              </span>{" "}
-              above allocation — the biggest single gap.
-            </p>
-          ) : null}
+          <div className="mb-5 flex items-start justify-between gap-4">
+            {worst.length > 0 ? (
+              <p className="text-[13px] text-ink-soft">
+                <span className="font-medium text-ink">{worst[0].name}</span> is{" "}
+                <span className="font-medium text-critical">
+                  {formatMoney(worst[0].variance, currency)}
+                </span>{" "}
+                above allocation — the biggest single gap.
+              </p>
+            ) : <span />}
+            {canEdit ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setEditor({ kind: "add-category" })}
+              >
+                <PlusIcon size={14} /> Category
+              </Button>
+            ) : null}
+          </div>
 
           <div className="space-y-1">
             {categories.map((category) => {
               const isOpen = expanded.has(category.id);
               const tone = toneClasses(category.tone);
               return (
-                <div key={category.id} className="border-b border-line">
+                <div key={category.id} className="group border-b border-line">
+                  <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() =>
@@ -215,7 +237,7 @@ export function BudgetWorkspace({
                         return next;
                       })
                     }
-                    className="group flex w-full items-center gap-4 py-3.5 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-4 py-3.5 text-left"
                   >
                     <span className={cn("h-2 w-2 shrink-0 rounded-full", tone.dot)} />
 
@@ -261,6 +283,42 @@ export function BudgetWorkspace({
                     </span>
                   </button>
 
+                  {canEdit ? (
+                    <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
+                      <Tooltip content="Add a line to this category">
+                        <button
+                          type="button"
+                          aria-label={`Add a line to ${category.name}`}
+                          onClick={() => setEditor({ kind: "add-item", categoryId: category.id })}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-sunken hover:text-saffron"
+                        >
+                          <PlusIcon size={14} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Edit category">
+                        <button
+                          type="button"
+                          aria-label={`Edit ${category.name}`}
+                          onClick={() =>
+                            setEditor({
+                              kind: "edit-category",
+                              category: {
+                                id: category.id,
+                                name: category.name,
+                                tone: category.tone,
+                                allocatedNative: category.allocatedNative,
+                              },
+                            })
+                          }
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-sunken hover:text-saffron"
+                        >
+                          <PencilIcon size={13} />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  ) : null}
+                  </div>
+
                   {isOpen ? (
                     <motion.ul
                       initial={reduce ? false : { opacity: 0, height: 0 }}
@@ -271,7 +329,7 @@ export function BudgetWorkspace({
                       {category.items.map((item) => (
                         <li
                           key={item.id}
-                          className="flex items-center gap-4 border-t border-line-soft py-2"
+                          className="group/item flex items-center gap-4 border-t border-line-soft py-2"
                         >
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[13px] text-ink">
@@ -313,8 +371,33 @@ export function BudgetWorkspace({
                               </span>
                             ) : null}
                           </span>
+
+                          {canEdit && item.edit ? (
+                            <Tooltip content="Edit this line">
+                              <button
+                                type="button"
+                                aria-label={`Edit ${item.name}`}
+                                onClick={() => setEditor({ kind: "edit-item", item: item.edit! })}
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint opacity-0 transition-all duration-150 hover:bg-surface-sunken hover:text-saffron group-hover/item:opacity-100 focus:opacity-100"
+                              >
+                                <PencilIcon size={13} />
+                              </button>
+                            </Tooltip>
+                          ) : null}
                         </li>
                       ))}
+
+                      {canEdit ? (
+                        <li className="border-t border-line-soft pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditor({ kind: "add-item", categoryId: category.id })}
+                            className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12.5px] text-ink-muted transition-colors hover:text-saffron"
+                          >
+                            <PlusIcon size={13} /> Add a line
+                          </button>
+                        </li>
+                      ) : null}
                     </motion.ul>
                   ) : null}
                 </div>
@@ -426,6 +509,17 @@ export function BudgetWorkspace({
           catering without anyone editing a budget.
         </p>
       </section>
+
+      {canEdit ? (
+        <BudgetEditor
+          intent={editor}
+          onClose={() => setEditor(null)}
+          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+          events={events}
+          vendors={vendors}
+          baseCurrency={baseCurrency}
+        />
+      ) : null}
     </div>
   );
 }

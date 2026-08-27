@@ -264,12 +264,16 @@ export async function previewRsvpChange(input: unknown) {
   return withAction("guests.edit", async (viewer) => {
     const data = rsvpSchema.parse(input);
     const snapshot = await fetchSnapshot(viewer.weddingId);
-    return analyseChange(snapshot, {
-      type: "guest.rsvp",
-      guestId: data.guestId,
-      eventId: data.eventId,
-      status: data.status,
-    });
+    return analyseChange(
+      snapshot,
+      {
+        type: "guest.rsvp",
+        guestId: data.guestId,
+        eventId: data.eventId,
+        status: data.status,
+      },
+      viewer.displayCurrency,
+    );
   });
 }
 

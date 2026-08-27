@@ -60,17 +60,27 @@ export function round2(value: number): number {
  * Full precision: "₹15,48,000" (Indian grouping for INR, locale grouping else).
  * Decimals are dropped unless the amount actually has them — wedding budgets
  * are read in lakhs, not paise.
+ *
+ * `code` is deliberately required. A default here is how a figure ends up
+ * wearing the wrong symbol: the amount is converted into the reader's currency
+ * but printed with whichever code the default happened to be.
  */
 export function formatMoney(
   amount: number,
-  code: string = "INR",
+  code: string,
   options: { decimals?: boolean; signed?: boolean } = {},
 ): string {
   const meta = CURRENCIES[code as CurrencyCode];
   const symbol = meta?.symbol ?? `${code} `;
   const locale = meta?.locale ?? "en-IN";
   const value = round2(amount);
-  const showDecimals = options.decimals ?? (meta?.decimals !== 0 && value % 1 !== 0);
+  // Wedding figures are read in whole units, never paise. Cents are shown only
+  // when explicitly asked, or on genuinely small amounts (a per-unit rate) that
+  // actually carry a fraction — so a S$121,153.82 variance reads S$121,154, not
+  // ragged against the compact figures beside it.
+  const showDecimals =
+    options.decimals ??
+    (meta?.decimals !== 0 && Math.abs(value) < 1000 && value % 1 !== 0);
   const body = Math.abs(value).toLocaleString(locale, {
     minimumFractionDigits: showDecimals ? 2 : 0,
     maximumFractionDigits: showDecimals ? 2 : 0,
@@ -86,7 +96,7 @@ export function formatMoney(
  */
 export function formatCompactMoney(
   amount: number,
-  code: string = "INR",
+  code: string,
   options: { signed?: boolean } = {},
 ): string {
   const symbol = currencySymbol(code);

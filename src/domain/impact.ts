@@ -13,6 +13,7 @@
 import { formatMinute, formatMediumDate, toISODate } from "@/lib/dates";
 import { formatMoney, round2 } from "@/lib/money";
 import { buildBudgetView, type BudgetView } from "./budget";
+import type { Converter } from "./currency";
 import { analyseTasks } from "./tasks";
 import { computeWeddingReadiness } from "./readiness";
 import { proposeShift, type ProposedMove } from "./timeline";
@@ -80,10 +81,11 @@ const MATERIAL_MONEY_THRESHOLD = 25_000;
 export function analyseChange(
   snapshot: WeddingSnapshot,
   change: PlannedChange,
+  displayCurrency?: string,
 ): ImpactReport {
-  const before = { budget: buildBudgetView(snapshot), snapshot };
+  const before = { budget: buildBudgetView(snapshot, displayCurrency), snapshot };
   const afterSnapshot = applyChange(snapshot, change);
-  const afterBudget = buildBudgetView(afterSnapshot);
+  const afterBudget = buildBudgetView(afterSnapshot, displayCurrency);
 
   const impacts: Impact[] = [];
   const timelineMoves: ProposedMove[] = [];
@@ -94,7 +96,11 @@ export function analyseChange(
 
   // ── Financial consequences, computed not guessed ──────────────────────────
   const forecastDelta = round2(afterBudget.finance.forecast - before.budget.finance.forecast);
-  const base = snapshot.wedding.baseCurrency;
+  // Every figure in the report reads in the currency the viewer chose, so an
+  // impact preview can never disagree with the page that opened it.
+  const base = afterBudget.finance.baseCurrency;
+  const inBase = (amount: number, from = snapshot.wedding.baseCurrency) =>
+    afterBudget.converter.toBase(amount, from);
 
   if (Math.abs(forecastDelta) >= 1) {
     add({
@@ -130,7 +136,7 @@ export function analyseChange(
       kind: "risk",
       severity: "critical",
       message: `This pushes the wedding over budget by ${formatMoney(afterBudget.finance.variance, base)}`,
-      detail: `Total budget is ${formatMoney(snapshot.wedding.totalBudget, base)}`,
+      detail: `Total budget is ${formatMoney(afterBudget.finance.totalBudget, base)}`,
     });
   } else if (before.budget.finance.isOverBudget && !afterBudget.finance.isOverBudget) {
     add({
@@ -360,8 +366,10 @@ export function analyseChange(
           kind: "direct",
           type: "vendor",
           severity: "info",
-          message: `${vendor.businessName} quote ${change.amount > previous ? "rises" : "falls"} to ${formatMoney(change.amount, vendor.currency)}`,
-          detail: previous ? `Was ${formatMoney(previous, vendor.currency)}` : "First quote recorded",
+          message: `${vendor.businessName} quote ${change.amount > previous ? "rises" : "falls"} to ${formatMoney(inBase(change.amount, vendor.currency), base)}`,
+          detail: previous
+            ? `Was ${formatMoney(inBase(previous, vendor.currency), base)}`
+            : "First quote recorded",
           entity: { type: "vendor", id: vendor.id, label: vendor.businessName, href: `/vendors/${vendor.id}` },
         });
       }
@@ -399,7 +407,7 @@ export function analyseChange(
     impacts.some((i) => i.severity === "critical" || i.severity === "important");
 
   return {
-    source: describeChange(snapshot, change),
+    source: describeChange(snapshot, change, afterBudget.converter),
     material,
     impacts: dedupe(impacts),
     finance: {
@@ -580,7 +588,11 @@ export function applyChange(
 function describeChange(
   snapshot: WeddingSnapshot,
   change: PlannedChange,
+  converter: Converter,
 ): { label: string; description: string } {
+  const money = (amount: number, from = snapshot.wedding.baseCurrency) =>
+    formatMoney(converter.toBase(amount, from), converter.base);
+
   switch (change.type) {
     case "event.time": {
       const event = snapshot.events.find((e) => e.id === change.eventId);
@@ -608,13 +620,13 @@ function describeChange(
     case "wedding.budget":
       return {
         label: "Budget change",
-        description: `Total budget set to ${formatMoney(change.totalBudget, snapshot.wedding.baseCurrency)}`,
+        description: `Total budget set to ${money(change.totalBudget)}`,
       };
     case "vendor.quote": {
       const vendor = snapshot.vendors.find((v) => v.id === change.vendorId);
       return {
         label: `${vendor?.businessName ?? "Vendor"} quote change`,
-        description: `New quote of ${formatMoney(change.amount, vendor?.currency ?? snapshot.wedding.baseCurrency)}`,
+        description: `New quote of ${money(change.amount, vendor?.currency)}`,
       };
     }
     case "vendor.status": {

@@ -14,7 +14,6 @@ import { useTransition } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/cn";
-import { CURRENCIES, CURRENCY_CODES } from "@/lib/money";
 import { Avatar, Badge } from "@/components/ui/primitives";
 import { Popover, Tooltip } from "@/components/ui/overlays";
 import { PlusIcon, SearchIcon } from "@/components/ui/icons";
@@ -23,7 +22,7 @@ import type { MemberRole } from "@prisma/client";
 import { isActiveHref, type NavItem } from "./nav";
 import { NAV_ICONS } from "./nav-icons";
 import { signOut } from "@/app/login/actions";
-import { setDisplayCurrency } from "@/server/actions/preferences";
+import { CurrencyPicker } from "./currency-picker";
 
 export interface ShellViewer {
   name: string;
@@ -76,7 +75,7 @@ export function Rail({
                 aria-label={item.label}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors duration-200",
+                  "relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 active:scale-90",
                   active
                     ? "text-saffron"
                     : "text-ink-faint hover:bg-surface-sunken hover:text-ink-soft",
@@ -166,58 +165,6 @@ function RailButton({
         {children}
       </button>
     </Tooltip>
-  );
-}
-
-function CurrencyPicker({ current }: { current: string }) {
-  const [pending, start] = useTransition();
-  const meta = CURRENCIES[current as keyof typeof CURRENCIES];
-
-  return (
-    <Popover
-      align="start"
-      className="w-52"
-      trigger={
-        <button
-          type="button"
-          aria-label={`Reading in ${current}. Change currency.`}
-          className={cn(
-            "flex h-8 w-10 items-center justify-center rounded-lg text-[12px] font-semibold",
-            "text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink",
-            pending && "opacity-50",
-          )}
-        >
-          {meta?.symbol ?? current}
-        </button>
-      }
-    >
-      <div className="px-2 py-1.5">
-        <p className="text-[12px] font-medium text-ink">Show figures in</p>
-        <p className="mt-0.5 text-[11px] leading-snug text-ink-muted">
-          Only changes what you see. Amounts stay stored in the currency they
-          were entered in.
-        </p>
-      </div>
-      <div className="my-1 h-px bg-line" />
-      {CURRENCY_CODES.map((code) => (
-        <button
-          key={code}
-          type="button"
-          disabled={pending}
-          onClick={() => start(async () => { await setDisplayCurrency(code); })}
-          className={cn(
-            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors",
-            code === current
-              ? "bg-saffron-soft text-saffron"
-              : "text-ink-soft hover:bg-surface-sunken hover:text-ink",
-          )}
-        >
-          <span className="w-5 shrink-0 font-semibold">{CURRENCIES[code].symbol}</span>
-          <span className="flex-1">{CURRENCIES[code].name}</span>
-          <span className="text-[11px] text-ink-faint">{code}</span>
-        </button>
-      ))}
-    </Popover>
   );
 }
 

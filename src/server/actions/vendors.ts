@@ -298,7 +298,11 @@ export async function selectVendor(vendorId: string, reason?: string) {
 export async function previewVendorQuote(vendorId: string, amount: number) {
   return withAction("vendors.edit", async (viewer) => {
     const snapshot = await fetchSnapshot(viewer.weddingId);
-    return analyseChange(snapshot, { type: "vendor.quote", vendorId, amount });
+    return analyseChange(
+      snapshot,
+      { type: "vendor.quote", vendorId, amount },
+      viewer.displayCurrency,
+    );
   });
 }
 

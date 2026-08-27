@@ -69,11 +69,11 @@ const buttonVariants = cva(
           "bg-saffron text-white hover:bg-saffron/90 active:scale-[0.985] shadow-flat",
         secondary:
           "bg-surface border border-line text-ink hover:bg-surface-sunken hover:border-line-strong active:scale-[0.985]",
-        ghost: "text-ink-soft hover:bg-surface-sunken hover:text-ink",
-        quiet: "text-ink-muted hover:text-ink hover:bg-surface-sunken",
+        ghost: "text-ink-soft hover:bg-surface-sunken hover:text-ink active:scale-[0.97]",
+        quiet: "text-ink-muted hover:text-ink hover:bg-surface-sunken active:scale-[0.97]",
         danger:
           "bg-critical text-white hover:bg-critical/90 active:scale-[0.985]",
-        dangerGhost: "text-critical hover:bg-critical-soft",
+        dangerGhost: "text-critical hover:bg-critical-soft active:scale-[0.97]",
       },
       size: {
         xs: "h-7 px-2 text-[12px]",
