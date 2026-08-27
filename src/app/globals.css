@@ -22,12 +22,12 @@
 }
 
 @theme {
-  /* ── Ground and surfaces ── */
-  --color-canvas: #fbf8f3;
-  --color-canvas-deep: #f4efe6;
-  --color-surface: #ffffff;
-  --color-surface-soft: #fdfbf8;
-  --color-surface-sunken: #f6f2ea;
+  /* ── Ground and surfaces — warm ivory with a hint of celebration ── */
+  --color-canvas: #faf6ef;
+  --color-canvas-deep: #f0e8dc;
+  --color-surface: #fffcf8;
+  --color-surface-soft: #fef9f3;
+  --color-surface-sunken: #f5ede3;
 
   /* ── Ink ── */
   --color-ink: #1a1714;
@@ -36,39 +36,39 @@
   --color-ink-faint: #b4aaa0;
 
   /* ── Lines — hairlines carry the layout now ── */
-  --color-line: #e9e1d5;
-  --color-line-soft: #f2ebe0;
-  --color-line-strong: #d9cec0;
+  --color-line: #e5d9c8;
+  --color-line-soft: #f0e6d8;
+  --color-line-strong: #d4c4b0;
 
-  /* ── Event accents. Muted and identifying, never saturating. ── */
-  --color-haldi: #c08a2e;          /* marigold / turmeric */
-  --color-haldi-soft: #faf2e0;
-  --color-mehendi: #6f7f56;        /* sage / henna */
-  --color-mehendi-soft: #eff2e8;
-  --color-sangeet: #7c6288;        /* dusty plum */
-  --color-sangeet-soft: #f3eef5;
-  --color-shaadi: #9d4a58;         /* deep muted rose */
-  --color-shaadi-soft: #f9ecee;
-  --color-reception: #b8734f;      /* champagne terracotta */
-  --color-reception-soft: #faefe7;
+  /* ── Event accents — richer, more celebratory ── */
+  --color-haldi: #d4922a;
+  --color-haldi-soft: #fdf3dc;
+  --color-mehendi: #5f8a4a;
+  --color-mehendi-soft: #edf5e8;
+  --color-sangeet: #8b5a9e;
+  --color-sangeet-soft: #f5ebf8;
+  --color-shaadi: #b83d52;
+  --color-shaadi-soft: #fce8ec;
+  --color-reception: #c97a45;
+  --color-reception-soft: #fdf0e6;
 
   /* ── General accents ── */
-  --color-saffron: #bd6b3a;
-  --color-saffron-soft: #f8ece3;
-  --color-rose: #9d4a58;
-  --color-rose-soft: #f9ecee;
-  --color-olive: #6f7f56;
-  --color-olive-soft: #eff2e8;
-  --color-indigo: #4b5474;
-  --color-indigo-soft: #ecedf3;
-  --color-plum: #7c6288;
-  --color-plum-soft: #f3eef5;
-  --color-teal: #3d7770;
-  --color-teal-soft: #e7f1ef;
-  --color-sky: #4e7392;
-  --color-sky-soft: #eaf0f5;
-  --color-amber: #b08029;
-  --color-amber-soft: #faf1de;
+  --color-saffron: #c96b35;
+  --color-saffron-soft: #fdf0e6;
+  --color-rose: #b83d52;
+  --color-rose-soft: #fce8ec;
+  --color-olive: #5f8a4a;
+  --color-olive-soft: #edf5e8;
+  --color-indigo: #4a5580;
+  --color-indigo-soft: #eceef6;
+  --color-plum: #8b5a9e;
+  --color-plum-soft: #f5ebf8;
+  --color-teal: #2d8a7e;
+  --color-teal-soft: #e4f5f2;
+  --color-sky: #4a7aab;
+  --color-sky-soft: #e8f0f8;
+  --color-amber: #c4922a;
+  --color-amber-soft: #fdf3dc;
   --color-slate: #6b7280;
   --color-slate-soft: #eef0f3;
 
@@ -122,6 +122,10 @@
 
   body {
     background-color: var(--color-canvas);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -10%, color-mix(in oklab, var(--color-haldi) 12%, transparent), transparent),
+      radial-gradient(ellipse 60% 40% at 85% 0%, color-mix(in oklab, var(--color-shaadi) 10%, transparent), transparent),
+      radial-gradient(ellipse 50% 30% at 50% 100%, color-mix(in oklab, var(--color-mehendi) 8%, transparent), transparent);
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 14px;
@@ -249,6 +253,27 @@
     mask-image: linear-gradient(
       to top, rgba(0,0,0,0) 0%, rgba(0,0,0,0.9) 45%, rgba(0,0,0,1) 100%
     );
+  }
+
+  /* Subtle tinted panels for key sections */
+  .panel-warm {
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--color-saffron-soft) 80%, var(--color-surface)),
+      color-mix(in oklab, var(--color-rose-soft) 40%, var(--color-surface))
+    );
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-panel);
+  }
+
+  .panel-event {
+    background: linear-gradient(
+      to bottom right,
+      var(--color-surface),
+      color-mix(in oklab, var(--color-haldi-soft) 50%, var(--color-surface))
+    );
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
   }
 }
 

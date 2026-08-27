@@ -14,7 +14,14 @@ import { motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/primitives";
 import { FormField, Input } from "@/components/ui/form";
 import { MailIcon } from "@/components/ui/icons";
-import { sendCode, submitCode, type RequestState, type VerifyState } from "./actions";
+import {
+  sendCode,
+  signInWithPassword,
+  submitCode,
+  type PasswordState,
+  type RequestState,
+  type VerifyState,
+} from "./actions";
 
 export function LoginForm({ knownEmails }: { knownEmails: string[] }) {
   const reduce = useReducedMotion();
@@ -26,6 +33,14 @@ export function LoginForm({ knownEmails }: { knownEmails: string[] }) {
     submitCode,
     undefined,
   );
+  const [password, passwordAction, authenticating] = useActionState<
+    PasswordState | undefined,
+    FormData
+  >(signInWithPassword, undefined);
+
+  // Fallback while the emailed-code flow is being proven across all nine
+  // accounts. Hidden by default so nobody uses it out of habit.
+  const [showPassword, setShowPassword] = React.useState(false);
 
   const sent = request?.sent === true;
   const codeRef = React.useRef<HTMLInputElement>(null);
@@ -103,6 +118,67 @@ export function LoginForm({ knownEmails }: { knownEmails: string[] }) {
               </ul>
             </div>
           ) : null}
+
+          {/* Fallback, deliberately quiet. */}
+          <div className="mt-7 border-t border-line pt-4">
+            {!showPassword ? (
+              <button
+                type="button"
+                onClick={() => setShowPassword(true)}
+                className="text-[11.5px] text-ink-faint underline-offset-2 transition-colors hover:text-ink-muted hover:underline"
+              >
+                Code not arriving? Use a password instead
+              </button>
+            ) : (
+              <form action={passwordAction} className="space-y-3">
+                <p className="text-[11.5px] leading-snug text-ink-muted">
+                  Temporary fallback while email sign-in is being set up.
+                </p>
+                <FormField label="Email" htmlFor="pw-email">
+                  <Input
+                    id="pw-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    defaultValue={request?.email ?? ""}
+                  />
+                </FormField>
+                <FormField label="Password" htmlFor="pw-password">
+                  <Input
+                    id="pw-password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                  />
+                </FormField>
+
+                {password?.error ? (
+                  <p
+                    role="alert"
+                    className="rounded-lg border border-critical/20 bg-critical-soft px-3 py-2 text-[12.5px] text-critical"
+                  >
+                    {password.error}
+                  </p>
+                ) : null}
+
+                <div className="flex gap-2">
+                  <Button type="submit" variant="secondary" size="sm" disabled={authenticating}>
+                    {authenticating ? "Signing in…" : "Sign in"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPassword(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
         </motion.div>
       ) : (
         <motion.div

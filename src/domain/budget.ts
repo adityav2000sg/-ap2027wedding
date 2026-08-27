@@ -15,7 +15,7 @@
  * "where did this number come from?" instead of asking users to trust it.
  */
 
-import { round2, safeRatio } from "@/lib/money";
+import { formatMoney, round2, safeRatio } from "@/lib/money";
 import type { Converter } from "./currency";
 import { buildConverter } from "./currency";
 import {
@@ -274,7 +274,7 @@ function buildExplanation(
   modelled: ModelledAmount,
   amount: number,
 ): string {
-  const money = (n: number) => `${item.currency} ${n.toLocaleString("en-IN")}`;
+  const money = (n: number) => formatMoney(n, item.currency);
   switch (source) {
     case "contracted":
       return `Contracted at ${money(amount)}`;

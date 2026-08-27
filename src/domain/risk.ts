@@ -34,7 +34,7 @@ export function computeAlerts(
   budget: BudgetView,
 ): Alert[] {
   const alerts: Alert[] = [];
-  const base = snapshot.wedding.baseCurrency;
+  const display = budget.finance.baseCurrency;
   const today = snapshot.today;
   const daysToWedding = daysBetween(today, snapshot.wedding.startDate);
 
@@ -51,7 +51,7 @@ export function computeAlerts(
       key: "payments:overdue",
       severity: "critical",
       title: `${overdue.length} ${overdue.length === 1 ? "payment is" : "payments are"} overdue`,
-      detail: `${formatMoney(total, base)} past its due date — the oldest was due ${formatMediumDate(new Date(overdue[0].dueDate))}.`,
+      detail: `${formatMoney(total, display)} past its due date — the oldest was due ${formatMediumDate(new Date(overdue[0].dueDate))}.`,
       href: "/budget?view=payments&filter=overdue",
       actionLabel: "Review payments",
       group: "money",
@@ -72,7 +72,7 @@ export function computeAlerts(
       key: "payments:due-soon",
       severity: "important",
       title: `${dueSoon.length} ${dueSoon.length === 1 ? "payment is" : "payments are"} due this week`,
-      detail: `${formatMoney(total, base)} across ${new Set(dueSoon.map((p) => p.vendorId)).size} vendor(s).`,
+      detail: `${formatMoney(total, display)} across ${new Set(dueSoon.map((p) => p.vendorId)).size} vendor(s).`,
       href: "/budget?view=payments",
       actionLabel: "See what's due",
       group: "money",
@@ -83,8 +83,8 @@ export function computeAlerts(
     alerts.push({
       key: "budget:over",
       severity: budget.finance.variancePercent > 10 ? "critical" : "important",
-      title: `Forecast is ${formatMoney(budget.finance.variance, base)} over budget`,
-      detail: `Forecast ${formatMoney(budget.finance.forecast, base)} against a ${formatMoney(budget.finance.totalBudget, base)} budget.`,
+      title: `Forecast is ${formatMoney(budget.finance.variance, display)} over budget`,
+      detail: `Forecast ${formatMoney(budget.finance.forecast, display)} against a ${formatMoney(budget.finance.totalBudget, display)} budget.`,
       href: "/budget",
       actionLabel: "Open budget",
       group: "money",
@@ -100,8 +100,8 @@ export function computeAlerts(
     alerts.push({
       key: `budget:category:${category.categoryId}`,
       severity: overshoot > 0.3 ? "important" : "attention",
-      title: `${category.name} is ${formatMoney(category.variance, base)} above allocation`,
-      detail: `Forecast ${formatMoney(category.forecast, base)} against ${formatMoney(category.allocated, base)} set aside.`,
+      title: `${category.name} is ${formatMoney(category.variance, display)} above allocation`,
+      detail: `Forecast ${formatMoney(category.forecast, display)} against ${formatMoney(category.allocated, display)} set aside.`,
       href: "/budget",
       actionLabel: "Review category",
       group: "money",
@@ -118,7 +118,7 @@ export function computeAlerts(
         key: `vendor:overpaid:${vendor.id}`,
         severity: "critical",
         title: `${vendor.businessName} has been paid more than contracted`,
-        detail: `${formatMoney(totals.paid, base)} paid against a ${formatMoney(contracted, base)} contract.`,
+        detail: `${formatMoney(totals.paid, display)} paid against a ${formatMoney(contracted, display)} contract.`,
         href: `/vendors/${vendor.id}`,
         group: "money",
       });

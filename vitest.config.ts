@@ -7,6 +7,11 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      // `server-only` throws outside a React Server Component. These tests
+      // exercise server modules directly, so stub it out.
+      "server-only": path.resolve(__dirname, "./src/test/server-only-stub.ts"),
+    },
   },
 });
