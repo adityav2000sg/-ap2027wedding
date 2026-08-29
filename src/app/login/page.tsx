@@ -18,21 +18,10 @@ export default async function LoginPage() {
     },
   });
 
-  // Listing the accounts is a convenience for a nine-person family app, not a
-  // leak — these are the couple's own relatives, and the code still has to
-  // reach the actual inbox.
-  const members = await db.weddingMember.findMany({
-    include: { user: { select: { email: true } } },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const days = wedding
-    ? daysBetween(new Date(), wedding.startDate)
-    : null;
+  const days = wedding ? daysBetween(new Date(), wedding.startDate) : null;
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
-      {/* Editorial panel — sets the tone before anyone has signed in. */}
       <section className="relative hidden flex-col justify-between overflow-hidden bg-canvas-deep p-10 lg:flex">
         <div
           aria-hidden
@@ -68,13 +57,12 @@ export default async function LoginPage() {
         </div>
 
         <p className="relative max-w-sm text-[13px] leading-relaxed text-ink-muted">
-          Everything in one place — guests, vendors, budget, logistics and the
-          run of show — so the only question left is what needs doing next.
+          Everything in one place — guests, vendors, budget, logistics and the run of show — so the only question left is what needs doing next.
         </p>
       </section>
 
       <section className="flex items-center justify-center px-6 py-12">
-        <LoginForm knownEmails={members.map((m) => m.user.email)} />
+        <LoginForm />
       </section>
     </main>
   );
