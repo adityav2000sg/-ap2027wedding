@@ -23,7 +23,8 @@
     "health": "tsx scripts/health-check.ts",
     "accounts:passwords": "tsx scripts/set-account-passwords.ts",
     "accounts:provision": "tsx scripts/provision-accounts.ts",
-    "fix:allocations": "tsx scripts/fix-allocations.ts"
+    "fix:allocations": "tsx scripts/fix-allocations.ts",
+    "fix:households": "tsx scripts/split-households.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
