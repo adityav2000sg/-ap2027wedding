@@ -19,6 +19,7 @@ import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/fo
 import { SearchIcon } from "@/components/ui/icons";
 import { updateGuest } from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
+import { Invitations, type InvitationRow, type InvitationStats } from "./invitations";
 
 interface Guest {
   id: string; firstName: string; lastName: string; side: string;
@@ -48,6 +49,7 @@ const DIET_LABEL: Record<string, string> = {
 
 export function GuestsWorkspace({
   guests, households, events, stats, canEdit, currency, rsvpEnabled,
+  invitations, invitationStats,
   initialFilter, initialEvent, initialGuest, initialSide,
 }: {
   guests: Guest[];
@@ -57,6 +59,8 @@ export function GuestsWorkspace({
   canEdit: boolean;
   currency: string;
   rsvpEnabled: boolean;
+  invitations: InvitationRow[];
+  invitationStats: InvitationStats;
   initialFilter: string | null;
   initialEvent: string | null;
   initialGuest: string | null;
@@ -70,6 +74,7 @@ export function GuestsWorkspace({
   const [openGuest, setOpenGuest] = React.useState<string | null>(initialGuest);
   const [savingCell, setSavingCell] = React.useState<string | null>(null);
   const [cellMenu, setCellMenu] = React.useState<{ guestId: string; eventId: string } | null>(null);
+  const [view, setView] = React.useState<"list" | "invitations">("list");
 
   // Every RSVP goes through the propagation engine. Most are trivial and save
   // straight away; the ones that move catering, rooms or capacity stop and
@@ -140,7 +145,7 @@ export function GuestsWorkspace({
         <div className="eyebrow mb-2">Who's coming</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-[34px] leading-tight text-ink">Guests</h1>
+            <h1 className="font-script text-[54px] text-ink">Guests</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {stats.total} people across {stats.households} households
             </p>
@@ -157,6 +162,37 @@ export function GuestsWorkspace({
         </div>
       </header>
 
+      {/* Two views of the same list: who's coming, and who has been asked. */}
+      <div className="mb-6 flex items-center gap-1 border-b border-line">
+        {([
+          { key: "list", label: "Guest list" },
+          { key: "invitations", label: "Invitations & RSVPs" },
+        ] as const).map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setView(tab.key)}
+            className={cn(
+              "relative px-3 py-2 text-[13px] transition-colors",
+              view === tab.key ? "text-ink" : "text-ink-muted hover:text-ink",
+            )}
+          >
+            {tab.label}
+            {view === tab.key ? (
+              <motion.span
+                layoutId="guests-view-underline"
+                className="absolute inset-x-0 -bottom-px h-px bg-saffron"
+                transition={{ type: "spring", stiffness: 420, damping: 34 }}
+              />
+            ) : null}
+          </button>
+        ))}
+      </div>
+
+      {view === "invitations" ? (
+        <Invitations rows={invitations} stats={invitationStats} canEdit={canEdit} />
+      ) : (
+      <>
       {/* Overview */}
       <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 border-y border-line py-5 sm:grid-cols-5">
         <Figure value={stats.invited} label="On the list" />
@@ -379,6 +415,8 @@ export function GuestsWorkspace({
             </tbody>
           </table>
         </div>
+      )}
+      </>
       )}
 
       <GuestSheet

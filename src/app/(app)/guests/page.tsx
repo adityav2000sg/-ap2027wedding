@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { computeGuestCounts, roomsRequired } from "@/domain/guests";
+import { outreachRows, outreachStats } from "@/domain/outreach";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import { GuestsWorkspace } from "./workspace";
@@ -94,6 +95,16 @@ export default async function GuestsPage({
         vegetarian: counts.dietary.vegetarian,
         jain: counts.dietary.jain,
       }}
+      invitations={outreachRows(snapshot).map((row) => ({
+        householdId: row.householdId,
+        name: row.name,
+        side: row.side,
+        headcount: row.headcount,
+        saveTheDateSent: row.saveTheDateSent,
+        invitationSent: row.invitationSent,
+        reply: row.reply,
+      }))}
+      invitationStats={outreachStats(snapshot)}
       rsvpEnabled={snapshot.wedding.rsvpEnabled}
     />
   );

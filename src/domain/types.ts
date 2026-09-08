@@ -26,6 +26,7 @@ import type {
   PaymentStatus,
   PlanPhase,
   ResponsibilityStatus,
+  RsvpReply,
   RsvpStatus,
   TaskPriority,
   TaskStatus,
@@ -53,6 +54,7 @@ export type {
   PaymentStatus,
   PlanPhase,
   ResponsibilityStatus,
+  RsvpReply,
   RsvpStatus,
   TaskPriority,
   TaskStatus,
@@ -137,6 +139,10 @@ export interface HouseholdNode {
   country: string;
   rsvpToken: string;
   invitationStatus: InvitationStatus;
+  saveTheDateSentAt: Date | null;
+  rsvpSentAt: Date | null;
+  rsvpReply: RsvpReply;
+  rsvpRepliedAt: Date | null;
   rsvpSubmittedAt: Date | null;
   giftReceived: boolean;
   notes: string | null;

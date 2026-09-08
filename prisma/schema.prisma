@@ -258,6 +258,14 @@ enum DietaryPreference {
   NOT_SPECIFIED
 }
 
+/// Whether a household has answered, and how. Separate from the per-event
+/// RsvpStatus: this is the one answer the family actually chases.
+enum RsvpReply {
+  AWAITING
+  YES
+  NO
+}
+
 enum InvitationStatus {
   NOT_CONTACTED
   SAVE_THE_DATE_SENT
@@ -279,6 +287,13 @@ model Household {
   rsvpToken             String           @unique
   invitationStatus      InvitationStatus @default(NOT_CONTACTED)
   invitationDeliveredAt DateTime?
+  /// Save-the-date and invitation are tracked as two independent sends, because
+  /// in practice they go out months apart and often to different subsets.
+  /// Null means not sent; the timestamp answers "when?" for free.
+  saveTheDateSentAt     DateTime?
+  rsvpSentAt            DateTime?
+  rsvpReply             RsvpReply        @default(AWAITING)
+  rsvpRepliedAt         DateTime?
   giftReceived          Boolean          @default(false)
   giftNote              String?
   notes                 String?

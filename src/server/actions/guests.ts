@@ -444,3 +444,135 @@ const RSVP_TEXT: Record<(typeof RSVP)[number], string> = {
 function isAnswer(status: (typeof RSVP)[number]): boolean {
   return status === "CONFIRMED" || status === "DECLINED" || status === "TENTATIVE";
 }
+
+// ─────────────────────────────────────────────── Save-the-dates and invitations
+
+/**
+ * Mark a save-the-date or an invitation as sent, or un-send it.
+ *
+ * Stored as a timestamp rather than a boolean so "when did this go out?" is
+ * answerable later without a separate audit lookup.
+ */
+export async function setHouseholdSend(
+  householdId: string,
+  which: "saveTheDate" | "invitation",
+  sent: boolean,
+) {
+  return withAction("guests.edit", async (viewer) => {
+    z.enum(["saveTheDate", "invitation"]).parse(which);
+
+    const household = await db.household.findFirst({
+      where: { id: householdId, weddingId: viewer.weddingId },
+      select: {
+        id: true,
+        name: true,
+        saveTheDateSentAt: true,
+        rsvpSentAt: true,
+        invitationStatus: true,
+      },
+    });
+    if (!household) throw new Error("That household no longer exists.");
+
+    const at = sent ? new Date() : null;
+    const saveTheDateSentAt = which === "saveTheDate" ? at : household.saveTheDateSentAt;
+    const rsvpSentAt = which === "invitation" ? at : household.rsvpSentAt;
+
+    await db.household.update({
+      where: { id: householdId },
+      data: {
+        saveTheDateSentAt,
+        rsvpSentAt,
+        // Keep the legacy progression in step so milestones and the older
+        // invitation views don't drift away from these two flags.
+        invitationStatus: rsvpSentAt
+          ? "INVITED"
+          : saveTheDateSentAt
+            ? "SAVE_THE_DATE_SENT"
+            : "NOT_CONTACTED",
+      },
+    });
+
+    const label = which === "saveTheDate" ? "save-the-date" : "invitation";
+    await logViewerActivity(viewer, {
+      entityType: "household",
+      entityId: household.id,
+      entityLabel: household.name,
+      action: "invitation_updated",
+      summary: sent
+        ? `${viewer.name} marked the ${label} as sent to ${household.name}.`
+        : `${viewer.name} marked the ${label} to ${household.name} as not sent.`,
+      before: { saveTheDateSentAt: household.saveTheDateSentAt, rsvpSentAt: household.rsvpSentAt },
+      after: { saveTheDateSentAt, rsvpSentAt },
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id: household.id };
+  });
+}
+
+const REPLIES = ["AWAITING", "YES", "NO"] as const;
+
+/**
+ * Record a household's answer.
+ *
+ * The answer cascades: everyone in the household is marked confirmed or
+ * declined across every event, because this is a destination wedding where the
+ * whole family either comes for the week or doesn't. Setting it back to
+ * awaiting returns them to pending rather than guessing at a previous state.
+ */
+export async function setHouseholdReply(
+  householdId: string,
+  reply: (typeof REPLIES)[number],
+) {
+  return withAction("guests.edit", async (viewer) => {
+    z.enum(REPLIES).parse(reply);
+
+    const household = await db.household.findFirst({
+      where: { id: householdId, weddingId: viewer.weddingId },
+      select: {
+        id: true,
+        name: true,
+        rsvpReply: true,
+        guests: { select: { id: true }, where: { archivedAt: null } },
+      },
+    });
+    if (!household) throw new Error("That household no longer exists.");
+
+    const status = reply === "YES" ? "CONFIRMED" : reply === "NO" ? "DECLINED" : "PENDING";
+    const guestIds = household.guests.map((g) => g.id);
+    const now = new Date();
+
+    await db.$transaction([
+      db.household.update({
+        where: { id: householdId },
+        data: {
+          rsvpReply: reply,
+          rsvpRepliedAt: reply === "AWAITING" ? null : now,
+          rsvpSubmittedAt: reply === "AWAITING" ? null : now,
+        },
+      }),
+      db.eventInvitation.updateMany({
+        where: { guestId: { in: guestIds }, status: { not: "NOT_INVITED" } },
+        data: { status, respondedAt: reply === "AWAITING" ? null : now },
+      }),
+    ]);
+
+    await logViewerActivity(viewer, {
+      entityType: "household",
+      entityId: household.id,
+      entityLabel: household.name,
+      action: "rsvp_updated",
+      summary:
+        reply === "AWAITING"
+          ? `${viewer.name} cleared the reply from ${household.name}.`
+          : `${household.name} replied ${reply === "YES" ? "yes" : "no"} — ${guestIds.length} ${guestIds.length === 1 ? "person" : "people"}.`,
+      before: { rsvpReply: household.rsvpReply },
+      after: { rsvpReply: reply },
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id: household.id, guests: guestIds.length };
+  });
+}

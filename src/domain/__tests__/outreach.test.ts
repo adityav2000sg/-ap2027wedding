@@ -1,0 +1,113 @@
+import { describe, expect, it } from "vitest";
+
+import { outreachGaps, outreachRows, outreachStats } from "../outreach";
+import { makeSnapshot } from "./fixtures";
+import type { WeddingSnapshot } from "../types";
+
+/** Two households, three people, so headcount and household counts can't be confused. */
+function snapshotWith(
+  households: Partial<WeddingSnapshot["households"][number]>[],
+): WeddingSnapshot {
+  const base = makeSnapshot();
+  const template = base.households[0];
+
+  const built = households.map((overrides, index) => ({
+    ...template,
+    id: `h${index}`,
+    name: `Household ${index}`,
+    rsvpToken: `token${index}`,
+    saveTheDateSentAt: null,
+    rsvpSentAt: null,
+    rsvpReply: "AWAITING" as const,
+    rsvpRepliedAt: null,
+    ...overrides,
+  }));
+
+  return {
+    ...base,
+    households: built,
+    guests: [
+      { ...base.guests[0], id: "g0", householdId: "h0" },
+      { ...base.guests[0], id: "g1", householdId: "h0" },
+      { ...base.guests[0], id: "g2", householdId: "h1" },
+    ],
+  };
+}
+
+describe("outreach", () => {
+  it("tracks the two sends independently", () => {
+    const snapshot = snapshotWith([
+      { saveTheDateSentAt: new Date("2026-01-01"), rsvpSentAt: null },
+      { saveTheDateSentAt: null, rsvpSentAt: new Date("2026-05-01") },
+    ]);
+
+    const stats = outreachStats(snapshot);
+    expect(stats.stdSent).toBe(1);
+    expect(stats.stdNotSent).toBe(1);
+    expect(stats.rsvpSent).toBe(1);
+    expect(stats.rsvpNotSent).toBe(1);
+  });
+
+  it("counts people as well as households, so a large family's no carries its weight", () => {
+    const snapshot = snapshotWith([
+      { rsvpSentAt: new Date("2026-05-01"), rsvpReply: "NO" },
+      { rsvpSentAt: new Date("2026-05-01"), rsvpReply: "YES" },
+    ]);
+
+    const stats = outreachStats(snapshot);
+    expect(stats.no).toBe(1);
+    expect(stats.yes).toBe(1);
+    // h0 has two people, h1 has one.
+    expect(stats.peopleNo).toBe(2);
+    expect(stats.peopleYes).toBe(1);
+  });
+
+  it("treats awaiting as its own state rather than folding it into no", () => {
+    const snapshot = snapshotWith([
+      { rsvpSentAt: new Date("2026-05-01") },
+      { rsvpSentAt: new Date("2026-05-01"), rsvpReply: "NO" },
+    ]);
+
+    const stats = outreachStats(snapshot);
+    expect(stats.awaiting).toBe(1);
+    expect(stats.no).toBe(1);
+    expect(stats.peopleAwaiting).toBe(2);
+  });
+
+  it("measures response rate against invitations sent, not the whole list", () => {
+    const snapshot = snapshotWith([
+      { rsvpSentAt: new Date("2026-05-01"), rsvpReply: "YES" },
+      // Never invited, so it can't count against the response rate.
+      {},
+    ]);
+
+    const stats = outreachStats(snapshot);
+    expect(stats.rsvpSent).toBe(1);
+    expect(stats.responseRate).toBe(100);
+  });
+
+  it("reports no response rate rather than dividing by zero", () => {
+    expect(outreachStats(snapshotWith([{}, {}])).responseRate).toBe(0);
+  });
+
+  it("surfaces the chase list and the households nobody has contacted", () => {
+    const snapshot = snapshotWith([
+      { rsvpSentAt: new Date("2026-05-01") },
+      {},
+    ]);
+
+    const gaps = outreachGaps(snapshot);
+    expect(gaps.awaitingReply.map((r) => r.householdId)).toEqual(["h0"]);
+    expect(gaps.neverContacted.map((r) => r.householdId)).toEqual(["h1"]);
+  });
+
+  it("flags a reply that arrived without an invitation ever being sent", () => {
+    const snapshot = snapshotWith([{ rsvpReply: "YES" }, {}]);
+    expect(outreachGaps(snapshot).repliedWithoutInvite.map((r) => r.householdId)).toEqual(["h0"]);
+  });
+
+  it("sorts rows by name so the list is stable between renders", () => {
+    const snapshot = snapshotWith([{ name: "Zutshi" }, { name: "Abrol" }]);
+    expect(outreachRows(snapshot).map((r) => r.name)).toEqual(["Abrol", "Zutshi"]);
+  });
+});
