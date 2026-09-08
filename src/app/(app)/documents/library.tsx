@@ -69,7 +69,7 @@ export function DocumentsLibrary({
         <div className="eyebrow mb-2">Everything on file</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-[34px] leading-tight text-ink">Documents</h1>
+            <h1 className="font-script text-[54px] text-ink">Documents</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {items.length === 0
                 ? "Contracts, quotes, invoices and menus — all in one place."
@@ -134,7 +134,7 @@ export function DocumentsLibrary({
                     initial={reduce ? false : { opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{
-                      duration: 0.3,
+                      duration: 0.55,
                       ease: [0.22, 1, 0.36, 1],
                       delay: reduce ? 0 : Math.min(index * 0.03, 0.3),
                     }}

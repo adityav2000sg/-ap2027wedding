@@ -26,7 +26,7 @@ function easeOut(t: number): number {
 export function AnimatedNumber({
   value,
   format,
-  duration = 650,
+  duration = 1100,
   className,
 }: {
   value: number;
@@ -110,7 +110,9 @@ export function ProgressRing({
     const from = fromRef.current;
     const delta = value - from;
     const start = performance.now();
-    const duration = 900;
+    // Long enough to read as a sweep rather than a jump — the ring is the
+    // first thing the eye lands on, so it earns the extra half-second.
+    const duration = 1400;
     let frame: number;
 
     const tick = (now: number) => {
@@ -173,7 +175,7 @@ export function ProgressRing({
  */
 export function Stagger({
   children,
-  step = 35,
+  step = 60,
   className,
 }: {
   children: React.ReactNode;
@@ -189,7 +191,7 @@ export function Stagger({
         <div
           key={index}
           className={reduce ? undefined : "animate-rise"}
-          style={reduce ? undefined : { animationDelay: `${Math.min(index * step, 300)}ms` }}
+          style={reduce ? undefined : { animationDelay: `${Math.min(index * step, 520)}ms` }}
         >
           {child}
         </div>
@@ -211,7 +213,7 @@ export function Collapsible({
   return (
     <div
       className={cn(
-        "grid transition-all duration-250 transition-natural",
+        "grid transition-all duration-500 transition-natural",
         open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
         className,
       )}

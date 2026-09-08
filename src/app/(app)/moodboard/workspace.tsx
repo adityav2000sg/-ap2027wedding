@@ -114,7 +114,7 @@ export function MoodboardWorkspace({
         <div className="eyebrow mb-2">Inspiration</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-[34px] leading-tight text-ink">Moodboards</h1>
+            <h1 className="font-script text-[54px] text-ink">Moodboards</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {totalImages > 0
                 ? `${totalImages} ${totalImages === 1 ? "image" : "images"} across ${boards.length} boards.`

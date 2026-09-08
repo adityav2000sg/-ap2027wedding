@@ -45,7 +45,7 @@ export function HeroCountdown({
           </div>
         ) : (
           <div className="text-right">
-            <div className="font-display text-[44px] leading-none text-ink">
+            <div className="font-script text-[70px] text-ink">
               Married
             </div>
           </div>

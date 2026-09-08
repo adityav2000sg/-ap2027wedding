@@ -8,6 +8,13 @@ import { Fraunces, Inter } from "next/font/google";
  * rather than being a body face scaled up. Chosen as the closest freely
  * licensable stand-in for Golden Hour.
  *
+ * Script — Edwardian Script ITC, the big title face. Self-hosted from
+ * `public/fonts/edwardian-script.woff2` (see `globals.css`) rather than loaded
+ * here, because it isn't a Google font.
+ *
+ * Reserved for names and page titles. Numbers stay on Fraunces — tabular data in
+ * a script face is unreadable.
+ *
  * UI — Inter, with tracking tightened in CSS. Designed for screen UI at small
  * sizes, which is what this app's density needs.
  *

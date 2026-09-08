@@ -27,10 +27,14 @@ export interface QuickAddOptions {
   categories: { id: string; name: string }[];
   payers: { id: string; name: string }[];
   households: { id: string; name: string }[];
+  venues: { id: string; name: string }[];
   baseCurrency: string;
+  /** First day of the wedding, `YYYY-MM-DD` — the default date for a new function. */
+  weddingStart: string;
   canEditBudget: boolean;
   canEditGuests: boolean;
   canEditVendors: boolean;
+  canEditEvents: boolean;
 }
 
 export function AppShell({

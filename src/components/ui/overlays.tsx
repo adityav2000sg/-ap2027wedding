@@ -48,15 +48,14 @@ export function Sheet({
         <DialogPrimitive.Overlay
           className={cn(
             "fixed inset-0 z-50 bg-ink/25 backdrop-blur-[2px]",
-            "data-[state=open]:animate-fade",
+            "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
           )}
         />
         <DialogPrimitive.Content
           className={cn(
             "fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-surface shadow-overlay",
             "border-l border-line outline-none",
-            "duration-250 transition-natural",
-            "data-[state=open]:animate-in data-[state=open]:slide-in-from-right",
+            "data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out",
             widths,
           )}
         >
@@ -117,12 +116,12 @@ export function Modal({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-ink/30 backdrop-blur-[2px] data-[state=open]:animate-fade" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-ink/30 backdrop-blur-[2px] data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out" />
         <DialogPrimitive.Content
           className={cn(
             "fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2",
             "rounded-[var(--radius-panel)] border border-line bg-surface shadow-overlay outline-none",
-            "animate-rise",
+            "data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out",
             sizes,
           )}
         >
@@ -225,7 +224,7 @@ export function Popover({
           sideOffset={6}
           className={cn(
             "z-50 rounded-xl border border-line bg-surface p-1.5 shadow-float outline-none",
-            "animate-rise",
+            "data-[state=open]:animate-rise data-[state=closed]:animate-overlay-out",
             className,
           )}
         >
@@ -271,7 +270,7 @@ export function Tooltip({
           sideOffset={6}
           className={cn(
             "z-50 max-w-xs rounded-lg bg-ink px-2.5 py-1.5 text-[12px] leading-snug text-canvas shadow-float",
-            "animate-fade",
+            "data-[state=delayed-open]:animate-fade",
             className,
           )}
         >

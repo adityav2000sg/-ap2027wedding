@@ -75,7 +75,7 @@ export function Rail({
                 aria-label={item.label}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 active:scale-90",
+                  "relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-400 transition-natural active:scale-90",
                   active
                     ? "text-saffron"
                     : "text-ink-faint hover:bg-surface-sunken hover:text-ink-soft",
@@ -160,7 +160,7 @@ function RailButton({
         type="button"
         onClick={onClick}
         aria-label={label}
-        className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-faint transition-all duration-200 hover:bg-surface-sunken hover:text-ink-soft active:scale-95"
+        className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-faint transition-all duration-400 transition-natural hover:bg-surface-sunken hover:text-ink-soft active:scale-95"
       >
         {children}
       </button>

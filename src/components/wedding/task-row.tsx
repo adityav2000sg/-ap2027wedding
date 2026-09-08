@@ -94,7 +94,7 @@ export function TaskRow({
         disabled={!canEdit || pending}
         onClick={() => toggle(!done)}
         className={cn(
-          "mt-[1px] flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-[5px] border transition-all duration-150",
+          "mt-[1px] flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-[5px] border transition-all duration-300 transition-natural",
           done
             ? "border-positive bg-positive text-white"
             : "border-line-strong bg-surface hover:border-saffron",

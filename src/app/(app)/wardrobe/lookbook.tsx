@@ -98,7 +98,7 @@ export function WardrobeLookbook({
       <header className="mb-6">
         <div className="eyebrow mb-2">Looks</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <h1 className="font-display text-[34px] leading-tight text-ink">Wardrobe</h1>
+          <h1 className="font-script text-[54px] text-ink">Wardrobe</h1>
           {canEdit ? (
             <Button variant="secondary" onClick={() => setAdding(true)}>
               <PlusIcon size={14} /> Add a look

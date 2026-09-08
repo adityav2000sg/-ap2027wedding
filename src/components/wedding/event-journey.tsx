@@ -108,7 +108,7 @@ export function EventJourney({
                   {/* Name */}
                   <h3
                     className={cn(
-                      "text-center font-display text-[20px] leading-tight transition-all duration-200",
+                      "text-center font-display text-[20px] leading-tight transition-all duration-400 transition-natural",
                       tone.text,
                       isActive ? "scale-[1.03]" : "",
                     )}

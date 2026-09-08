@@ -58,7 +58,7 @@ export function CardHeader({
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium " +
-    "transition-all duration-150 transition-natural select-none " +
+    "transition-all duration-250 transition-natural select-none " +
     "disabled:opacity-45 disabled:pointer-events-none whitespace-nowrap",
   {
     variants: {

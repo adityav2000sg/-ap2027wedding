@@ -6,6 +6,7 @@ import { Avatar, Badge } from "@/components/ui/primitives";
 import { ROLE_DESCRIPTION, ROLE_LABEL } from "@/server/permissions";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
+import { buildBudgetView } from "@/domain/budget";
 import { SettingsPanels } from "./panels";
 
 export default async function SettingsPage() {
@@ -13,6 +14,9 @@ export default async function SettingsPage() {
   if (!viewer) redirect("/login");
 
   const snapshot = await loadSnapshot(viewer.weddingId);
+  // Shown in the viewer's currency like every other figure in the app; the
+  // stored currency is named alongside so the conversion isn't a surprise.
+  const budget = buildBudgetView(snapshot, viewer.displayCurrency);
 
   // Latest rate per pair, so the table shows what's actually in use.
   const latestRates = new Map<string, { from: string; to: string; rate: number; on: Date }>();
@@ -33,7 +37,7 @@ export default async function SettingsPage() {
     <div className="mx-auto max-w-[900px] px-5 py-8 sm:px-8">
       <header className="mb-8">
         <div className="eyebrow mb-2">How this is set up</div>
-        <h1 className="font-display text-[34px] leading-tight text-ink">Settings</h1>
+        <h1 className="font-script text-[54px] text-ink">Settings</h1>
       </header>
 
       {/* The wedding */}
@@ -55,7 +59,12 @@ export default async function SettingsPage() {
               : "Not decided"}
           </Fact>
           <Fact label="Budget">
-            {formatMoney(snapshot.wedding.totalBudget, snapshot.wedding.baseCurrency)}
+            {formatMoney(budget.finance.totalBudget, budget.finance.baseCurrency)}
+            {budget.finance.baseCurrency !== snapshot.wedding.baseCurrency ? (
+              <span className="ml-1.5 text-ink-faint">
+                (set in {snapshot.wedding.baseCurrency})
+              </span>
+            ) : null}
           </Fact>
           <Fact label="Guests planned for">{snapshot.wedding.estimatedGuests}</Fact>
         </dl>

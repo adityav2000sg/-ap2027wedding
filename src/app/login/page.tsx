@@ -37,7 +37,7 @@ export default async function LoginPage() {
         <div className="eyebrow relative">Wedding Operating System</div>
 
         <div className="relative">
-          <h1 className="font-display text-[56px] leading-[1.05] text-ink">
+          <h1 className="font-script text-[88px] text-ink">
             {wedding?.partnerAName ?? "Avantika"}
             <span className="mx-3 text-saffron">&</span>
             {wedding?.partnerBName ?? "Prateek"}

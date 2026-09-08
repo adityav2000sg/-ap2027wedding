@@ -41,7 +41,7 @@ export function LoginForm() {
   return (
     <div className="w-full max-w-sm">
       <div className="mb-7 lg:hidden">
-        <h1 className="font-display text-[32px] leading-tight text-ink">
+        <h1 className="font-script text-[52px] text-ink">
           Avantika <span className="text-saffron">&</span> Prateek
         </h1>
       </div>

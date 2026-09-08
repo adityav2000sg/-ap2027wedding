@@ -36,6 +36,7 @@ export default async function TimelinePage({
   const eventById = new Map(snapshot.events.map((e) => [e.id, e]));
 
   const days = groupTimelineByDay(snapshot.timeline);
+  const canEditTimeline = viewer.permissions.has("timeline.edit");
 
   // Planning timeline: milestone tasks grouped by phase, in wedding order.
   const milestones = tasks
@@ -57,7 +58,7 @@ export default async function TimelinePage({
     <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8">
       <header className="mb-6">
         <div className="eyebrow mb-2">When everything happens</div>
-        <h1 className="font-display text-[34px] leading-tight text-ink">Timeline</h1>
+        <h1 className="font-script text-[54px] text-ink">Timeline</h1>
         <p className="mt-1.5 text-[13.5px] text-ink-muted">
           The months leading up to it, and the minutes within it.
         </p>
@@ -197,7 +198,28 @@ export default async function TimelinePage({
                       vendorName: entry.vendorId
                         ? snapshot.vendors.find((v) => v.id === entry.vendorId)?.businessName ?? null
                         : null,
+                      ownerId: entry.ownerId,
+                      vendorId: entry.vendorId,
                     }))}
+                    editing={
+                      canEditTimeline
+                        ? {
+                            // A day usually belongs to one function; a moment
+                            // added on a day with none is wedding-level.
+                            eventId: dayEvents[0]?.id ?? null,
+                            date: day.date,
+                            defaultStartMinute:
+                              dayEvents[0]?.startMinute ?? 9 * 60,
+                            members: snapshot.members.map((m) => ({
+                              id: m.id,
+                              name: m.name,
+                            })),
+                            vendors: snapshot.vendors
+                              .filter((v) => v.status !== "REJECTED")
+                              .map((v) => ({ id: v.id, name: v.businessName })),
+                          }
+                        : undefined
+                    }
                   />
                 </section>
               );

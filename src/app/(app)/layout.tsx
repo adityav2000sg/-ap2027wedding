@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { buildBudgetView } from "@/domain/budget";
 import { computeAlerts } from "@/domain/risk";
 import { analyseTasks } from "@/domain/tasks";
-import { daysBetween, formatDateRange } from "@/lib/dates";
+import { daysBetween, formatDateRange, toISODate } from "@/lib/dates";
 import { AppShell } from "@/components/shell/app-shell";
 import { visibleNavItems } from "@/components/shell/nav";
 import { getViewer } from "@/server/auth";
@@ -56,10 +56,13 @@ export default async function AppLayout({
         categories: snapshot.categories.map((c) => ({ id: c.id, name: c.name })),
         payers: snapshot.payers.map((p) => ({ id: p.id, name: p.name })),
         households: snapshot.households.map((h) => ({ id: h.id, name: h.name })),
+        venues: snapshot.venues.map((v) => ({ id: v.id, name: v.name })),
         baseCurrency: snapshot.wedding.baseCurrency,
+        weddingStart: toISODate(snapshot.wedding.startDate),
         canEditBudget: viewer.permissions.has("payments.approve"),
         canEditGuests: viewer.permissions.has("guests.edit"),
         canEditVendors: viewer.permissions.has("vendors.edit"),
+        canEditEvents: viewer.permissions.has("events.edit"),
       }}
     >
       {children}

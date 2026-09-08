@@ -66,7 +66,7 @@ export default async function VendorsPage({
         <div className="eyebrow mb-2">Who you're hiring</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-[34px] leading-tight text-ink">Vendors</h1>
+            <h1 className="font-script text-[54px] text-ink">Vendors</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {contracted} contracted of {snapshot.vendors.filter((v) => v.status !== "REJECTED").length} in play
               {rejectedCount > 0 ? ` · ${rejectedCount} ruled out` : ""}

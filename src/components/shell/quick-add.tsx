@@ -11,7 +11,18 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import { toISODate, today } from "@/lib/dates";
+import {
+  EVENT_KIND_LABEL,
+  EVENT_KIND_PRESETS,
+  resolveEndMinute,
+} from "@/domain/events";
+import type { EventKind } from "@/domain/types";
+import {
+  minuteToTimeInput,
+  timeInputToMinute,
+  toISODate,
+  today,
+} from "@/lib/dates";
 import { currencySymbol } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { Sheet } from "@/components/ui/overlays";
@@ -19,23 +30,26 @@ import { Button } from "@/components/ui/primitives";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import {
   BriefcaseIcon,
+  CalendarIcon,
   CheckSquareIcon,
   UsersIcon,
   WalletIcon,
 } from "@/components/ui/icons";
+import { createEvent } from "@/server/actions/events";
 import { createTask } from "@/server/actions/tasks";
 import { createGuest } from "@/server/actions/guests";
 import { createVendor } from "@/server/actions/vendors";
 import { createPayment } from "@/server/actions/budget";
 import type { QuickAddOptions } from "./app-shell";
 
-type Kind = "task" | "guest" | "vendor" | "payment";
+type Kind = "task" | "event" | "guest" | "vendor" | "payment";
 
 const KINDS: { key: Kind; label: string; icon: React.ComponentType<{ size?: number }>; hint: string }[] = [
   { key: "task", label: "Task", icon: CheckSquareIcon, hint: "Something that needs doing" },
   { key: "guest", label: "Guest", icon: UsersIcon, hint: "Someone on the list" },
   { key: "vendor", label: "Vendor", icon: BriefcaseIcon, hint: "Someone you're hiring" },
   { key: "payment", label: "Payment", icon: WalletIcon, hint: "Money out" },
+  { key: "event", label: "Function", icon: CalendarIcon, hint: "A day of the wedding" },
 ];
 
 export function QuickAdd({
@@ -51,12 +65,16 @@ export function QuickAdd({
     if (kind.key === "payment") return options.canEditBudget;
     if (kind.key === "guest") return options.canEditGuests;
     if (kind.key === "vendor") return options.canEditVendors;
+    if (kind.key === "event") return options.canEditEvents;
     return true;
   });
 
   const [kind, setKind] = React.useState<Kind>(available[0]?.key ?? "task");
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
+  // The chosen function type drives the suggested times, so it has to be state
+  // rather than an uncontrolled select.
+  const [eventKind, setEventKind] = React.useState<EventKind>("MEHENDI");
   const router = useRouter();
 
   React.useEffect(() => {
@@ -112,6 +130,28 @@ export function QuickAdd({
             currency: options.baseCurrency,
           });
           break;
+        case "event": {
+          const startMinute = timeInputToMinute(value("startTime"));
+          const eventKindValue = (value("kind") || "CUSTOM") as EventKind;
+          result = await createEvent({
+            name: value("name"),
+            kind: eventKindValue,
+            date: value("date"),
+            startMinute,
+            endMinute: resolveEndMinute(
+              startMinute,
+              timeInputToMinute(value("endTime")),
+              checked("endsNextDay"),
+            ),
+            venueId: value("venueId"),
+            estimatedGuests: Number(value("estimatedGuests") || 0),
+            accentTone: (EVENT_KIND_PRESETS[eventKindValue] ?? EVENT_KIND_PRESETS.CUSTOM).tone,
+            inviteMode: value("inviteMode") || "none",
+            generateTasks: true,
+            createMoodboard: true,
+          });
+          break;
+        }
         case "payment":
           result = await createPayment({
             label: value("label"),
@@ -159,7 +199,7 @@ export function QuickAdd({
               type="button"
               onClick={() => { setKind(option.key); setError(null); }}
               className={cn(
-                "flex flex-col items-start gap-1.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-150",
+                "flex flex-col items-start gap-1.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-300 transition-natural",
                 active
                   ? "border-saffron/40 bg-saffron-soft"
                   : "border-line bg-surface hover:border-line-strong hover:bg-surface-sunken",
@@ -227,6 +267,124 @@ export function QuickAdd({
             <FormField label="Notes" htmlFor="qa-desc">
               <Textarea id="qa-desc" name="description" placeholder="Anything worth remembering…" />
             </FormField>
+          </>
+        ) : null}
+
+        {kind === "event" ? (
+          <>
+            <FormField label="What kind of function?" htmlFor="qa-kind">
+              <Select
+                id="qa-kind"
+                name="kind"
+                value={eventKind}
+                onChange={(e) => setEventKind(e.target.value as EventKind)}
+              >
+                {(Object.keys(EVENT_KIND_LABEL) as EventKind[]).map((key) => (
+                  <option key={key} value={key}>{EVENT_KIND_LABEL[key]}</option>
+                ))}
+              </Select>
+            </FormField>
+
+            <FormField label="What's it called?" required htmlFor="qa-name">
+              <Input
+                id="qa-name"
+                name="name"
+                autoFocus
+                required
+                key={`name-${eventKind}`}
+                defaultValue={EVENT_KIND_PRESETS[eventKind].name}
+                placeholder="Mata ki Chowki"
+              />
+            </FormField>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <FormField label="Date" required htmlFor="qa-edate">
+                <Input
+                  id="qa-edate"
+                  name="date"
+                  type="date"
+                  required
+                  defaultValue={options.weddingStart}
+                />
+              </FormField>
+              <FormField label="Starts" required htmlFor="qa-estart">
+                <Input
+                  id="qa-estart"
+                  name="startTime"
+                  type="time"
+                  required
+                  key={`start-${eventKind}`}
+                  defaultValue={minuteToTimeInput(EVENT_KIND_PRESETS[eventKind].startMinute)}
+                />
+              </FormField>
+              <FormField label="Ends" required htmlFor="qa-eend">
+                <Input
+                  id="qa-eend"
+                  name="endTime"
+                  type="time"
+                  required
+                  key={`end-${eventKind}`}
+                  defaultValue={minuteToTimeInput(
+                    EVENT_KIND_PRESETS[eventKind].startMinute +
+                      EVENT_KIND_PRESETS[eventKind].durationMinutes,
+                  )}
+                />
+              </FormField>
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+              <input
+                type="checkbox"
+                name="endsNextDay"
+                className="h-3.5 w-3.5 accent-[var(--color-saffron)]"
+                key={`next-${eventKind}`}
+                defaultChecked={
+                  EVENT_KIND_PRESETS[eventKind].startMinute +
+                    EVENT_KIND_PRESETS[eventKind].durationMinutes >=
+                  1440
+                }
+              />
+              Runs past midnight
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="Where?" htmlFor="qa-evenue">
+                <Select id="qa-evenue" name="venueId" defaultValue="">
+                  <option value="">Not decided yet</option>
+                  {options.venues.map((venue) => (
+                    <option key={venue.id} value={venue.id}>{venue.name}</option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Expected guests" htmlFor="qa-eguests">
+                <Input
+                  id="qa-eguests"
+                  name="estimatedGuests"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Blank uses the RSVP count"
+                />
+              </FormField>
+            </div>
+
+            <FormField
+              label="Who's invited?"
+              hint="The planning tasks for this kind of function are generated either way."
+              htmlFor="qa-einvite"
+            >
+              <Select id="qa-einvite" name="inviteMode" defaultValue="none">
+                <option value="none">Nobody yet — I'll pick later</option>
+                <option value="everyone">Everyone on the list</option>
+                <option value="bride">The bride's side</option>
+                <option value="groom">The groom's side</option>
+                <option value="vip">VIPs only</option>
+              </Select>
+            </FormField>
+
+            <p className="text-[12px] leading-relaxed text-ink-muted">
+              {EVENT_KIND_PRESETS[eventKind].hint}
+            </p>
           </>
         ) : null}
 

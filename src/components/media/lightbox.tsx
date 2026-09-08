@@ -262,7 +262,7 @@ function NavButton({ side, onClick }: { side: "left" | "right"; onClick(): void 
       aria-label={side === "left" ? "Previous photo" : "Next photo"}
       className={cn(
         "absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full",
-        "bg-canvas/10 text-canvas/70 backdrop-blur transition-all duration-200",
+        "bg-canvas/10 text-canvas/70 backdrop-blur transition-all duration-400 transition-natural",
         "hover:bg-canvas/20 hover:text-canvas active:scale-95",
         side === "left" ? "left-3" : "right-3",
       )}

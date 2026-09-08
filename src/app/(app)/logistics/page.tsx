@@ -57,7 +57,7 @@ export default async function LogisticsPage({
     <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8">
       <header className="mb-7">
         <div className="eyebrow mb-2">Getting everyone there</div>
-        <h1 className="font-display text-[34px] leading-tight text-ink">Logistics</h1>
+        <h1 className="font-script text-[54px] text-ink">Logistics</h1>
         <p className="mt-1.5 text-[13.5px] text-ink-muted">
           Rooms, flights, transfers and who's responsible for what.
         </p>

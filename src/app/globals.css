@@ -14,6 +14,16 @@
   No build step, no code change.
 */
 @font-face {
+  /* Edwardian Script ITC — the title face. Subset to Latin and compressed to
+     WOFF2 (20KB) from the licensed desktop file. */
+  font-family: "Edwardian Script";
+  src: url("/fonts/edwardian-script.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "Golden Hour";
   src: url("/fonts/golden-hour.woff2") format("woff2");
   font-weight: 300 700;
@@ -89,6 +99,10 @@
      self-hosted Fraunces, then system serifs. */
   --font-display: "Golden Hour", var(--font-display-loaded), "Iowan Old Style",
     "Palatino Linotype", Palatino, Georgia, serif;
+  /* The big title face. Self-hosted first; the local desktop install and the
+     system scripts only matter while the file is in flight. */
+  --font-script: "Edwardian Script", "Edwardian Script ITC", "Snell Roundhand",
+    "Apple Chancery", cursive;
   --font-sans: var(--font-sans-loaded), ui-sans-serif, -apple-system,
     BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, monospace;
@@ -148,6 +162,22 @@
   /* Display type wants looser tracking than the UI default. */
   .font-display {
     letter-spacing: -0.02em;
+  }
+
+  /* Script titles. A copperplate hand needs the opposite of the UI treatment:
+     positive tracking so the joins breathe, generous leading so the ascenders
+     and descenders don't collide, and no synthetic smoothing tricks that thin
+     the hairlines further. Sizes at each call site are already scaled up — a
+     script face runs visually much smaller than a serif at the same px. */
+  .font-script {
+    font-family: var(--font-script);
+    font-weight: 400;
+    letter-spacing: 0.005em;
+    line-height: 1.15;
+    /* Descenders in a copperplate hand swing well below the baseline and sit
+       outside the line box, so reserve a little room rather than letting them
+       graze whatever follows. */
+    padding-bottom: 0.08em;
   }
 
   .tabular {
@@ -318,20 +348,72 @@
     transition-timing-function: var(--ease-out-quint);
   }
 
+  /*
+    House motion.
+
+    One rule: things arrive slowly and leave quickly. An entrance is allowed to
+    take the better part of a second because it is scenery — you read the page
+    while it settles. An exit is a decision already made, so it gets out of the
+    way at half the duration. Every one of these is switched off wholesale by
+    the reduced-motion block at the bottom of this file.
+  */
   .animate-rise {
-    animation: rise 420ms var(--ease-out-quint) both;
+    animation: rise 700ms var(--ease-out-quint) both;
   }
   .animate-fade {
-    animation: fade 260ms var(--ease-out-quint) both;
+    animation: fade 420ms var(--ease-out-quint) both;
+  }
+
+  /* Side sheets — the main way detail opens without leaving the page. */
+  .animate-sheet-in {
+    animation: sheet-in 620ms var(--ease-out-quint) both;
+  }
+  .animate-sheet-out {
+    animation: sheet-out 300ms var(--ease-in-out-soft) both;
+  }
+
+  /* Modals and popovers rise into place from just below centre. */
+  .animate-pop-in {
+    animation: pop-in 520ms var(--ease-out-quint) both;
+  }
+  .animate-pop-out {
+    animation: pop-out 220ms var(--ease-in-out-soft) both;
+  }
+
+  .animate-overlay-in {
+    animation: fade 420ms var(--ease-out-quint) both;
+  }
+  .animate-overlay-out {
+    animation: fade-out 260ms var(--ease-in-out-soft) both;
   }
 
   @keyframes rise {
-    from { opacity: 0; transform: translateY(8px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
   @keyframes fade {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes sheet-in {
+    from { opacity: 0; transform: translateX(26px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes sheet-out {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(20px); }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)) scale(0.985); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  @keyframes pop-out {
+    from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    to { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(0.99); }
   }
   @keyframes shimmer {
     100% { transform: translateX(100%); }

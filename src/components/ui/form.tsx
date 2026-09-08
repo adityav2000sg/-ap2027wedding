@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 
 const FIELD_BASE =
   "w-full rounded-lg border border-line bg-surface px-3 text-[13.5px] text-ink " +
-  "placeholder:text-ink-faint transition-colors duration-150 " +
+  "placeholder:text-ink-faint transition-colors duration-300 transition-natural " +
   "hover:border-line-strong focus:border-saffron focus:outline-none " +
   "focus:ring-2 focus:ring-saffron/20 disabled:opacity-50 disabled:bg-surface-sunken";
 
@@ -127,7 +127,7 @@ export function Checkbox({
         disabled={disabled}
         className={cn(
           "mt-0.5 flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-[5px]",
-          "border border-line-strong bg-surface transition-all duration-150",
+          "border border-line-strong bg-surface transition-all duration-300 transition-natural",
           "hover:border-saffron/60 disabled:opacity-50",
           "data-[state=checked]:border-saffron data-[state=checked]:bg-saffron",
         )}
@@ -181,14 +181,14 @@ export function Switch({
         disabled={disabled}
         className={cn(
           "relative h-[22px] w-[38px] shrink-0 rounded-full border border-line-strong",
-          "bg-surface-sunken transition-colors duration-200 disabled:opacity-50",
+          "bg-surface-sunken transition-colors duration-300 disabled:opacity-50",
           "data-[state=checked]:border-saffron data-[state=checked]:bg-saffron",
         )}
       >
         <SwitchPrimitive.Thumb
           className={cn(
             "block h-[16px] w-[16px] translate-x-[2px] rounded-full bg-white shadow-flat",
-            "transition-transform duration-200 transition-natural",
+            "transition-transform duration-400 transition-natural",
             "data-[state=checked]:translate-x-[19px]",
           )}
         />
@@ -229,7 +229,7 @@ export function SegmentedControl<T extends string>({
             aria-selected={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-[7px] font-medium transition-all duration-150",
+              "inline-flex items-center gap-1.5 rounded-[7px] font-medium transition-all duration-300 transition-natural",
               size === "sm" ? "h-6 px-2 text-[12px]" : "h-7 px-2.5 text-[12.5px]",
               active
                 ? "bg-surface text-ink shadow-flat"

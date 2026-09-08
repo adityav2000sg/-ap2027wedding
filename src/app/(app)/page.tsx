@@ -192,7 +192,7 @@ export default async function HomePage() {
           <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-8">
             <div className="min-w-0">
               <div className="eyebrow">The wedding of</div>
-              <h1 className="mt-2.5 font-display text-[46px] leading-[0.98] text-ink sm:text-[68px]">
+              <h1 className="mt-2.5 font-script text-[72px] text-ink sm:text-[104px]">
                 {snapshot.wedding.partnerAName}
                 <span className="mx-3 font-light text-saffron">&</span>
                 {snapshot.wedding.partnerBName}

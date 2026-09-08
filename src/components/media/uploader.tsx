@@ -206,7 +206,7 @@ export function Uploader({
         }}
         className={cn(
           "group relative flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed text-center",
-          "transition-colors duration-200 transition-natural",
+          "transition-colors duration-400 transition-natural",
           compact ? "gap-1 px-3 py-4" : "gap-1.5 px-5 py-8",
           dragging
             ? "border-saffron bg-saffron-soft"
@@ -300,7 +300,7 @@ export function Uploader({
                           )}
                           initial={{ width: 0 }}
                           animate={{ width: `${item.progress}%` }}
-                          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
                         />
                       </div>
                     )}

@@ -299,7 +299,7 @@ function ItemForm({
           initial={reduce ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={reduce ? undefined : { opacity: 0, y: -6 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="grid gap-4 sm:grid-cols-2"
         >
           {costModel === "FIXED" ? (
@@ -376,7 +376,7 @@ function ItemForm({
           <span className="text-[12.5px] font-medium text-ink-soft">
             Firm numbers <span className="text-ink-faint">— quote, negotiated, contracted</span>
           </span>
-          <motion.span animate={{ rotate: showFirm ? 180 : 0 }} transition={{ duration: 0.2 }}
+          <motion.span animate={{ rotate: showFirm ? 180 : 0 }} transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="text-ink-muted">
             <ChevronIcon />
           </motion.span>

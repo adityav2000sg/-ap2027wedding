@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { buildBudgetView } from "@/domain/budget";
 import { computeEventReadiness } from "@/domain/readiness";
 import { analyseTasks } from "@/domain/tasks";
-import { formatLongDate, formatMinute } from "@/lib/dates";
+import { formatLongDate, formatMinute, toISODate } from "@/lib/dates";
 import { formatCompactMoney, formatMoney } from "@/lib/money";
 import { cn, toneClasses } from "@/lib/cn";
 import { Badge, Meter } from "@/components/ui/primitives";
@@ -17,6 +17,8 @@ import { db } from "@/server/db";
 import { variantUrl } from "@/server/media";
 import { loadSnapshot } from "@/server/snapshot";
 import { EventRunOfShow } from "./run-of-show";
+import { EditEventButton } from "../event-editor";
+import { buildEditorContext } from "../editor-context";
 
 export default async function EventPage({
   params,
@@ -37,6 +39,9 @@ export default async function EventPage({
   const readiness = computeEventReadiness(snapshot, event, tasks, budget, counts);
   const currency = viewer.displayCurrency;
   const canSeeMoney = viewer.permissions.has("budget.view");
+  const canEdit = viewer.permissions.has("events.edit");
+  const canEditTimeline = viewer.permissions.has("timeline.edit");
+  const editorContext = buildEditorContext(snapshot);
   const tone = toneClasses(event.accentTone);
 
   const venue = event.venueId
@@ -88,7 +93,7 @@ export default async function EventPage({
               <div className={cn("eyebrow mb-2", tone.text)}>
                 {formatLongDate(event.date)}
               </div>
-              <h1 className="font-display text-[42px] leading-none text-ink sm:text-[52px]">
+              <h1 className="font-script text-[68px] text-ink sm:text-[82px]">
                 {event.name}
               </h1>
               <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-ink-soft">
@@ -115,17 +120,40 @@ export default async function EventPage({
               ) : null}
             </div>
 
-            <div className="text-right">
-              <div className="tabular font-display text-[40px] leading-none text-ink">
-                {readiness.percent}%
+            <div className="flex items-end gap-5">
+              {canEdit ? (
+                <EditEventButton
+                  context={editorContext}
+                  label="Edit this function"
+                  event={{
+                    id: event.id,
+                    name: event.name,
+                    kind: event.kind,
+                    date: toISODate(event.date),
+                    startMinute: event.startMinute,
+                    endMinute: event.endMinute,
+                    venueId: event.venueId,
+                    dressCode: event.dressCode,
+                    description: event.description,
+                    notes: event.notes,
+                    estimatedGuests: event.estimatedGuests,
+                    accentTone: event.accentTone,
+                    isPrivate: event.isPrivate,
+                  }}
+                />
+              ) : null}
+              <div className="text-right">
+                <div className="tabular font-display text-[40px] leading-none text-ink">
+                  {readiness.percent}%
+                </div>
+                <div className="eyebrow mt-1.5">Ready</div>
+                <Meter
+                  value={readiness.percent}
+                  tone={event.accentTone}
+                  height={3}
+                  className="mt-2.5 w-32"
+                />
               </div>
-              <div className="eyebrow mt-1.5">Ready</div>
-              <Meter
-                value={readiness.percent}
-                tone={event.accentTone}
-                height={3}
-                className="mt-2.5 w-32"
-              />
             </div>
           </div>
         </div>
@@ -214,7 +242,22 @@ export default async function EventPage({
               vendorName: entry.vendorId
                 ? snapshot.vendors.find((v) => v.id === entry.vendorId)?.businessName ?? null
                 : null,
+              ownerId: entry.ownerId,
+              vendorId: entry.vendorId,
             }))}
+            editing={
+              canEditTimeline
+                ? {
+                    eventId: event.id,
+                    date: toISODate(event.date),
+                    defaultStartMinute: event.startMinute,
+                    members: snapshot.members.map((m) => ({ id: m.id, name: m.name })),
+                    vendors: snapshot.vendors
+                      .filter((v) => v.status !== "REJECTED")
+                      .map((v) => ({ id: v.id, name: v.businessName })),
+                  }
+                : undefined
+            }
           />
         </section>
 
