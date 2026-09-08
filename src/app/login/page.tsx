@@ -6,17 +6,31 @@ import { db } from "@/server/db";
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage() {
-  if (await getViewer()) redirect("/");
+  // The sign-in screen is the one page that has to render when the database is
+  // having a bad day — otherwise a brief outage looks like the whole app is
+  // gone, and nobody can even get to the point of being told why.
+  let viewer = null;
+  try {
+    viewer = await getViewer();
+  } catch {
+    // Unreadable session; treat it as signed out rather than failing the page.
+  }
+  if (viewer) redirect("/");
 
-  const wedding = await db.wedding.findFirst({
-    select: {
-      partnerAName: true,
-      partnerBName: true,
-      startDate: true,
-      endDate: true,
-      weddingType: true,
-    },
-  });
+  let wedding = null;
+  try {
+    wedding = await db.wedding.findFirst({
+      select: {
+        partnerAName: true,
+        partnerBName: true,
+        startDate: true,
+        endDate: true,
+        weddingType: true,
+      },
+    });
+  } catch {
+    // Falls through to the couple's names as written into the layout below.
+  }
 
   const days = wedding ? daysBetween(new Date(), wedding.startDate) : null;
 

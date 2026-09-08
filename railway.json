@@ -6,8 +6,8 @@
   },
   "deploy": {
     "startCommand": "echo '=== migrate status ==='; npx prisma migrate status || true; echo '=== migrate deploy ==='; npx prisma migrate deploy || echo '!!! MIGRATE DEPLOY FAILED - starting server anyway'; echo '=== starting next ==='; npx next start -H 0.0.0.0 -p 3000",
-    "healthcheckPath": "/login",
-    "healthcheckTimeout": 120,
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }
