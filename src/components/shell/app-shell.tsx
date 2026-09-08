@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 import { Avatar, Badge, Button } from "@/components/ui/primitives";
-import { PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { MenuIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { CommandPalette } from "./command-palette";
+import { MobileNav } from "./mobile-nav";
 import { QuickAdd } from "./quick-add";
 import { Rail, type ShellViewer } from "./rail";
 import { isActiveHref, type NavItem } from "./nav";
@@ -54,6 +55,7 @@ export function AppShell({
 }) {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const pathname = usePathname();
 
   // Global shortcuts. Ignored while the user is typing in a field.
@@ -98,28 +100,53 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="glass sticky top-0 z-30 flex items-center gap-2 border-b border-line px-4 py-2.5 lg:hidden">
-          <Link href="/" className="min-w-0 flex-1">
-            <div className="truncate font-display text-[16px] leading-tight text-ink">
+        <header className="glass sticky top-0 z-30 flex items-center gap-1.5 border-b border-line px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:hidden">
+          {/* Labelled, not a bare hamburger — half the people using this are
+              parents on phones, and three lines is not self-explanatory. */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
+            className="relative flex min-h-[44px] items-center gap-1.5 rounded-xl px-2 text-ink-soft transition-colors active:bg-surface-sunken"
+          >
+            <MenuIcon size={19} />
+            <span className="text-[12.5px]">Menu</span>
+            {alertCount > 0 ? (
+              <span className="absolute left-[26px] top-1.5 h-1.5 w-1.5 rounded-full bg-critical" />
+            ) : null}
+          </button>
+
+          <Link href="/" className="min-w-0 flex-1 text-center">
+            <div className="truncate font-display text-[15px] leading-tight text-ink">
               {wedding.partnerAName}
               <span className="mx-1 text-saffron">&</span>
               {wedding.partnerBName}
             </div>
-            <div className="text-[11px] text-ink-muted">
+            <div className="text-[10.5px] text-ink-muted">
               {wedding.daysToGo >= 0
                 ? `${wedding.daysToGo} days to go`
                 : wedding.dateRange}
             </div>
           </Link>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setQuickAddOpen(true)}
+            aria-label="Quick add"
+            className="min-h-[44px] min-w-[40px]"
+          >
+            <PlusIcon size={18} />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSearchOpen(true)}
             aria-label="Search"
+            className="min-h-[44px] min-w-[40px]"
           >
-            <SearchIcon size={16} />
+            <SearchIcon size={17} />
           </Button>
-          <Avatar name={viewer.name} tone={viewer.tone} size="md" />
         </header>
 
         <main className="min-w-0 flex-1 pb-20 lg:pb-0">{children}</main>
@@ -135,7 +162,7 @@ export function AppShell({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] transition-colors",
+                  "relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10.5px] transition-colors",
                   active ? "text-saffron" : "text-ink-muted",
                 )}
               >
@@ -153,16 +180,28 @@ export function AppShell({
               </Link>
             );
           })}
+          {/* Add moved to the top bar so this slot can lead to the other ten
+              screens, which previously had no route in on a phone at all. */}
           <button
             type="button"
-            onClick={() => setQuickAddOpen(true)}
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
             className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] text-ink-muted"
           >
-            <PlusIcon size={18} />
-            <span>Add</span>
+            <MenuIcon size={18} />
+            <span>More</span>
           </button>
         </nav>
       </div>
+
+      <MobileNav
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        items={items}
+        viewer={viewer}
+        wedding={wedding}
+        alertCount={alertCount}
+      />
 
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} items={items} />
       <QuickAdd

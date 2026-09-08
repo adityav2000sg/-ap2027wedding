@@ -129,7 +129,7 @@ export function AiPlanner({
     <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-[820px] flex-col px-5 py-8 sm:px-8">
       <header className="mb-6">
         <div className="eyebrow mb-2">Ask anything</div>
-        <h1 className="font-script text-[54px] text-ink">AI Planner</h1>
+        <h1 className="font-script text-[34px] sm:text-[54px] text-ink">AI Planner</h1>
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
           It reads the live wedding — guests, budget, vendors, the run of show —
           and answers from the actual numbers.

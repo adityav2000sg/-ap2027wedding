@@ -90,7 +90,7 @@ export function BudgetWorkspace({
         <div className="eyebrow mb-2">What this will cost</div>
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
-            <h1 className="font-script text-[54px] text-ink">Budget</h1>
+            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Budget</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               Everything shown in {currency}. Amounts stay stored in the currency
               they were entered in.

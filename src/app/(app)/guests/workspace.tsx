@@ -145,7 +145,7 @@ export function GuestsWorkspace({
         <div className="eyebrow mb-2">Who's coming</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-script text-[54px] text-ink">Guests</h1>
+            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Guests</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {stats.total} people across {stats.households} households
             </p>

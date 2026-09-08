@@ -69,7 +69,7 @@ export function DocumentsLibrary({
         <div className="eyebrow mb-2">Everything on file</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-script text-[54px] text-ink">Documents</h1>
+            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Documents</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {items.length === 0
                 ? "Contracts, quotes, invoices and menus — all in one place."

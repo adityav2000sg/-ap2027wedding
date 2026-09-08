@@ -93,7 +93,7 @@ export default async function EventPage({
               <div className={cn("eyebrow mb-2", tone.text)}>
                 {formatLongDate(event.date)}
               </div>
-              <h1 className="font-script text-[68px] text-ink sm:text-[82px]">
+              <h1 className="font-script text-[38px] text-ink sm:text-[68px] lg:text-[82px]">
                 {event.name}
               </h1>
               <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-ink-soft">

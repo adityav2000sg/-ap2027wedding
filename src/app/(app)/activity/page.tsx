@@ -30,7 +30,7 @@ export default async function ActivityPage() {
     <div className="mx-auto max-w-[820px] px-5 py-8 sm:px-8">
       <header className="mb-7">
         <div className="eyebrow mb-2">What's been happening</div>
-        <h1 className="font-script text-[54px] text-ink">Activity</h1>
+        <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Activity</h1>
         <p className="mt-1.5 text-[13.5px] text-ink-muted">
           Every change, who made it and when. Nothing is lost.
         </p>

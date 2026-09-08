@@ -35,7 +35,7 @@ export function HeroCountdown({
               initial={reduce ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-              className="font-display text-[64px] leading-[0.85] text-ink sm:text-[76px]"
+              className="font-display text-[46px] leading-[0.85] text-ink sm:text-[64px] lg:text-[76px]"
             >
               <AnimatedNumber value={daysToGo} duration={1100} />
             </motion.div>
@@ -45,7 +45,7 @@ export function HeroCountdown({
           </div>
         ) : (
           <div className="text-right">
-            <div className="font-script text-[70px] text-ink">
+            <div className="font-script text-[44px] sm:text-[70px] text-ink">
               Married
             </div>
           </div>

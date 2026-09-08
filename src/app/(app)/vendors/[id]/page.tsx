@@ -77,7 +77,7 @@ export default async function VendorPage({
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-script text-[54px] text-ink">
+            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">
               {vendor.businessName}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-soft">

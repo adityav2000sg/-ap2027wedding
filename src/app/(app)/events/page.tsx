@@ -53,7 +53,7 @@ export default async function EventsPage() {
                 }`
               : "Nothing scheduled yet"}
           </div>
-          <h1 className="font-script text-[54px] text-ink">Events</h1>
+          <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Events</h1>
           <p className="mt-1.5 text-[13.5px] text-ink-muted">
             Each function has its own command centre — run of show, guests, vendors,
             budget and blockers.
