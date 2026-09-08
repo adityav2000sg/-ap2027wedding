@@ -186,12 +186,17 @@
      scrolling row of compact cells instead. From sm up they're a normal grid. */
   .stat-row {
     display: flex;
-    gap: 1.5rem;
+    gap: 1.25rem;
     overflow-x: auto;
     overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
+    /* No scroll snapping. Snap alignment is measured from the scrollport edge,
+       not the padding edge, so it dragged the first figure flush against the
+       screen while everything else on the page stayed inset — the row appeared
+       to bleed off the left. Snapping a row of read-only numbers bought
+       nothing to pay for that. */
     margin-inline: -1rem;
     padding-inline: 1rem;
+    scroll-padding-inline: 1rem;
     scrollbar-width: none;
   }
   .stat-row::-webkit-scrollbar {
@@ -199,8 +204,9 @@
   }
   .stat-row > * {
     flex: 0 0 auto;
-    min-width: 5.5rem;
-    scroll-snap-align: start;
+    /* Narrow enough that four figures fit a 430px phone without scrolling at
+       all; five still scroll, which is the case this exists for. */
+    min-width: 4.5rem;
   }
   /* Headline numbers are drawn for a desktop hero; on a phone they're merely
      loud, so the whole row steps down a size. */

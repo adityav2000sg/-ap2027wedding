@@ -193,8 +193,11 @@ export function GuestsWorkspace({
               {stats.total} people across {stats.households} households
             </p>
           </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            <div className="relative min-w-0 flex-1 sm:flex-none">
+          {/* Three controls don't fit one line on a phone without squeezing the
+              search box to nothing, so it takes the full width and the buttons
+              sit under it. */}
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
+            <div className="relative min-w-0 basis-full sm:basis-auto">
               <SearchIcon size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
               <Input
                 value={query}
@@ -203,8 +206,13 @@ export function GuestsWorkspace({
                 className="h-9 w-full pl-8 text-[12.5px] sm:w-64"
               />
             </div>
-            <ExportMenu kind="guests" />
-            {canEdit ? <AddGuestButton households={households} /> : null}
+            <ExportMenu kind="guests" className="flex-1 justify-center sm:flex-none" />
+            {canEdit ? (
+              <AddGuestButton
+                households={households}
+                className="flex-1 justify-center sm:flex-none"
+              />
+            ) : null}
           </div>
         </div>
       </header>
