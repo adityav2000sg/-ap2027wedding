@@ -17,3 +17,10 @@ export const FAMILY_ACCOUNTS = [
 ] as const;
 
 export type FamilyAccount = (typeof FAMILY_ACCOUNTS)[number];
+
+/** Explicit low-friction password format requested for the family rollout. */
+export function firstNamePassword(name: string): string {
+  const firstName = name.trim().split(/\s+/)[0];
+  if (!firstName) throw new Error("An account name is required.");
+  return `${firstName}2027`;
+}

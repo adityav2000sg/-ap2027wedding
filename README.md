@@ -50,6 +50,7 @@ npm run health     # print what the engines currently compute, in the terminal
 npm run db:seed    # rebuild from the couple's spreadsheet
 npm run accounts:provision # idempotently create/repair the nine accounts
 npm run accounts:passwords -- --apply # issue nine unique passwords
+npm run accounts:passwords -- --apply --first-name-2027 # use FirstName2027
 npm run typecheck
 ```
 

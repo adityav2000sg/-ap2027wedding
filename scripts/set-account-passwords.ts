@@ -3,6 +3,7 @@
  *
  *   npm run accounts:passwords            # dry run — shows who would change
  *   npm run accounts:passwords -- --apply # generates, writes, and prints them
+ *   npm run accounts:passwords -- --apply --first-name-2027
  *
  * Passwords are generated here and printed once. They are never committed, never
  * logged anywhere else, and can't be recovered afterwards — the database only
@@ -23,7 +24,7 @@ import { randomInt } from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { FAMILY_ACCOUNTS } from "../src/config/family-accounts";
+import { FAMILY_ACCOUNTS, firstNamePassword } from "../src/config/family-accounts";
 import { hashPassword } from "../src/server/auth-hash";
 
 const db = new PrismaClient();
@@ -51,6 +52,7 @@ function generatePassword(): string {
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const useFirstName = process.argv.includes("--first-name-2027");
 
   const users = await db.user.findMany({
     where: { email: { in: EMAILS } },
@@ -71,14 +73,15 @@ async function main() {
     for (const user of users) {
       console.log(`   ${user.name.padEnd(20)} ${user.email}`);
     }
-    console.log("\nDry run. Re-run with --apply to generate and write them.\n");
+    const mode = useFirstName ? " --first-name-2027" : "";
+    console.log(`\nDry run. Re-run with --apply${mode} to generate and write them.\n`);
     return;
   }
 
   const issued: { name: string; email: string; password: string }[] = [];
 
   for (const user of users) {
-    const password = generatePassword();
+    const password = useFirstName ? firstNamePassword(user.name) : generatePassword();
     await db.user.update({
       where: { id: user.id },
       data: { passwordHash: await hashPassword(password), mustSetPassword: false },
