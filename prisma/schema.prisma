@@ -98,6 +98,11 @@ model Wedding {
   cities          String[]  @default([])
   hasPlanner      Boolean   @default(true)
   rsvpEnabled     Boolean   @default(true)
+  /// One answer per guest rather than one per function. True for a resort
+  /// wedding where anybody who comes is there for the whole week. The per-event
+  /// invitations still exist underneath — catering and capacity are computed
+  /// from them — they just all move together.
+  singleRsvp      Boolean   @default(true)
   /// Ritual/tradition keys the family actually observes — drives task relevance.
   traditions      String[]  @default([])
   guestsPerRoom   Int       @default(2)

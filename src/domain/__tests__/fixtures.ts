@@ -212,6 +212,7 @@ export function makeSnapshot(
       cities: ["New Delhi"],
       hasPlanner: true,
       rsvpEnabled: true,
+      singleRsvp: true,
       traditions: ["baraat", "pheras"],
       guestsPerRoom: 2,
     },

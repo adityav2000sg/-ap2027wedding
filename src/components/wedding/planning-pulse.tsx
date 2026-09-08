@@ -42,7 +42,10 @@ export function PlanningPulse({ metrics }: { metrics: PulseMetric[] }) {
           <>
             <div
               className={cn(
-                "tabular font-display text-[30px] leading-none tracking-tight",
+                // Sized to survive the narrowest cell this sits in. At 30px a
+                // compact money figure like S$340K was wider than a quarter of
+                // the panel and spilled into the guest count beside it.
+                "tabular whitespace-nowrap font-display text-[22px] leading-none tracking-tight sm:text-[24px] lg:text-[26px]",
                 metric.tone === "critical" ? "text-critical"
                 : metric.tone === "warning" ? "text-attention"
                 : metric.tone === "positive" ? "text-positive"

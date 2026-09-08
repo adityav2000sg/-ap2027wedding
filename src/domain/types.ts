@@ -80,6 +80,8 @@ export interface WeddingCore {
   cities: string[];
   hasPlanner: boolean;
   rsvpEnabled: boolean;
+  /// One answer per guest, not one per function.
+  singleRsvp: boolean;
   traditions: string[];
   guestsPerRoom: number;
 }

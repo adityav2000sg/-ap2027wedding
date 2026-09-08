@@ -17,7 +17,7 @@ import { Avatar, Badge, Button, EmptyState, SegmentBar } from "@/components/ui/p
 import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { SearchIcon } from "@/components/ui/icons";
-import { archiveGuest, updateGuest } from "@/server/actions/guests";
+import { archiveGuest, setGuestAttendance, updateGuest } from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
 import { AddGuestButton } from "./guest-composer";
 import {
@@ -35,10 +35,35 @@ interface Guest {
   dietary: string; allergies: string | null; accessibilityNeeds: string | null;
   needsAccommodation: boolean; needsTransport: boolean;
   notes: string | null; tags: string[];
+  tier: string;
   rsvp: Record<string, string>;
 }
 
 const RSVP_CYCLE = ["NOT_INVITED", "PENDING", "CONFIRMED", "TENTATIVE", "DECLINED"] as const;
+
+/**
+ * A guest's single answer, read off their per-event invitations.
+ *
+ * They should all agree when the wedding is set to one answer per guest, but
+ * historic data and the odd hand-edit mean they might not — so the firmest
+ * answer present wins rather than picking the first one and hiding the rest.
+ */
+function overallStatus(guest: Guest): string {
+  const values = Object.values(guest.rsvp);
+  if (values.length === 0) return "NOT_INVITED";
+  for (const status of ["CONFIRMED", "TENTATIVE", "DECLINED", "PENDING"]) {
+    if (values.includes(status)) return status;
+  }
+  return "NOT_INVITED";
+}
+
+const ATTENDANCE_CHOICES: { value: string; label: string }[] = [
+  { value: "CONFIRMED", label: "Coming" },
+  { value: "TENTATIVE", label: "Maybe" },
+  { value: "DECLINED", label: "Not coming" },
+  { value: "PENDING", label: "Awaiting a reply" },
+  { value: "NOT_INVITED", label: "Not invited" },
+];
 
 const RSVP_GLYPH: Record<string, { mark: string; className: string; label: string }> = {
   NOT_INVITED: { mark: "·", className: "text-ink-faint", label: "Not invited" },
@@ -54,7 +79,7 @@ const DIET_LABEL: Record<string, string> = {
 };
 
 export function GuestsWorkspace({
-  guests, households, events, stats, canEdit, currency, rsvpEnabled,
+  guests, households, events, stats, canEdit, currency, rsvpEnabled, singleRsvp,
   invitations, invitationStats, invitationTiers,
   initialFilter, initialEvent, initialGuest, initialSide,
 }: {
@@ -65,6 +90,7 @@ export function GuestsWorkspace({
   canEdit: boolean;
   currency: string;
   rsvpEnabled: boolean;
+  singleRsvp: boolean;
   invitations: InvitationRow[];
   invitationStats: InvitationStats;
   invitationTiers: TierStat[];
@@ -131,6 +157,15 @@ export function GuestsWorkspace({
   }, [filtered]);
 
   const active = guests.find((g) => g.id === openGuest) ?? null;
+
+  async function setAttendance(guestId: string, status: string) {
+    if (!canEdit) return;
+    setSavingCell(guestId);
+    setCellMenu(null);
+    await setGuestAttendance(guestId, status as "CONFIRMED");
+    setSavingCell(null);
+    router.refresh();
+  }
 
   async function setCell(guestId: string, eventId: string, status: string) {
     if (!canEdit) return;
@@ -342,6 +377,22 @@ export function GuestsWorkspace({
                       </span>
                     </button>
 
+                    {singleRsvp ? (
+                      <div className="mt-2">
+                        <Select
+                          value={overallStatus(guest)}
+                          disabled={!canEdit || savingCell === guest.id}
+                          onChange={(e) => setAttendance(guest.id, e.target.value)}
+                          className="h-9 w-full text-[12.5px]"
+                        >
+                          {ATTENDANCE_CHOICES.map((choice) => (
+                            <option key={choice.value} value={choice.value}>
+                              {choice.label}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    ) : (
                     <div className="mt-2 flex gap-1.5">
                       {events.map((event) => {
                         const status = guest.rsvp[event.id] ?? "NOT_INVITED";
@@ -374,8 +425,9 @@ export function GuestsWorkspace({
                         );
                       })}
                     </div>
+                    )}
 
-                    {cellMenu?.guestId === guest.id ? (
+                    {!singleRsvp && cellMenu?.guestId === guest.id ? (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {RSVP_CHOICES.map((choice) => (
                           <button
@@ -406,16 +458,27 @@ export function GuestsWorkspace({
                 <th className="sticky left-0 z-10 bg-canvas py-2 pr-3 text-left text-[11.5px] font-medium text-ink-muted">
                   Guest
                 </th>
-                {events.map((event) => (
-                  <th key={event.id} className="px-2 py-2 text-center">
-                    <span className={cn("block text-[11.5px] font-medium", toneClasses(event.tone).text)}>
-                      {event.name}
-                    </span>
-                    <span className="tabular block text-[10.5px] font-normal text-ink-faint">
-                      {event.counts.confirmed}/{event.counts.invited}
-                    </span>
-                  </th>
-                ))}
+                {singleRsvp ? (
+                  <>
+                    <th className="px-2 py-2 text-center text-[11.5px] font-medium text-ink-muted">
+                      Tier
+                    </th>
+                    <th className="px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
+                      Coming?
+                    </th>
+                  </>
+                ) : (
+                  events.map((event) => (
+                    <th key={event.id} className="px-2 py-2 text-center">
+                      <span className={cn("block text-[11.5px] font-medium", toneClasses(event.tone).text)}>
+                        {event.name}
+                      </span>
+                      <span className="tabular block text-[10.5px] font-normal text-ink-faint">
+                        {event.counts.confirmed}/{event.counts.invited}
+                      </span>
+                    </th>
+                  ))
+                )}
                 <th className="px-2 py-2 text-right text-[11.5px] font-medium text-ink-muted">
                   Needs
                 </th>
@@ -426,7 +489,7 @@ export function GuestsWorkspace({
                 <React.Fragment key={householdName}>
                   <tr>
                     <td
-                      colSpan={events.length + 2}
+                      colSpan={(singleRsvp ? 2 : events.length) + 2}
                       className="sticky left-0 bg-canvas pb-1 pt-4 text-[12px] font-medium text-ink-soft"
                     >
                       {householdName}
@@ -461,7 +524,47 @@ export function GuestsWorkspace({
                         </button>
                       </td>
 
-                      {events.map((event) => {
+                      {singleRsvp ? (
+                        <>
+                          <td className="px-2 py-1.5 text-center">
+                            <span
+                              className={cn(
+                                "inline-flex h-5 w-5 items-center justify-center rounded-md text-[11px] font-medium",
+                                guest.tier === "A"
+                                  ? "bg-saffron-soft text-saffron"
+                                  : "bg-surface-sunken text-ink-faint",
+                              )}
+                              title={
+                                guest.tier === "A"
+                                  ? "First wave"
+                                  : guest.tier === "B"
+                                    ? "Held back"
+                                    : "Reserve list"
+                              }
+                            >
+                              {guest.tier}
+                            </span>
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <Select
+                              value={overallStatus(guest)}
+                              disabled={!canEdit || savingCell === guest.id}
+                              onChange={(e) => setAttendance(guest.id, e.target.value)}
+                              className={cn(
+                                "h-7 w-auto min-w-[136px] text-[12.5px]",
+                                savingCell === guest.id && "opacity-40",
+                              )}
+                            >
+                              {ATTENDANCE_CHOICES.map((choice) => (
+                                <option key={choice.value} value={choice.value}>
+                                  {choice.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </td>
+                        </>
+                      ) : (
+                      events.map((event) => {
                         const status = guest.rsvp[event.id] ?? "NOT_INVITED";
                         const glyph = RSVP_GLYPH[status];
                         const cellKey = `${guest.id}:${event.id}`;
@@ -520,7 +623,8 @@ export function GuestsWorkspace({
                             </div>
                           </td>
                         );
-                      })}
+                      })
+                      )}
 
                       <td className="px-2 py-1.5 text-right">
                         <span className="inline-flex gap-1">
@@ -567,8 +671,10 @@ export function GuestsWorkspace({
         events={events}
         canEdit={canEdit}
         onSetRsvp={setCell}
+        onSetAttendance={setAttendance}
         household={households.find((h) => h.id === active?.householdId) ?? null}
         rsvpEnabled={rsvpEnabled}
+        singleRsvp={singleRsvp}
         onClose={() => setOpenGuest(null)}
         onChanged={() => router.refresh()}
       />
@@ -640,14 +746,16 @@ function Figure({
 }
 
 function GuestSheet({
-  guest, events, canEdit, household, rsvpEnabled, onClose, onChanged, onSetRsvp,
+  guest, events, canEdit, household, rsvpEnabled, singleRsvp, onClose, onChanged, onSetRsvp, onSetAttendance,
 }: {
   guest: Guest | null;
   events: { id: string; name: string; tone: string }[];
   canEdit: boolean;
   onSetRsvp(guestId: string, eventId: string, status: string): void;
+  onSetAttendance(guestId: string, status: string): void;
   household: { id: string; name: string; rsvpToken: string } | null;
   rsvpEnabled: boolean;
+  singleRsvp: boolean;
   onClose(): void;
   onChanged(): void;
 }) {
@@ -718,7 +826,25 @@ function GuestSheet({
       }
     >
       <section className="mb-5">
-        <h4 className="eyebrow mb-2">Coming to</h4>
+        <h4 className="eyebrow mb-2">{singleRsvp ? "Coming?" : "Coming to"}</h4>
+        {singleRsvp ? (
+          <div>
+            <Select
+              value={overallStatus(guest)}
+              disabled={!canEdit}
+              onChange={(e) => onSetAttendance(guest.id, e.target.value)}
+              className="h-8 w-full text-[13px]"
+            >
+              {ATTENDANCE_CHOICES.map((choice) => (
+                <option key={choice.value} value={choice.value}>{choice.label}</option>
+              ))}
+            </Select>
+            <p className="mt-1.5 text-[11.5px] leading-snug text-ink-faint">
+              One answer for the whole week — everyone who comes is there for all
+              of it.
+            </p>
+          </div>
+        ) : (
         <div className="space-y-1">
           {events.map((event) => {
             const status = guest.rsvp[event.id] ?? "NOT_INVITED";
@@ -742,6 +868,7 @@ function GuestSheet({
             );
           })}
         </div>
+        )}
       </section>
 
       <section className="mb-5 space-y-2.5 border-y border-line py-4">

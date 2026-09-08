@@ -738,3 +738,57 @@ export async function setGuestContact(
     return { id: guest.id };
   });
 }
+
+/**
+ * One answer, applied to every function.
+ *
+ * The per-event invitations stay — catering, capacity and the run of show are
+ * all computed from them — but at a resort wedding nobody attends the sangeet
+ * and skips the shaadi, so asking seven times is seven chances to record an
+ * inconsistency that means nothing.
+ */
+export async function setGuestAttendance(
+  guestId: string,
+  status: (typeof RSVP)[number],
+) {
+  return withAction("guests.edit", async (viewer) => {
+    z.enum(RSVP).parse(status);
+
+    const guest = await db.guest.findFirst({
+      where: { id: guestId, weddingId: viewer.weddingId },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (!guest) throw new Error("That guest no longer exists.");
+
+    const events = await db.event.findMany({
+      where: { weddingId: viewer.weddingId, archivedAt: null },
+      select: { id: true },
+    });
+
+    const respondedAt = status === "PENDING" || status === "NOT_INVITED" ? null : new Date();
+
+    await db.$transaction(
+      events.map((event) =>
+        db.eventInvitation.upsert({
+          where: { guestId_eventId: { guestId, eventId: event.id } },
+          create: { guestId, eventId: event.id, status, respondedAt },
+          update: { status, respondedAt },
+        }),
+      ),
+    );
+
+    const name = `${guest.firstName} ${guest.lastName}`.trim();
+    await logViewerActivity(viewer, {
+      entityType: "guest",
+      entityId: guest.id,
+      entityLabel: name,
+      action: "rsvp_updated",
+      summary: `${viewer.name} set ${name} to ${status.replace(/_/g, " ").toLowerCase()} for the whole wedding.`,
+      after: { status },
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id: guest.id, events: events.length };
+  });
+}

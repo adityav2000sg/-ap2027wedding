@@ -121,6 +121,7 @@ export async function fetchSnapshot(
         cities: wedding.cities,
         hasPlanner: wedding.hasPlanner,
         rsvpEnabled: wedding.rsvpEnabled,
+        singleRsvp: wedding.singleRsvp,
         traditions: wedding.traditions,
         guestsPerRoom: wedding.guestsPerRoom,
       },

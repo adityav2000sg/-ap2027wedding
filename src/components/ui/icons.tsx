@@ -168,11 +168,11 @@ export const ImageIcon = (p: IconProps) => (
   <Icon {...p}><rect x="1.5" y="3" width="13" height="10" rx="1.5" /><circle cx="5.5" cy="6.5" r="1.2" /><path d="M2 11l3.5-3 2.5 2.2L11 7l3.5 3.4" /></Icon>
 );
 
-/** The notification bell. */
+/** The notification bell. Drawn on this set's 16px grid, not a 24px one. */
 export const BellIcon = (p: IconProps) => (
   <Icon {...p}>
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    <path d="M12 6.5a4 4 0 10-8 0c0 3.2-1.2 4.3-1.2 4.3h10.4S12 9.7 12 6.5z" />
+    <path d="M9.1 13.2a1.3 1.3 0 01-2.2 0" />
   </Icon>
 );
 

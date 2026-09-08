@@ -83,7 +83,8 @@ export default async function HomePage() {
 
   const actions = nextBestActions(tasks, 5).map((t) => toTaskRow(t, lookup));
   const milestone = nextMilestone({ snapshot, tasks, budget });
-  const achieved = evaluateMilestones({ snapshot, tasks, budget }).filter((m) => m.isMet);
+  const allMilestones = evaluateMilestones({ snapshot, tasks, budget });
+  const achieved = allMilestones.filter((m) => m.isMet);
 
   const journeyEvents = snapshot.events.map((event) => {
     const eventCounts = budget.drivers.eventCounts.get(event.id)!;
@@ -212,20 +213,29 @@ export default async function HomePage() {
                 <span>{snapshot.wedding.weddingType} wedding</span>
               </div>
 
+              {/* This is the milestone you're working towards, not one you've
+                  hit. It read as an achievement before — a title, a bar and
+                  "3 reached" underneath, which looks like a badge. */}
               {milestone ? (
                 <div className="mt-7 max-w-xs">
-                  <div className="eyebrow mb-1.5">Major milestone</div>
-                  <div className="text-[15px] text-ink">{milestone.title}</div>
+                  <div className="eyebrow mb-1.5">Working towards</div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="text-[15px] text-ink">{milestone.title}</div>
+                    <div className="tabular shrink-0 text-[12.5px] font-medium text-saffron">
+                      {Math.round(milestone.progress * 100)}%
+                    </div>
+                  </div>
                   <Meter
                     value={milestone.progress * 100}
                     tone="saffron"
                     height={3}
                     className="mt-2"
                   />
-                  <div className="mt-1.5 text-[11.5px] text-ink-muted">
-                    {achieved.length} reached
-                    <span className="mx-1.5 text-ink-faint">·</span>
+                  <div className="mt-1.5 text-[11.5px] leading-snug text-ink-muted">
                     {milestone.description}
+                  </div>
+                  <div className="mt-1.5 text-[11.5px] text-ink-faint">
+                    {achieved.length} of {allMilestones.length} milestones reached so far
                   </div>
                 </div>
               ) : null}

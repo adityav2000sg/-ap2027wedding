@@ -57,6 +57,7 @@ export default async function GuestsPage({
           relationship: guest.relationship,
           householdId: guest.householdId,
           householdName: household?.name ?? null,
+          tier: household?.tier ?? "A",
           city: guest.city,
           country: guest.country,
           phone: guest.phone,
@@ -111,6 +112,7 @@ export default async function GuestsPage({
       invitationStats={outreachStats(snapshot)}
       invitationTiers={outreachByTier(snapshot)}
       rsvpEnabled={snapshot.wedding.rsvpEnabled}
+      singleRsvp={snapshot.wedding.singleRsvp}
     />
   );
 }

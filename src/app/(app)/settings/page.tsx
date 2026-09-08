@@ -59,11 +59,6 @@ export default async function SettingsPage() {
           </Fact>
           <Fact label="Budget">
             {formatMoney(budget.finance.totalBudget, budget.finance.baseCurrency)}
-            {budget.finance.baseCurrency !== snapshot.wedding.baseCurrency ? (
-              <span className="ml-1.5 text-ink-faint">
-                (set in {snapshot.wedding.baseCurrency})
-              </span>
-            ) : null}
           </Fact>
           <Fact label="Guests planned for">{snapshot.wedding.estimatedGuests}</Fact>
         </dl>
