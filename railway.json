@@ -5,7 +5,7 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "echo '=== migrate status ==='; npx prisma migrate status || true; echo '=== migrate deploy ==='; npx prisma migrate deploy || echo '!!! MIGRATE DEPLOY FAILED - starting server anyway'; echo '=== starting next ==='; npx next start -H 0.0.0.0 -p 3000",
+    "startCommand": "echo \"=== boot: node $(node -v), PORT=${PORT:-unset} ===\"; npx prisma migrate deploy || echo '!!! MIGRATE DEPLOY FAILED - starting server anyway'; echo '=== starting next on port '\"${PORT:-3000}\"' ==='; exec npx next start -H 0.0.0.0 -p \"${PORT:-3000}\"",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
