@@ -5,7 +5,7 @@
   "engines": {
     "node": ">=22 <23"
   },
-  "description": "Wedding Operating System — Avantika & Prateek, 16–19 June 2027",
+  "description": "Wedding Operating System \u2014 Avantika & Prateek, 16\u201319 June 2027",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -20,7 +20,8 @@
     "accounts:emails": "tsx scripts/set-account-emails.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "health": "tsx scripts/health-check.ts"
+    "health": "tsx scripts/health-check.ts",
+    "accounts:passwords": "tsx scripts/set-account-passwords.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
