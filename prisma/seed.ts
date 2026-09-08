@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { PrismaClient, type GuestSide, type VendorStatus } from "@prisma/client";
 
+import { FAMILY_ACCOUNTS } from "../src/config/family-accounts";
 import { hashPassword } from "../src/server/auth-hash";
 import { generateMasterPlan } from "../src/server/plan-generator";
 import { seedOperations } from "./seed-ops";
@@ -89,6 +90,13 @@ async function main() {
     select: { id: true, partnerAName: true, partnerBName: true },
   });
 
+  // Railway runs the seed in this mode on every boot. An empty database gets a
+  // complete first install; an existing wedding is never touched.
+  if (existing && process.env.SEED_IF_EMPTY === "yes") {
+    console.log("→ Wedding data already exists — skipping first-run seed.");
+    return;
+  }
+
   if (existing && process.env.SEED_FORCE !== "yes") {
     const [guests, media, payments] = await Promise.all([
       db.guest.count({ where: { weddingId: existing.id } }),
@@ -116,26 +124,9 @@ async function main() {
 
   // ── The nine family accounts ───────────────────────────────────────────────
   console.log("→ Creating family accounts…");
-  const password = await hashPassword("wedding2027");
-
-  const people = [
-    { key: "avantika", name: "Avantika Chowdhry", email: "avantika.chowdhry@gmail.com", tone: "rose", role: "OWNER" as const, relation: "Bride" },
-    { key: "prateek", name: "Prateek Mehan", email: "prateek.mehan98@gmail.com", tone: "indigo", role: "OWNER" as const, relation: "Groom" },
-    { key: "namrita", name: "Namrita Chowdhry", email: "namrita.chowdhry@gmail.com", tone: "plum", role: "ADMIN" as const, relation: "Bride's Mother" },
-    { key: "dheeraj", name: "Dheeraj Chowdhry", email: "dheeraj.chowdhry@gmail.com", tone: "saffron", role: "ADMIN" as const, relation: "Bride's Father" },
-    { key: "preeti", name: "Preeti Mehan", email: "preeti.mehan1975@gmail.com", tone: "teal", role: "ADMIN" as const, relation: "Groom's Mother" },
-    { key: "ajay", name: "Ajay Mehan", email: "ajaymehan@hotmail.com", tone: "olive", role: "ADMIN" as const, relation: "Groom's Father" },
-    { key: "anousha", name: "Anousha Chowdhry", email: "chowdhry.anousha@gmail.com", tone: "amber", role: "FAMILY" as const, relation: "Bride's Sister" },
-    { key: "trisha", name: "Trisha Mehan", email: "trisha.mehan95@gmail.com", tone: "sky", role: "FAMILY" as const, relation: "Groom's Sister" },
-    { key: "aditya", name: "Aditya Vaidya", email: "adityavaidya2000@gmail.com", tone: "slate", role: "FAMILY" as const, relation: "Anousha's Partner" },
-  ];
-
-  // The couple and both sets of parents think in different currencies —
-  // everyone picks their own and the figures convert for them.
-  const currencyByKey: Record<string, string> = {
-    avantika: "GBP", prateek: "GBP", namrita: "GBP", dheeraj: "GBP",
-    preeti: "SGD", ajay: "SGD", anousha: "GBP", trisha: "SGD", aditya: "SGD",
-  };
+  const password = await hashPassword(
+    process.env.FAMILY_ACCOUNT_PASSWORD?.trim() || "wedding2027",
+  );
 
   const wedding = await db.wedding.create({
     data: {
@@ -164,20 +155,19 @@ async function main() {
 
   const users: Record<string, string> = {};
   const members: Record<string, string> = {};
-  for (const person of people) {
+  for (const person of FAMILY_ACCOUNTS) {
     const user = await db.user.create({
       data: {
         name: person.name,
         email: person.email,
         passwordHash: password,
         avatarTone: person.tone,
-        displayCurrency: currencyByKey[person.key] ?? "GBP",
-        // Sign-in is by emailed code, so there is no password to set.
+        displayCurrency: person.displayCurrency,
         mustSetPassword: false,
       },
     });
     const member = await db.weddingMember.create({
-      data: { weddingId: wedding.id, userId: user.id, role: person.role, relation: person.relation },
+      data: { weddingId: wedding.id, userId: user.id, relation: person.relation },
     });
     users[person.key] = user.id;
     members[person.key] = member.id;
@@ -506,8 +496,8 @@ async function main() {
     `\n✓ ${counts[0]} guests in ${counts[1]} households · ${counts[2]} tasks · ` +
     `${counts[3]} vendors · ${counts[4]} room allocations`,
   );
-  console.log("\n  Accounts — sign in with a code sent to these addresses");
-  for (const person of people) {
+  console.log("\n  Accounts — sign in with these email addresses and the initial password");
+  for (const person of FAMILY_ACCOUNTS) {
     console.log(`   ${person.email.padEnd(28)} ${person.name} — ${person.relation}`);
   }
 }

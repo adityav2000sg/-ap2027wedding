@@ -21,7 +21,6 @@ import type {
   GuestSide,
   InvitationStatus,
   JewelleryOwnership,
-  MemberRole,
   OutfitStatus,
   PaymentStatus,
   PlanPhase,
@@ -49,7 +48,6 @@ export type {
   GuestSide,
   InvitationStatus,
   JewelleryOwnership,
-  MemberRole,
   OutfitStatus,
   PaymentStatus,
   PlanPhase,
@@ -89,7 +87,6 @@ export interface MemberNode {
   userId: string;
   name: string;
   email: string;
-  role: MemberRole;
   relation: string;
   avatarTone: string;
 }
@@ -445,7 +442,6 @@ export interface DocumentNode {
   sizeBytes: number;
   uploadedById: string | null;
   uploadedByName: string | null;
-  visibleToRoles: MemberRole[];
   createdAt: Date;
   links: { entityType: string; entityId: string }[];
 }

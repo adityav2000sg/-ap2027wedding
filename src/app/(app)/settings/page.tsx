@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { formatDateRange } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { Avatar, Badge } from "@/components/ui/primitives";
-import { ROLE_DESCRIPTION, ROLE_LABEL } from "@/server/permissions";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import { buildBudgetView } from "@/domain/budget";
@@ -99,9 +98,9 @@ export default async function SettingsPage() {
                 </span>
               </span>
               <span className="shrink-0 text-right">
-                <Badge size="xs">{ROLE_LABEL[member.role]}</Badge>
+                <Badge size="xs">Member</Badge>
                 <span className="mt-1 hidden max-w-[220px] text-[10.5px] leading-snug text-ink-faint sm:block">
-                  {ROLE_DESCRIPTION[member.role]}
+                  Full access. Changes are recorded under this person's account.
                 </span>
               </span>
             </li>

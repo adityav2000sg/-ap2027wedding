@@ -46,19 +46,11 @@ export async function GET(
     ? null
     : await db.document.findFirst({
         where: { weddingId: viewer.weddingId, storagePath: key },
-        select: { mimeType: true, fileName: true, visibleToRoles: true },
+        select: { mimeType: true, fileName: true },
       });
 
   if (!asset && !legacyDocument) {
     return new NextResponse("Not found", { status: 404 });
-  }
-
-  if (
-    legacyDocument &&
-    legacyDocument.visibleToRoles.length > 0 &&
-    !legacyDocument.visibleToRoles.includes(viewer.role)
-  ) {
-    return new NextResponse("Not authorised", { status: 403 });
   }
 
   let body: Buffer;

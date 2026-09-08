@@ -43,12 +43,7 @@ export default async function DocumentsPage() {
   // Legacy Document rows and the newer MediaAsset rows are one library to the
   // user — they shouldn't have to know there are two tables.
   const items = [
-    ...documents
-      .filter(
-        (doc) =>
-          doc.visibleToRoles.length === 0 || doc.visibleToRoles.includes(viewer.role),
-      )
-      .map((doc) => ({
+    ...documents.map((doc) => ({
         id: doc.id,
         title: doc.title,
         filename: doc.fileName,
@@ -60,7 +55,7 @@ export default async function DocumentsPage() {
         uploadedBy: doc.uploadedBy?.name ?? null,
         createdAt: doc.createdAt.toISOString(),
         linkedTo: describeLinks(doc.links),
-        restricted: doc.visibleToRoles.length > 0,
+        restricted: false,
       })),
     ...media.map((asset) => ({
       id: asset.id,

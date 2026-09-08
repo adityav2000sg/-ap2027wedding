@@ -26,15 +26,6 @@ datasource db {
 
 // ─────────────────────────────────────────────────────────── Identity & access
 
-enum MemberRole {
-  OWNER
-  ADMIN
-  PLANNER
-  FAMILY
-  CONTRIBUTOR
-  VIEWER
-}
-
 model User {
   id              String   @id @default(cuid())
   email           String   @unique
@@ -59,15 +50,12 @@ model User {
 }
 
 model WeddingMember {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   weddingId String
   userId    String
-  role      MemberRole @default(FAMILY)
   /// Human label shown throughout the UI: "Bride", "Groom's Mother", "Planner".
   relation  String
-  /// Per-member permission overrides keyed by permission id. Null = role default.
-  overrides Json?
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now())
 
   wedding Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1286,21 +1274,19 @@ enum DocumentKind {
 }
 
 model Document {
-  id             String       @id @default(cuid())
-  weddingId      String
-  title          String
-  kind           DocumentKind @default(OTHER)
-  fileName       String
-  mimeType       String
-  sizeBytes      Int
+  id           String       @id @default(cuid())
+  weddingId    String
+  title        String
+  kind         DocumentKind @default(OTHER)
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
   /// Path under ./storage — never a client-supplied path.
-  storagePath    String
-  uploadedById   String?
-  /// Empty = visible to every member. Otherwise restricted to these roles.
-  visibleToRoles MemberRole[] @default([])
-  notes          String?
-  archivedAt     DateTime?
-  createdAt      DateTime     @default(now())
+  storagePath  String
+  uploadedById String?
+  notes        String?
+  archivedAt   DateTime?
+  createdAt    DateTime     @default(now())
 
   wedding    Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
   uploadedBy User?   @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)

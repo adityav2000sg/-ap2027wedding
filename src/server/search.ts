@@ -180,13 +180,6 @@ export function searchWedding(
 
   if (canSeeDocs) {
     for (const document of snapshot.documents) {
-      // Respect per-document role restrictions in search, not just on the page.
-      if (
-        document.visibleToRoles.length > 0 &&
-        !document.visibleToRoles.includes(viewer.role)
-      ) {
-        continue;
-      }
       const value = score(trimmed, document.title, document.fileName);
       if (value > 0) {
         results.push({

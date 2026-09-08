@@ -23,21 +23,12 @@ import { randomInt } from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
+import { FAMILY_ACCOUNTS } from "../src/config/family-accounts";
 import { hashPassword } from "../src/server/auth-hash";
 
 const db = new PrismaClient();
 
-const EMAILS = [
-  "avantika.chowdhry@gmail.com",
-  "prateek.mehan98@gmail.com",
-  "namrita.chowdhry@gmail.com",
-  "dheeraj.chowdhry@gmail.com",
-  "preeti.mehan1975@gmail.com",
-  "ajaymehan@hotmail.com",
-  "chowdhry.anousha@gmail.com",
-  "trisha.mehan95@gmail.com",
-  "adityavaidya2000@gmail.com",
-];
+const EMAILS: string[] = FAMILY_ACCOUNTS.map((account) => account.email);
 
 /** Deliberately plain, unambiguous words — these get read aloud and retyped. */
 const WORDS = [

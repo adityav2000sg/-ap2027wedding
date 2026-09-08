@@ -21,7 +21,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "health": "tsx scripts/health-check.ts",
-    "accounts:passwords": "tsx scripts/set-account-passwords.ts"
+    "accounts:passwords": "tsx scripts/set-account-passwords.ts",
+    "accounts:provision": "tsx scripts/provision-accounts.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

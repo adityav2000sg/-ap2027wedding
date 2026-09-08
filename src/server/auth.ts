@@ -2,9 +2,9 @@
  * Authentication.
  *
  * A signed JWT in an httpOnly cookie. No third-party auth service: this app has
- * a fixed, small membership (a family and their planner), and the security that
- * actually matters here is that every mutation resolves the viewer server-side
- * and checks permissions — which it does.
+ * a fixed, small membership. Every mutation resolves the viewer server-side;
+ * all authenticated members have the same application access, while the user
+ * id on the session is retained for the audit trail.
  *
  * Passwords are hashed with scrypt from node:crypto, so there's no native
  * dependency to build.
@@ -90,11 +90,10 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     weddingId: membership.weddingId,
     name: membership.user.name,
     email: membership.user.email,
-    role: membership.role,
     relation: membership.relation,
     avatarTone: membership.user.avatarTone,
     displayCurrency: membership.user.displayCurrency,
-    permissions: resolvePermissions(membership.role, membership.overrides),
+    permissions: resolvePermissions(),
   };
 });
 

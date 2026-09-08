@@ -14,21 +14,14 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { FAMILY_ACCOUNTS } from "../src/config/family-accounts";
 
 const db = new PrismaClient();
 
 /** Keyed by the name as stored on the User row. */
-const EMAILS: Record<string, string> = {
-  "Avantika Chowdhry": "avantika.chowdhry@gmail.com",
-  "Prateek Mehan": "prateek.mehan98@gmail.com",
-  "Namrita Chowdhry": "namrita.chowdhry@gmail.com",
-  "Dheeraj Chowdhry": "dheeraj.chowdhry@gmail.com",
-  "Preeti Mehan": "preeti.mehan1975@gmail.com",
-  "Ajay Mehan": "ajaymehan@hotmail.com",
-  "Anousha Chowdhry": "chowdhry.anousha@gmail.com",
-  "Trisha Mehan": "trisha.mehan95@gmail.com",
-  "Aditya Vaidya": "adityavaidya2000@gmail.com",
-};
+const EMAILS = Object.fromEntries(
+  FAMILY_ACCOUNTS.map((account) => [account.name, account.email]),
+) as Record<string, string>;
 
 async function main() {
   const apply = process.argv.includes("--apply");

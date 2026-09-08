@@ -35,7 +35,6 @@ export default async function AppLayout({
       viewer={{
         name: viewer.name,
         relation: viewer.relation,
-        role: viewer.role,
         tone: viewer.avatarTone,
         email: viewer.email,
         displayCurrency: viewer.displayCurrency,

@@ -20,24 +20,26 @@ npm run db:seed
 npm run dev
 ```
 
-Sign in with any of the nine accounts. Sign-in is by six-digit code emailed to
-the address — with no `RESEND_API_KEY` set, the code is printed to the server
-console instead, so local development needs no credentials. (Password sign-in
-survives as an unadvertised fallback; starter password `wedding2027`.)
+Sign in with any of the nine accounts using an email address and password. A
+fresh seed uses `FAMILY_ACCOUNT_PASSWORD` when set, or the initial password
+`wedding2027` for local development. Issue separate passwords before sharing
+the app with `npm run accounts:passwords -- --apply`; the command prints each
+new password once and stores only its hash.
 
 | | |
 |---|---|
-| `avantika@apwedding.com` | Bride — Owner |
-| `prateek@apwedding.com` | Groom — Owner |
-| `namrita@apwedding.com` | Bride's Mother — Admin |
-| `dheeraj@apwedding.com` | Bride's Father — Admin |
-| `preeti@apwedding.com` | Groom's Mother — Admin |
-| `ajay@apwedding.com` | Groom's Father — Admin |
-| `anousha@apwedding.com` | Bride's Sister — Family |
-| `trisha@apwedding.com` | Groom's Sister — Family |
-| `aditya@apwedding.com` | Anousha's Partner — Family |
+| `avantika.chowdhry@gmail.com` | Avantika Chowdhry · Bride |
+| `prateek.mehan98@gmail.com` | Prateek Mehan · Groom |
+| `namrita.chowdhry@gmail.com` | Namrita Chowdhry · Bride's Mother |
+| `dheeraj.chowdhry@gmail.com` | Dheeraj Chowdhry · Bride's Father |
+| `preeti.mehan1975@gmail.com` | Preeti Mehan · Groom's Mother |
+| `ajaymehan@hotmail.com` | Ajay Mehan · Groom's Father |
+| `chowdhry.anousha@gmail.com` | Anousha Chowdhry · Bride's Sister |
+| `trisha.mehan95@gmail.com` | Trisha Mehan · Groom's Sister |
+| `adityavaidya2000@gmail.com` | Aditya Vaidya · Anousha's Partner |
 
-Everyone sees the whole wedding. Roles decide what each person can *change*.
+Every signed-in member has the same full access. The session still identifies
+the individual user, and every meaningful change records that user in Activity.
 
 ### Useful commands
 
@@ -46,6 +48,8 @@ npm run dev        # dev server
 npm test           # 96 domain tests — forecast, readiness, impact, events
 npm run health     # print what the engines currently compute, in the terminal
 npm run db:seed    # rebuild from the couple's spreadsheet
+npm run accounts:provision # idempotently create/repair the nine accounts
+npm run accounts:passwords -- --apply # issue nine unique passwords
 npm run typecheck
 ```
 
@@ -116,8 +120,13 @@ volume rather than serverless.
    QWEN_API_KEY  = <optional>
    ```
 
-5. Deploy. `railway.json` runs `prisma migrate deploy` on start.
-6. Seed once, from the Railway shell: `npm run db:seed`.
+5. Deploy. `railway.json` applies migrations, seeds only when the database is
+   empty, and provisions/repairs all nine accounts before starting the app.
+
+If production already contains accounts but their passwords were never issued,
+run `npm run accounts:passwords -- --apply` once in a Railway shell and securely
+send each person only their own line. Account provisioning never overwrites an
+existing password hash.
 
 > **The volume is not optional.** Without it, uploads succeed and then vanish on
 > the next deploy, because container filesystems are ephemeral. `StorageService`

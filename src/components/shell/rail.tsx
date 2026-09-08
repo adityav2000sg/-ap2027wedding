@@ -17,8 +17,6 @@ import { cn } from "@/lib/cn";
 import { Avatar, Badge } from "@/components/ui/primitives";
 import { Popover, Tooltip } from "@/components/ui/overlays";
 import { PlusIcon, SearchIcon } from "@/components/ui/icons";
-import { ROLE_LABEL } from "@/server/permissions";
-import type { MemberRole } from "@prisma/client";
 import { isActiveHref, type NavItem } from "./nav";
 import { NAV_ICONS } from "./nav-icons";
 import { signOut } from "@/app/login/actions";
@@ -27,7 +25,6 @@ import { CurrencyPicker } from "./currency-picker";
 export interface ShellViewer {
   name: string;
   relation: string;
-  role: MemberRole;
   tone: string;
   email: string;
   displayCurrency: string;
@@ -189,7 +186,7 @@ function ViewerMenu({ viewer }: { viewer: ShellViewer }) {
         <div className="text-[12.5px] font-medium text-ink">{viewer.name}</div>
         <div className="mt-0.5 text-[11.5px] text-ink-muted">{viewer.relation}</div>
         <Badge variant="neutral" size="xs" className="mt-1.5">
-          {ROLE_LABEL[viewer.role]}
+          Member
         </Badge>
       </div>
       <div className="my-1 h-px bg-line" />
