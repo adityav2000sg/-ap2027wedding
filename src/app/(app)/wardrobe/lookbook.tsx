@@ -94,11 +94,11 @@ export function WardrobeLookbook({
   ).length;
 
   return (
-    <div className="mx-auto max-w-[1240px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1240px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-6">
         <div className="eyebrow mb-2">Looks</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Wardrobe</h1>
+          <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Wardrobe</h1>
           {canEdit ? (
             <Button variant="secondary" onClick={() => setAdding(true)}>
               <PlusIcon size={14} /> Add a look
@@ -431,7 +431,7 @@ function OutfitSheet({
                     await setCoverMedia(image.id, "outfit", outfit.id);
                     onChanged();
                   }}
-                  className="absolute left-1.5 top-1.5 rounded bg-ink/55 px-1.5 py-0.5 text-[9.5px] text-canvas opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
+                  className="reveal-on-hover absolute left-1.5 top-1.5 rounded bg-ink/55 px-1.5 py-0.5 text-[9.5px] text-canvas opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
                 >
                   Make cover
                 </button>

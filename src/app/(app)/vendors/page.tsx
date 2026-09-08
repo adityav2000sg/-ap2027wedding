@@ -9,6 +9,7 @@ import { Badge, EmptyState } from "@/components/ui/primitives";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import type { VendorStatus } from "@/domain/types";
+import { AddVendorButton } from "./add-vendor-button";
 
 /** How far along a vendor is, for the progress rail on each row. */
 const STATUS_PROGRESS: Record<VendorStatus, number> = {
@@ -61,18 +62,25 @@ export default async function VendorsPage({
   ).length;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-7">
         <div className="eyebrow mb-2">Who you're hiring</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Vendors</h1>
+            <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Vendors</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {contracted} contracted of {snapshot.vendors.filter((v) => v.status !== "REJECTED").length} in play
               {rejectedCount > 0 ? ` · ${rejectedCount} ruled out` : ""}
             </p>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {viewer.permissions.has("vendors.edit") ? (
+              <AddVendorButton
+                events={snapshot.events.map((e) => ({ id: e.id, name: e.name }))}
+                members={snapshot.members.map((m) => ({ id: m.id, name: m.name }))}
+                baseCurrency={snapshot.wedding.baseCurrency}
+              />
+            ) : null}
             <FilterLink href="/vendors" active={!showRejected && !categoryFilter}>
               In play
             </FilterLink>

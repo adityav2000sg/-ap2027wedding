@@ -43,7 +43,7 @@ export default async function EventsPage() {
   const days = new Set(snapshot.events.map((e) => toISODate(e.date))).size;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="eyebrow mb-2">
@@ -53,7 +53,7 @@ export default async function EventsPage() {
                 }`
               : "Nothing scheduled yet"}
           </div>
-          <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Events</h1>
+          <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Events</h1>
           <p className="mt-1.5 text-[13.5px] text-ink-muted">
             Each function has its own command centre — run of show, guests, vendors,
             budget and blockers.
@@ -180,7 +180,7 @@ export default async function EventsPage() {
                     </Badge>
                   )}
                   {canEdit ? (
-                    <div className="opacity-0 transition-opacity duration-500 focus-within:opacity-100 group-hover:opacity-100">
+                    <div className="reveal-on-hover opacity-0 transition-opacity duration-500 focus-within:opacity-100 group-hover:opacity-100">
                       <EditEventButton
                         context={editorContext}
                         event={{

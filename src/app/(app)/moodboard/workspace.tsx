@@ -109,12 +109,12 @@ export function MoodboardWorkspace({
   }
 
   return (
-    <div className="mx-auto max-w-[1240px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1240px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-7">
         <div className="eyebrow mb-2">Inspiration</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Moodboards</h1>
+            <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Moodboards</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {totalImages > 0
                 ? `${totalImages} ${totalImages === 1 ? "image" : "images"} across ${boards.length} boards.`
@@ -244,7 +244,7 @@ export function MoodboardWorkspace({
 
                       {/* Hover controls */}
                       {canEdit ? (
-                        <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-end gap-1 p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                        <div className="reveal-on-hover pointer-events-none absolute inset-x-0 top-0 flex justify-end gap-1 p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                           <button
                             type="button"
                             aria-label={item.isFavourite ? "Unfavourite" : "Favourite"}
@@ -283,7 +283,7 @@ export function MoodboardWorkspace({
                       ) : null}
 
                       {item.caption ? (
-                        <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/75 to-transparent p-2.5 pt-6 text-[11.5px] leading-snug text-canvas opacity-0 transition-opacity group-hover:opacity-100">
+                        <figcaption className="reveal-on-hover pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/75 to-transparent p-2.5 pt-6 text-[11.5px] leading-snug text-canvas opacity-0 transition-opacity group-hover:opacity-100">
                           {item.caption}
                         </figcaption>
                       ) : null}

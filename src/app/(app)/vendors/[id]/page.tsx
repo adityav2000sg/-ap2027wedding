@@ -63,7 +63,7 @@ export default async function VendorPage({
   );
 
   return (
-    <div className="mx-auto max-w-[1000px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1000px] px-4 py-5 sm:px-8 sm:py-8">
       <Link
         href="/vendors"
         className="mb-5 inline-flex items-center gap-1.5 text-[12.5px] text-ink-muted transition-colors hover:text-saffron"
@@ -77,7 +77,7 @@ export default async function VendorPage({
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">
+            <h1 className="font-script text-[30px] sm:text-[54px] text-ink">
               {vendor.businessName}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-soft">

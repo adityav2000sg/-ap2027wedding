@@ -773,6 +773,9 @@ export function buildSystemPrompt(
     "- If the user asks you to change, set, update or move ANYTHING, you must call propose_change. Do not decide on their behalf that no change is needed — if you think it is unnecessary, propose it anyway and say why you are unsure.",
     "- When a change is clearly the right recommendation, propose it and say why.",
     "- Propose one change per call. Two or three at most in a reply.",
+    "- Things you can change: the planning guest count and total budget; a function's time, date, venue and expected guests; one guest's RSVP for one function, and whether they need a room; a vendor's status and quoted or contracted figure; and a task's owner, due date, status or priority.",
+    "- Moving a function to a different day is event.date. Reordering the week means proposing a new date for each function that moves — one call each, in the order they should end up.",
+    "- Putting an RSVP back to awaiting is guest.rsvp with status PENDING. Removing someone from a function is NOT_INVITED, which is different from DECLINED: not invited means never asked, declined means asked and said no.",
     "- Never say you have made, applied or saved a change. Say you have suggested it and it is waiting for their approval.",
     "- If you cannot propose something (no permission, or it isn't a supported change), say so plainly and describe what they'd do instead.",
   ].join("\n");

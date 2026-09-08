@@ -127,7 +127,7 @@ export function RightNow({ alerts, limit = 6 }: { alerts: Alert[]; limit?: numbe
                     title="Dismiss — it comes back if this gets worse"
                     disabled={dismissing === alert.key}
                     onClick={() => dismiss(alert.key)}
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-ink-faint opacity-0 transition-all hover:bg-surface-sunken hover:text-ink-soft group-hover:opacity-100 focus-visible:opacity-100"
+                    className="reveal-on-hover flex h-6 w-6 items-center justify-center rounded-md text-ink-faint opacity-0 transition-all hover:bg-surface-sunken hover:text-ink-soft group-hover:opacity-100 focus-visible:opacity-100"
                   >
                     <CloseIcon size={12} />
                   </button>

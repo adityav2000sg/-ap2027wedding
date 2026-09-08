@@ -195,7 +195,7 @@ export function Invitations({
       </div>
 
       {/* Overview */}
-      <div className="mb-6 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-line py-5 sm:grid-cols-5">
+      <div className="stat-row mb-6 border-y border-line py-5" style={{ ["--stat-cols" as string]: 5 }}>
         <Figure value={`${stats.stdSent}/${stats.households}`} label="Save-the-dates sent" />
         <Figure value={`${stats.rsvpSent}/${stats.households}`} label="Invitations sent" />
         <Figure value={stats.yes} label="Said yes" tone="positive" />
@@ -219,7 +219,7 @@ export function Invitations({
       </p>
 
       {/* Filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+      <div className="pill-row mb-4 items-center">
         {FILTERS.map((f) => (
           <button
             key={f.key}

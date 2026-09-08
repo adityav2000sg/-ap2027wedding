@@ -125,7 +125,7 @@ export function AttentionList({
                 size="iconSm"
                 aria-label={`Dismiss: ${alert.title}`}
                 title="Dismiss — it'll come back if the problem gets worse"
-                className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                className="reveal-on-hover opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                 disabled={dismissing === alert.key}
                 onClick={() => dismiss(alert.key)}
               >

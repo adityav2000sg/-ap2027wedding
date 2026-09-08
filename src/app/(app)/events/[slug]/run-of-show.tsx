@@ -216,7 +216,7 @@ export function EventRunOfShow({
                 onClick={() => edit(entry)}
                 className={cn(
                   "shrink-0 self-start rounded-md px-2 py-1 text-[12px] text-ink-muted",
-                  "opacity-0 transition-all duration-500 transition-natural",
+                  "reveal-on-hover opacity-0 transition-all duration-500 transition-natural",
                   "hover:bg-surface-sunken hover:text-ink focus-visible:opacity-100 group-hover:opacity-100",
                 )}
               >

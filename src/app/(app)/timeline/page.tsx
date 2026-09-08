@@ -55,10 +55,10 @@ export default async function TimelinePage({
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-6">
         <div className="eyebrow mb-2">When everything happens</div>
-        <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Timeline</h1>
+        <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Timeline</h1>
         <p className="mt-1.5 text-[13.5px] text-ink-muted">
           The months leading up to it, and the minutes within it.
         </p>

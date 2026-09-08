@@ -161,7 +161,7 @@ export default async function EventPage({
 
       <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
         {/* Key numbers */}
-        <div className="grid grid-cols-2 gap-x-8 gap-y-5 border-b border-line py-6 sm:grid-cols-4">
+        <div className="stat-row border-b border-line py-5" style={{ ["--stat-cols" as string]: 4 }}>
           <Figure value={counts.confirmed} label="Coming" />
           <Figure value={counts.expected || event.estimatedGuests} label="Expected" />
           {canSeeMoney ? (

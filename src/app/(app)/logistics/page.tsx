@@ -54,17 +54,17 @@ export default async function LogisticsPage({
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-7">
         <div className="eyebrow mb-2">Getting everyone there</div>
-        <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Logistics</h1>
+        <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Logistics</h1>
         <p className="mt-1.5 text-[13.5px] text-ink-muted">
           Rooms, flights, transfers and who's responsible for what.
         </p>
       </header>
 
       {/* Headline numbers */}
-      <div className="mb-7 grid grid-cols-2 gap-x-8 gap-y-5 border-y border-line py-6 sm:grid-cols-4">
+      <div className="stat-row mb-6 border-y border-line py-5" style={{ ["--stat-cols" as string]: 4 }}>
         <Figure
           icon={<BedIcon size={14} />}
           value={`${roomsRequired(snapshot)}`}

@@ -17,11 +17,25 @@ import { fetchSnapshot } from "@/server/snapshot-query";
 import type { Viewer } from "@/server/permissions";
 import type { ToolDefinition } from "./qwen";
 
-/** The subset of changes the AI is allowed to suggest. */
+/**
+ * What the AI may suggest — now every change the app itself can make.
+ *
+ * The list used to be a subset, which meant asking it to move a function to a
+ * different day, or to put an RSVP back to awaiting, got a polite refusal for
+ * no good reason. Withholding them bought nothing: proposing is not applying.
+ * Every one of these still goes through the same preview-and-approve path a
+ * person uses, executed by the same server action with the same permission
+ * check, and nothing is written until somebody presses the button.
+ */
 export const PROPOSABLE = [
   "wedding.guests",
+  "wedding.budget",
   "event.time",
+  "event.date",
+  "event.venue",
   "event.guests",
+  "guest.rsvp",
+  "guest.accommodation",
   "vendor.status",
   "vendor.quote",
   "task.update",

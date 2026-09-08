@@ -85,12 +85,12 @@ export function BudgetWorkspace({
     .sort((a, b) => b.variance - a.variance);
 
   return (
-    <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-7">
         <div className="eyebrow mb-2">What this will cost</div>
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
-            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Budget</h1>
+            <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Budget</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               Everything shown in {currency}. Amounts stay stored in the currency
               they were entered in.
@@ -139,7 +139,7 @@ export function BudgetWorkspace({
           { value: Math.max(0, finance.forecast - finance.committed), tone: "slate", label: "Not committed" },
         ]}
       />
-      <div className="mb-7 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-5">
+      <div className="stat-row mb-6" style={{ ["--stat-cols" as string]: 5 }}>
         <Figure label="Paid" value={formatCompactMoney(finance.paid, currency)} tone="olive" />
         <Figure label="Under contract" value={formatCompactMoney(finance.committed, currency)} tone="saffron" />
         <Figure label="Still to pay" value={formatCompactMoney(finance.remainingPayable, currency)} />
@@ -284,7 +284,7 @@ export function BudgetWorkspace({
                   </button>
 
                   {canEdit ? (
-                    <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 transition-opacity duration-500 group-hover:opacity-100 focus-within:opacity-100">
+                    <div className="reveal-on-hover flex shrink-0 items-center gap-0.5 pr-1 opacity-0 transition-opacity duration-500 group-hover:opacity-100 focus-within:opacity-100">
                       <Tooltip content="Add a line to this category">
                         <button
                           type="button"
@@ -378,7 +378,7 @@ export function BudgetWorkspace({
                                 type="button"
                                 aria-label={`Edit ${item.name}`}
                                 onClick={() => setEditor({ kind: "edit-item", item: item.edit! })}
-                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint opacity-0 transition-all duration-300 transition-natural hover:bg-surface-sunken hover:text-saffron group-hover/item:opacity-100 focus:opacity-100"
+                                className="reveal-on-hover flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint opacity-0 transition-all duration-300 transition-natural hover:bg-surface-sunken hover:text-saffron group-hover/item:opacity-100 focus:opacity-100"
                               >
                                 <PencilIcon size={13} />
                               </button>

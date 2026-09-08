@@ -10,14 +10,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { cn, toneClasses } from "@/lib/cn";
 import { Avatar, Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
 import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { SearchIcon } from "@/components/ui/icons";
-import { updateGuest } from "@/server/actions/guests";
+import { archiveGuest, updateGuest } from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
 import {
   Invitations,
@@ -146,12 +146,12 @@ export function GuestsWorkspace({
   }
 
   return (
-    <div className="mx-auto max-w-[1240px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[1240px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-6">
         <div className="eyebrow mb-2">Who's coming</div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Guests</h1>
+            <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Guests</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {stats.total} people across {stats.households} households
             </p>
@@ -195,17 +195,34 @@ export function GuestsWorkspace({
         ))}
       </div>
 
+      {/* Crossfade rather than swap: the two views are the same list seen two
+          ways, and snapping between them reads as a page change. */}
+      <AnimatePresence mode="wait" initial={false}>
       {view === "invitations" ? (
-        <Invitations
-          rows={invitations}
-          stats={invitationStats}
-          tiers={invitationTiers}
-          canEdit={canEdit}
-        />
+        <motion.div
+          key="invitations"
+          initial={reduce ? false : { opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduce ? undefined : { opacity: 0, y: -4 }}
+          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <Invitations
+            rows={invitations}
+            stats={invitationStats}
+            tiers={invitationTiers}
+            canEdit={canEdit}
+          />
+        </motion.div>
       ) : (
-      <>
+      <motion.div
+        key="list"
+        initial={reduce ? false : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={reduce ? undefined : { opacity: 0, y: -4 }}
+        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      >
       {/* Overview */}
-      <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 border-y border-line py-5 sm:grid-cols-5">
+      <div className="stat-row mb-6 border-y border-line py-5" style={{ ["--stat-cols" as string]: 5 }}>
         <Figure value={stats.invited} label="On the list" />
         <Figure value={stats.confirmed} label="Coming" tone="positive" />
         <Figure value={stats.pending} label="Awaiting a reply" tone="attention" />
@@ -224,7 +241,7 @@ export function GuestsWorkspace({
       />
 
       {/* Filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+      <div className="pill-row mb-4 items-center">
         {[
           { key: "all", label: "Everyone" },
           { key: "confirmed", label: "Coming" },
@@ -269,7 +286,116 @@ export function GuestsWorkspace({
           description="Try a different filter, or clear the search."
         />
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Phones get cards. The grid is five event columns wide and a sticky
+            name column, which on a 375px screen leaves each guest legible only
+            by scrolling sideways one function at a time. */}
+        <div className="sm:hidden">
+          {grouped.map(([householdName, householdGuests]) => (
+            <div key={householdName} className="mb-4">
+              <p className="mb-1.5 text-[12px] font-medium text-ink-soft">
+                {householdName}
+                <span className="tabular ml-1.5 text-ink-faint">
+                  {householdGuests.length}
+                </span>
+              </p>
+              <div className="overflow-hidden rounded-xl border border-line">
+                {householdGuests.map((guest, index) => (
+                  <div
+                    key={guest.id}
+                    className={cn(
+                      "px-3 py-2.5",
+                      index > 0 && "border-t border-line/60",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setOpenGuest(guest.id)}
+                      className="flex w-full items-center gap-2 text-left"
+                    >
+                      <Avatar
+                        name={`${guest.firstName} ${guest.lastName}`}
+                        tone={guest.isVIP ? "saffron" : "slate"}
+                        size="sm"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13.5px] text-ink">
+                          {guest.firstName} {guest.lastName}
+                        </span>
+                        {guest.relationship ? (
+                          <span className="block truncate text-[11.5px] text-ink-faint">
+                            {guest.relationship}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        {guest.needsAccommodation ? (
+                          <span className="text-[11px] text-ink-muted">🛏</span>
+                        ) : null}
+                        {guest.needsTransport ? (
+                          <span className="text-[11px] text-ink-muted">🚐</span>
+                        ) : null}
+                      </span>
+                    </button>
+
+                    <div className="mt-2 flex gap-1.5">
+                      {events.map((event) => {
+                        const status = guest.rsvp[event.id] ?? "NOT_INVITED";
+                        const cellKey = `${guest.id}:${event.id}`;
+                        return (
+                          <button
+                            key={event.id}
+                            type="button"
+                            disabled={!canEdit || savingCell === cellKey}
+                            onClick={() =>
+                              setCellMenu((c) =>
+                                c?.guestId === guest.id && c?.eventId === event.id
+                                  ? null
+                                  : { guestId: guest.id, eventId: event.id },
+                              )
+                            }
+                            className={cn(
+                              "flex min-h-[34px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg border transition-colors",
+                              cellMenu?.guestId === guest.id && cellMenu?.eventId === event.id
+                                ? "border-saffron/40 bg-saffron-soft"
+                                : "border-line",
+                              savingCell === cellKey && "opacity-40",
+                            )}
+                          >
+                            <span className="text-[9px] uppercase tracking-[0.06em] text-ink-faint">
+                              {event.name.slice(0, 4)}
+                            </span>
+                            <RsvpDot status={status} />
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {cellMenu?.guestId === guest.id ? (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {RSVP_CHOICES.map((choice) => (
+                          <button
+                            key={choice.value}
+                            type="button"
+                            onClick={() =>
+                              setCell(guest.id, cellMenu.eventId, choice.value)
+                            }
+                            className="flex min-h-[30px] items-center gap-1.5 rounded-lg border border-line px-2 text-[12px] text-ink-soft"
+                          >
+                            <RsvpDot status={choice.value} />
+                            {choice.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[720px] border-collapse">
             <thead>
               <tr className="border-b border-line">
@@ -426,9 +552,11 @@ export function GuestsWorkspace({
             </tbody>
           </table>
         </div>
+        </>
       )}
-      </>
+      </motion.div>
       )}
+      </AnimatePresence>
 
       <GuestSheet
         guest={active}
@@ -519,6 +647,14 @@ function GuestSheet({
   onClose(): void;
   onChanged(): void;
 }) {
+  // Declared before the early return — hooks can't sit behind a condition.
+  const [confirmingRemove, setConfirmingRemove] = React.useState(false);
+  const [removing, setRemoving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!guest) setConfirmingRemove(false);
+  }, [guest]);
+
   if (!guest) return null;
 
   async function patch(data: Record<string, unknown>) {
@@ -534,6 +670,48 @@ function GuestSheet({
       title={`${guest.firstName} ${guest.lastName}`}
       description={[guest.relationship, guest.householdName, guest.city].filter(Boolean).join(" · ")}
       width="md"
+      footer={
+        canEdit ? (
+          <div className="flex items-center justify-between gap-3">
+            {confirmingRemove ? (
+              <>
+                <span className="text-[12.5px] text-ink-muted">
+                  Take {guest.firstName} off the list?
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)}>
+                    Keep
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={removing}
+                    onClick={async () => {
+                      setRemoving(true);
+                      const result = await archiveGuest(guest.id);
+                      setRemoving(false);
+                      if (result.ok) {
+                        onClose();
+                        onChanged();
+                      }
+                    }}
+                  >
+                    {removing ? "Removing…" : "Remove"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingRemove(true)}
+                className="text-[12.5px] text-ink-faint transition-colors hover:text-critical"
+              >
+                Remove from the guest list
+              </button>
+            )}
+          </div>
+        ) : undefined
+      }
     >
       <section className="mb-5">
         <h4 className="eyebrow mb-2">Coming to</h4>

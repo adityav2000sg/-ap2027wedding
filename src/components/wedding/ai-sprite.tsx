@@ -52,7 +52,7 @@ export function AiSprite({
     <div
       className={cn(
         // Clear of the phone tab bar and the home indicator.
-        "fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-40 flex items-end gap-2 lg:bottom-6 lg:right-6",
+        "fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex items-end gap-2 lg:bottom-6 lg:right-6",
         className,
       )}
       onMouseEnter={() => setHovered(true)}
@@ -117,7 +117,7 @@ function Owl({ blinking, curious }: { blinking: boolean; curious: boolean }) {
       fill="none"
       role="img"
       aria-hidden
-      className="h-[52px] w-[50px] sm:h-[58px] sm:w-[56px]"
+      className="h-[42px] w-[40px] sm:h-[56px] sm:w-[54px]"
     >
       <defs>
         <linearGradient id="owl-body" x1="0" y1="0" x2="0" y2="1">

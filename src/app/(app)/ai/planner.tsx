@@ -126,10 +126,10 @@ export function AiPlanner({
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-[820px] flex-col px-5 py-8 sm:px-8">
+    <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-[820px] flex-col px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-6">
         <div className="eyebrow mb-2">Ask anything</div>
-        <h1 className="font-script text-[34px] sm:text-[54px] text-ink">AI Planner</h1>
+        <h1 className="font-script text-[30px] sm:text-[54px] text-ink">AI Planner</h1>
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
           It reads the live wedding — guests, budget, vendors, the run of show —
           and answers from the actual numbers.
@@ -153,7 +153,7 @@ export function AiPlanner({
                 <p className="mb-3 text-[13px] text-ink-soft">
                   Try one of these, {viewerName.split(" ")[0]}:
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="pill-row sm:gap-2">
                   {suggestions.map((suggestion, index) => (
                     <motion.button
                       key={suggestion}
@@ -166,7 +166,7 @@ export function AiPlanner({
                         ease: [0.22, 1, 0.36, 1],
                         delay: reduce ? 0 : index * 0.05,
                       }}
-                      className="rounded-full border border-line bg-surface px-3 py-1.5 text-left text-[12.5px] text-ink-soft transition-all hover:border-plum/40 hover:bg-plum-soft hover:text-plum"
+                      className="max-w-[80vw] shrink-0 whitespace-nowrap rounded-full border border-line bg-surface px-3 py-2 text-left text-[12.5px] text-ink-soft transition-all hover:border-plum/40 hover:bg-plum-soft hover:text-plum sm:max-w-none sm:whitespace-normal sm:py-1.5"
                     >
                       {suggestion}
                     </motion.button>
@@ -288,14 +288,14 @@ export function AiPlanner({
                     ask(draft);
                   }
                 }}
-                placeholder="Ask about the budget, the guests, what's behind…"
-                className="min-h-[52px] pr-24"
+                placeholder="Ask about the budget, the guests…"
+                className="min-h-[64px] pr-[86px] text-[15px] sm:min-h-[52px] sm:pr-24 sm:text-[14px]"
                 disabled={pending}
               />
               <Button
                 variant="primary"
                 size="sm"
-                className="absolute bottom-2.5 right-2.5"
+                className="absolute bottom-2.5 right-2.5 min-h-[36px]"
                 disabled={pending || draft.trim().length === 0}
                 onClick={() => ask(draft)}
               >

@@ -402,7 +402,7 @@ export default async function HomePage() {
                 </Link>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+              <div className="stat-row mt-4" style={{ ["--stat-cols" as string]: 4 }}>
                 <Figure label="Budget" value={formatCompactMoney(budget.finance.totalBudget, currency)} />
                 <Figure
                   label="Forecast"

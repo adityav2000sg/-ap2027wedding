@@ -180,6 +180,92 @@
     padding-bottom: 0.08em;
   }
 
+  /* A row of headline figures.
+     On a phone, four or five of these in a two-column grid leaves an orphan on
+     the last row and pushes everything below the fold, so they become a single
+     scrolling row of compact cells instead. From sm up they're a normal grid. */
+  .stat-row {
+    display: flex;
+    gap: 1.5rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    scrollbar-width: none;
+  }
+  .stat-row::-webkit-scrollbar {
+    display: none;
+  }
+  .stat-row > * {
+    flex: 0 0 auto;
+    min-width: 5.5rem;
+    scroll-snap-align: start;
+  }
+  /* Headline numbers are drawn for a desktop hero; on a phone they're merely
+     loud, so the whole row steps down a size. */
+  .stat-row :is(.tabular, .font-display) {
+    font-size: 21px;
+    line-height: 1.1;
+  }
+
+  @media (min-width: 640px) {
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(var(--stat-cols, 4), minmax(0, 1fr));
+      gap: 1rem 2rem;
+      overflow: visible;
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+    .stat-row > * {
+      min-width: 0;
+    }
+    .stat-row :is(.tabular, .font-display) {
+      font-size: inherit;
+      line-height: inherit;
+    }
+  }
+
+  /* Filter pills. Wrapping to three ragged rows eats a third of a phone screen,
+     so they run off the edge in one scrollable line instead. */
+  .pill-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.375rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    scrollbar-width: none;
+  }
+  .pill-row::-webkit-scrollbar {
+    display: none;
+  }
+  .pill-row > * {
+    flex: 0 0 auto;
+  }
+
+  @media (min-width: 640px) {
+    .pill-row {
+      flex-wrap: wrap;
+      overflow: visible;
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+  }
+
+  /* Controls that fade in on hover.
+     A touch screen has no hover, so on a phone these were invisible forever —
+     which is why the budget looked uneditable there. Keyed on hover capability
+     rather than width, because a narrow desktop window still has a pointer and
+     a large tablet still doesn't. */
+  @media (hover: none) {
+    .reveal-on-hover {
+      opacity: 1 !important;
+    }
+  }
+
   .tabular {
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;

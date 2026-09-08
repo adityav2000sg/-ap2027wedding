@@ -33,10 +33,10 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[900px] px-5 py-8 sm:px-8">
+    <div className="mx-auto max-w-[900px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-8">
         <div className="eyebrow mb-2">How this is set up</div>
-        <h1 className="font-script text-[34px] sm:text-[54px] text-ink">Settings</h1>
+        <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Settings</h1>
       </header>
 
       {/* The wedding */}
