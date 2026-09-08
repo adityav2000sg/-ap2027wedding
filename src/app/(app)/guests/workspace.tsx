@@ -19,6 +19,7 @@ import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/fo
 import { SearchIcon } from "@/components/ui/icons";
 import { archiveGuest, updateGuest } from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
+import { AddGuestButton } from "./guest-composer";
 import {
   Invitations,
   type InvitationRow,
@@ -156,14 +157,17 @@ export function GuestsWorkspace({
               {stats.total} people across {stats.households} households
             </p>
           </div>
-          <div className="relative">
-            <SearchIcon size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search names or households…"
-              className="h-8 w-64 pl-8 text-[12.5px]"
-            />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative min-w-0 flex-1 sm:flex-none">
+              <SearchIcon size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search names or households…"
+                className="h-9 w-full pl-8 text-[12.5px] sm:w-64"
+              />
+            </div>
+            {canEdit ? <AddGuestButton households={households} /> : null}
           </div>
         </div>
       </header>
