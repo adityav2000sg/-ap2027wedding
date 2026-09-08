@@ -230,23 +230,20 @@ export function computeAlerts(
   }
 
   // Rooms somebody has to look at by eye — over capacity, or a family sharing
-  // with strangers. Reported as one alert rather than one per room, because a
-  // spreadsheet import tends to produce several at once.
-  const oddRooms = roomsNeedingReview(snapshot);
-  if (oddRooms.length) {
-    const worst = oddRooms.filter((room) => room.mixedHouseholds);
-    const example = (worst[0] ?? oddRooms[0])!;
+  // with strangers. One alert per room, not one for all of them: most of these
+  // turn out to be deliberate (friends travelling alone are routinely paired
+  // up), and a single lumped alert can only be dismissed all at once, which
+  // would bury the next genuine mistake along with the accepted ones.
+  for (const room of roomsNeedingReview(snapshot)) {
     alerts.push({
-      key: "logistics:room-shares",
-      severity: worst.length > 0 ? "important" : "attention",
-      title:
-        oddRooms.length === 1
-          ? `Room ${example.roomNumber} needs a second look`
-          : `${oddRooms.length} rooms need a second look`,
+      key: `logistics:room:${room.roomNumber}`,
+      severity: room.mixedHouseholds ? "important" : "attention",
+      title: `Room ${room.roomNumber} has ${room.occupants} people in it`,
       detail:
-        `Room ${example.roomNumber} has ${example.occupants} people` +
-        (example.mixedHouseholds ? ` from ${example.households} different households` : "") +
-        ` — ${example.names.join(", ")}.`,
+        room.names.join(", ") +
+        (room.mixedHouseholds
+          ? ` — from ${room.households} different households.`
+          : "."),
       href: "/logistics?view=rooms",
       actionLabel: "Check room allocation",
       group: "logistics",

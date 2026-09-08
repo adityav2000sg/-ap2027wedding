@@ -22,6 +22,7 @@ import { PlusIcon, PencilIcon } from "@/components/ui/icons";
 import { markPaymentPaid } from "@/server/actions/budget";
 import { useRouter } from "next/navigation";
 import { BudgetEditor, type EditorIntent, type EditableItem } from "./budget-editor";
+import { InlineAmount } from "./inline-amount";
 
 interface Item {
   id: string; name: string; allocated: number; forecast: number; variance: number;
@@ -361,16 +362,15 @@ export function BudgetWorkspace({
                             </Badge>
                           </Tooltip>
 
-                          <span className="shrink-0 text-right">
-                            <span className="tabular block text-[13px] text-ink">
-                              {formatCompactMoney(item.forecast, currency)}
-                            </span>
-                            {item.nativeCurrency !== currency ? (
-                              <span className="tabular block text-[10.5px] text-ink-faint">
-                                {formatCompactMoney(item.nativeForecast, item.nativeCurrency)}
-                              </span>
-                            ) : null}
-                          </span>
+                          <InlineAmount
+                            item={item.edit}
+                            source={item.source}
+                            isVariable={item.isVariable}
+                            forecast={item.forecast}
+                            displayCurrency={currency}
+                            canEdit={canEdit}
+                            onChanged={() => router.refresh()}
+                          />
 
                           {canEdit && item.edit ? (
                             <Tooltip content="Edit this line">
