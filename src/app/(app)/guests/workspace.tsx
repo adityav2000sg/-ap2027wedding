@@ -16,7 +16,7 @@ import { cn, toneClasses } from "@/lib/cn";
 import { Avatar, Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
 import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
-import { SearchIcon } from "@/components/ui/icons";
+import { CheckIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
 import { archiveGuest, setGuestAttendance, updateGuest } from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
 import { ExportMenu } from "@/components/wedding/export-menu";
@@ -360,7 +360,7 @@ export function GuestsWorkspace({
                     <button
                       type="button"
                       onClick={() => setOpenGuest(guest.id)}
-                      className="flex w-full items-center gap-2 text-left"
+                      className="flex w-full items-center gap-2 text-left active:opacity-70"
                     >
                       <Avatar
                         name={`${guest.firstName} ${guest.lastName}`}
@@ -368,7 +368,7 @@ export function GuestsWorkspace({
                         size="sm"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13.5px] text-ink">
+                        <span className="block truncate text-[13.5px] text-ink underline decoration-line decoration-dotted underline-offset-[3px]">
                           {guest.firstName} {guest.lastName}
                         </span>
                         {guest.relationship ? (
@@ -384,6 +384,7 @@ export function GuestsWorkspace({
                         {guest.needsTransport ? (
                           <span className="text-[11px] text-ink-muted">🚐</span>
                         ) : null}
+                        <ChevronRightIcon size={13} className="ml-0.5 text-ink-faint" />
                       </span>
                     </button>
 
@@ -522,9 +523,15 @@ export function GuestsWorkspace({
                             size="xs"
                           />
                           <span className="min-w-0">
-                            <span className="block truncate text-[13px] text-ink transition-colors group-hover:text-saffron">
-                              {guest.firstName} {guest.lastName}
-                              {guest.isVIP ? <span className="ml-1 text-saffron">★</span> : null}
+                            <span className="flex items-center gap-1 truncate text-[13px] text-ink transition-colors group-hover:text-saffron">
+                              <span className="truncate underline decoration-line decoration-dotted underline-offset-[3px] group-hover:decoration-saffron">
+                                {guest.firstName} {guest.lastName}
+                              </span>
+                              {guest.isVIP ? <span className="text-saffron">★</span> : null}
+                              <ChevronRightIcon
+                                size={12}
+                                className="shrink-0 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100"
+                              />
                             </span>
                             <span className="block truncate text-[10.5px] text-ink-muted">
                               {guest.relationship ?? guest.city ?? ""}
@@ -772,6 +779,10 @@ function GuestSheet({
   // Declared before the early return — hooks can't sit behind a condition.
   const [confirmingRemove, setConfirmingRemove] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
+  // Edits save as you leave a field. Without saying so, and without saying when
+  // it's done, that reads as nothing having happened at all.
+  const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!guest) setConfirmingRemove(false);
@@ -781,7 +792,17 @@ function GuestSheet({
 
   async function patch(data: Record<string, unknown>) {
     if (!guest) return;
-    await updateGuest({ id: guest.id, ...data });
+    setSaveState("saving");
+    setSaveError(null);
+
+    const result = await updateGuest({ id: guest.id, ...data });
+    if (!result.ok) {
+      setSaveState("error");
+      setSaveError(result.error);
+      return;
+    }
+
+    setSaveState("saved");
     onChanged();
   }
 
@@ -794,7 +815,8 @@ function GuestSheet({
       width="md"
       footer={
         canEdit ? (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SaveStatus state={saveState} error={saveError} />
             {confirmingRemove ? (
               <>
                 <span className="text-[12.5px] text-ink-muted">
@@ -987,5 +1009,55 @@ function GuestSheet({
         </div>
       ) : null}
     </Sheet>
+  );
+}
+
+/**
+ * Whether the sheet has saved.
+ *
+ * Fields commit when you leave them, which is right — nothing is ever lost by
+ * closing the panel — but silent saving is indistinguishable from broken
+ * saving. This says which it is, and stays put rather than flashing away, so
+ * you can look up a second later and still see it.
+ */
+function SaveStatus({
+  state,
+  error,
+}: {
+  state: "idle" | "saving" | "saved" | "error";
+  error: string | null;
+}) {
+  const reduce = useReducedMotion();
+
+  if (state === "error") {
+    return (
+      <span role="alert" className="text-[12px] text-critical">
+        {error ?? "That didn't save."}
+      </span>
+    );
+  }
+
+  if (state === "idle") {
+    return (
+      <span className="text-[11.5px] text-ink-faint">
+        Changes save as you go
+      </span>
+    );
+  }
+
+  return (
+    <motion.span
+      key={state}
+      initial={reduce ? false : { opacity: 0, y: 3 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      className={cn(
+        "flex items-center gap-1.5 text-[12px]",
+        state === "saved" ? "text-positive" : "text-ink-muted",
+      )}
+    >
+      {state === "saved" ? <CheckIcon size={13} /> : null}
+      {state === "saved" ? "Saved" : "Saving…"}
+    </motion.span>
   );
 }

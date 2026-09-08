@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/cn";
 
@@ -51,14 +51,21 @@ export function LogisticsTabs({
         ))}
       </div>
 
-      <motion.div
-        key={view}
-        initial={reduce ? false : { opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-      >
-        {active.node}
-      </motion.div>
+      {/* mode="wait" so the outgoing panel leaves before the new one arrives.
+          Without AnimatePresence the old content was removed the instant you
+          tapped and the new one faded in over nothing — a hard cut wearing a
+          fade. */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={view}
+          initial={reduce ? false : { opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduce ? undefined : { opacity: 0, y: -4 }}
+          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {active.node}
+        </motion.div>
+      </AnimatePresence>
     </>
   );
 }
