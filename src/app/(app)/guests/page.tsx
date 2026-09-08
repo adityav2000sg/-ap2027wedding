@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { computeGuestCounts, roomsRequired } from "@/domain/guests";
-import { outreachRows, outreachStats } from "@/domain/outreach";
+import { outreachByTier, outreachRows, outreachStats } from "@/domain/outreach";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import { GuestsWorkspace } from "./workspace";
@@ -99,12 +99,17 @@ export default async function GuestsPage({
         householdId: row.householdId,
         name: row.name,
         side: row.side,
+        tier: row.tier,
         headcount: row.headcount,
+        people: row.people,
+        peopleSaveTheDateSent: row.peopleSaveTheDateSent,
+        peopleInvitationSent: row.peopleInvitationSent,
         saveTheDateSent: row.saveTheDateSent,
         invitationSent: row.invitationSent,
         reply: row.reply,
       }))}
       invitationStats={outreachStats(snapshot)}
+      invitationTiers={outreachByTier(snapshot)}
       rsvpEnabled={snapshot.wedding.rsvpEnabled}
     />
   );

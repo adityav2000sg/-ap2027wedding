@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { outreachGaps, outreachRows, outreachStats } from "../outreach";
+import { outreachByTier, outreachGaps, outreachRows, outreachStats } from "../outreach";
 import { makeSnapshot } from "./fixtures";
 import type { WeddingSnapshot } from "../types";
 
@@ -20,6 +20,7 @@ function snapshotWith(
     rsvpSentAt: null,
     rsvpReply: "AWAITING" as const,
     rsvpRepliedAt: null,
+    tier: "A" as const,
     ...overrides,
   }));
 
@@ -27,9 +28,9 @@ function snapshotWith(
     ...base,
     households: built,
     guests: [
-      { ...base.guests[0], id: "g0", householdId: "h0" },
-      { ...base.guests[0], id: "g1", householdId: "h0" },
-      { ...base.guests[0], id: "g2", householdId: "h1" },
+      { ...base.guests[0], id: "g0", householdId: "h0", firstName: "Ana", lastName: "One" },
+      { ...base.guests[0], id: "g1", householdId: "h0", firstName: "Bo", lastName: "One" },
+      { ...base.guests[0], id: "g2", householdId: "h1", firstName: "Cal", lastName: "Two" },
     ],
   };
 }
@@ -109,5 +110,52 @@ describe("outreach", () => {
   it("sorts rows by name so the list is stable between renders", () => {
     const snapshot = snapshotWith([{ name: "Zutshi" }, { name: "Abrol" }]);
     expect(outreachRows(snapshot).map((r) => r.name)).toEqual(["Abrol", "Zutshi"]);
+  });
+  it("keeps the first wave's numbers separate from the rest", () => {
+    const snapshot = snapshotWith([
+      { tier: "A", saveTheDateSentAt: new Date("2026-01-01") },
+      { tier: "B" },
+    ]);
+
+    const tiers = outreachByTier(snapshot);
+    const a = tiers.find((t) => t.tier === "A")!;
+    const b = tiers.find((t) => t.tier === "B")!;
+
+    expect(a.households).toBe(1);
+    expect(a.people).toBe(2);
+    expect(a.stdSent).toBe(1);
+    // Tier B hasn't been written to, which is the entire point of tiering.
+    expect(b.stdSent).toBe(0);
+  });
+
+  it("reports empty tiers as absent rather than as zeroes", () => {
+    const tiers = outreachByTier(snapshotWith([{ tier: "A" }, { tier: "A" }]));
+    expect(tiers.map((t) => t.tier)).toEqual(["A"]);
+  });
+
+  it("lists the people in a household so invitations can go to individuals", () => {
+    const rows = outreachRows(snapshotWith([{}, {}]));
+    const first = rows.find((r) => r.householdId === "h0")!;
+
+    expect(first.people.map((p) => p.name)).toEqual(["Ana One", "Bo One"]);
+    expect(first.headcount).toBe(2);
+  });
+
+  it("counts who has personally been messaged, not just the household", () => {
+    const snapshot = snapshotWith([{ saveTheDateSentAt: new Date("2026-01-01") }, {}]);
+    // The household is marked sent, but only one of its two people is.
+    snapshot.guests[0].saveTheDateSentAt = new Date("2026-01-01");
+
+    const first = outreachRows(snapshot).find((r) => r.householdId === "h0")!;
+    expect(first.saveTheDateSent).toBe(true);
+    expect(first.peopleSaveTheDateSent).toBe(1);
+    expect(first.headcount).toBe(2);
+  });
+
+  it("orders by tier first, so the wave being worked on comes first", () => {
+    const rows = outreachRows(
+      snapshotWith([{ name: "Aaa", tier: "B" }, { name: "Zzz", tier: "A" }]),
+    );
+    expect(rows.map((r) => r.name)).toEqual(["Zzz", "Aaa"]);
   });
 });

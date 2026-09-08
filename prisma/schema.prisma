@@ -246,6 +246,14 @@ enum DietaryPreference {
   NOT_SPECIFIED
 }
 
+/// Which wave a household belongs to. The first save-the-dates go to A only;
+/// B is held back until the numbers are known, C is the reserve list.
+enum GuestTier {
+  A
+  B
+  C
+}
+
 /// Whether a household has answered, and how. Separate from the per-event
 /// RsvpStatus: this is the one answer the family actually chases.
 enum RsvpReply {
@@ -282,6 +290,7 @@ model Household {
   rsvpSentAt            DateTime?
   rsvpReply             RsvpReply        @default(AWAITING)
   rsvpRepliedAt         DateTime?
+  tier                  GuestTier        @default(A)
   giftReceived          Boolean          @default(false)
   giftNote              String?
   notes                 String?
@@ -318,6 +327,10 @@ model Guest {
   accessibilityNeeds String?
   needsAccommodation Boolean           @default(false)
   needsTransport     Boolean           @default(false)
+  /// Set when this person specifically was sent one, independent of the
+  /// household roll-up — most invitations here go to a phone, not a letterbox.
+  saveTheDateSentAt  DateTime?
+  invitationSentAt   DateTime?
   notes              String?
   archivedAt         DateTime?
   createdAt          DateTime          @default(now())

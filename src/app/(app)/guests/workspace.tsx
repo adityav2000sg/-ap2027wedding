@@ -19,7 +19,12 @@ import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/fo
 import { SearchIcon } from "@/components/ui/icons";
 import { updateGuest } from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
-import { Invitations, type InvitationRow, type InvitationStats } from "./invitations";
+import {
+  Invitations,
+  type InvitationRow,
+  type InvitationStats,
+  type TierStat,
+} from "./invitations";
 
 interface Guest {
   id: string; firstName: string; lastName: string; side: string;
@@ -49,7 +54,7 @@ const DIET_LABEL: Record<string, string> = {
 
 export function GuestsWorkspace({
   guests, households, events, stats, canEdit, currency, rsvpEnabled,
-  invitations, invitationStats,
+  invitations, invitationStats, invitationTiers,
   initialFilter, initialEvent, initialGuest, initialSide,
 }: {
   guests: Guest[];
@@ -61,6 +66,7 @@ export function GuestsWorkspace({
   rsvpEnabled: boolean;
   invitations: InvitationRow[];
   invitationStats: InvitationStats;
+  invitationTiers: TierStat[];
   initialFilter: string | null;
   initialEvent: string | null;
   initialGuest: string | null;
@@ -190,7 +196,12 @@ export function GuestsWorkspace({
       </div>
 
       {view === "invitations" ? (
-        <Invitations rows={invitations} stats={invitationStats} canEdit={canEdit} />
+        <Invitations
+          rows={invitations}
+          stats={invitationStats}
+          tiers={invitationTiers}
+          canEdit={canEdit}
+        />
       ) : (
       <>
       {/* Overview */}

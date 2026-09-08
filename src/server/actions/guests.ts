@@ -576,3 +576,165 @@ export async function setHouseholdReply(
     return { id: household.id, guests: guestIds.length };
   });
 }
+
+const TIERS = ["A", "B", "C"] as const;
+
+/**
+ * Move a household between waves.
+ *
+ * Tier is about who gets asked and when — it never touches who has already been
+ * sent something, so demoting a household you've already written to leaves that
+ * record intact rather than quietly rewriting history.
+ */
+export async function setHouseholdTier(
+  householdId: string,
+  tier: (typeof TIERS)[number],
+) {
+  return withAction("guests.edit", async (viewer) => {
+    z.enum(TIERS).parse(tier);
+
+    const household = await db.household.findFirst({
+      where: { id: householdId, weddingId: viewer.weddingId },
+      select: { id: true, name: true, tier: true },
+    });
+    if (!household) throw new Error("That household no longer exists.");
+    if (household.tier === tier) return { id: household.id };
+
+    await db.household.update({ where: { id: householdId }, data: { tier } });
+
+    await logViewerActivity(viewer, {
+      entityType: "household",
+      entityId: household.id,
+      entityLabel: household.name,
+      action: "tier_updated",
+      summary: `${viewer.name} moved ${household.name} to tier ${tier}.`,
+      before: { tier: household.tier },
+      after: { tier },
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id: household.id };
+  });
+}
+
+/** Set the tier for several households at once — this is a list-wide decision. */
+export async function setTierForHouseholds(
+  householdIds: string[],
+  tier: (typeof TIERS)[number],
+) {
+  return withAction("guests.edit", async (viewer) => {
+    z.enum(TIERS).parse(tier);
+    const ids = z.array(z.string()).min(1).max(500).parse(householdIds);
+
+    const { count } = await db.household.updateMany({
+      where: { id: { in: ids }, weddingId: viewer.weddingId },
+      data: { tier },
+    });
+
+    await logViewerActivity(viewer, {
+      entityType: "household",
+      entityId: ids[0],
+      entityLabel: `${count} households`,
+      action: "tier_updated",
+      summary: `${viewer.name} moved ${count} household(s) to tier ${tier}.`,
+      after: { tier, count },
+    });
+
+    revalidateWedding();
+    return { count };
+  });
+}
+
+/**
+ * Mark a save-the-date or invitation as sent to one person.
+ *
+ * Separate from the household flag on purpose: these go out over WhatsApp to
+ * individuals, so "the Anands have been told" and "Rohan has been told" are
+ * genuinely different facts, and only the second one helps you work out who
+ * still needs a message.
+ */
+export async function setGuestSend(
+  guestId: string,
+  which: "saveTheDate" | "invitation",
+  sent: boolean,
+) {
+  return withAction("guests.edit", async (viewer) => {
+    z.enum(["saveTheDate", "invitation"]).parse(which);
+
+    const guest = await db.guest.findFirst({
+      where: { id: guestId, weddingId: viewer.weddingId },
+      select: { id: true, firstName: true, lastName: true, householdId: true },
+    });
+    if (!guest) throw new Error("That guest no longer exists.");
+
+    const at = sent ? new Date() : null;
+    await db.guest.update({
+      where: { id: guestId },
+      data: which === "saveTheDate" ? { saveTheDateSentAt: at } : { invitationSentAt: at },
+    });
+
+    // The household flag is a roll-up: it's true once anybody in the house has
+    // been told, because that's what "this family knows" means in practice.
+    if (guest.householdId) {
+      const field = which === "saveTheDate" ? "saveTheDateSentAt" : "invitationSentAt";
+      const anySent = await db.guest.count({
+        where: { householdId: guest.householdId, [field]: { not: null } },
+      });
+      await db.household.update({
+        where: { id: guest.householdId },
+        data:
+          which === "saveTheDate"
+            ? { saveTheDateSentAt: anySent > 0 ? new Date() : null }
+            : { rsvpSentAt: anySent > 0 ? new Date() : null },
+      });
+    }
+
+    const name = `${guest.firstName} ${guest.lastName}`.trim();
+    const label = which === "saveTheDate" ? "save-the-date" : "invitation";
+    await logViewerActivity(viewer, {
+      entityType: "guest",
+      entityId: guest.id,
+      entityLabel: name,
+      action: "invitation_updated",
+      summary: sent
+        ? `${viewer.name} sent ${name} their ${label}.`
+        : `${viewer.name} un-marked ${name}'s ${label}.`,
+      after: { [which]: sent },
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id: guest.id };
+  });
+}
+
+/** A phone number, so the person chasing an RSVP can actually reach them. */
+export async function setGuestContact(
+  guestId: string,
+  field: "phone" | "email",
+  value: string,
+) {
+  return withAction("guests.edit", async (viewer) => {
+    z.enum(["phone", "email"]).parse(field);
+    const trimmed = value.trim();
+
+    if (field === "email" && trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      throw new Error("That doesn't look like an email address.");
+    }
+
+    const guest = await db.guest.findFirst({
+      where: { id: guestId, weddingId: viewer.weddingId },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (!guest) throw new Error("That guest no longer exists.");
+
+    await db.guest.update({
+      where: { id: guestId },
+      data: { [field]: trimmed || null },
+    });
+
+    revalidateWedding();
+    return { id: guest.id };
+  });
+}

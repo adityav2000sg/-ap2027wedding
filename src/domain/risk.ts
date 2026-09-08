@@ -13,6 +13,7 @@ import { daysBetween, formatMediumDate, formatMinute } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import type { BudgetView } from "./budget";
 import type { AnalysedTask } from "./tasks";
+import { roomsNeedingReview } from "./guests";
 import { detectConflicts, snapshotEventVenues } from "./timeline";
 import { VENDOR_CATEGORY_LABEL, VENDOR_STATUS_TEXT } from "./impact";
 import { SEVERITY_ORDER, type Severity, type WeddingSnapshot } from "./types";
@@ -224,6 +225,30 @@ export function computeAlerts(
       detail: `${counts.needAccommodation} guests need a bed — that's ${roomsNeeded} rooms at ${snapshot.wedding.guestsPerRoom} per room, and ${roomsHeld} are contracted.`,
       href: "/logistics",
       actionLabel: "Open logistics",
+      group: "logistics",
+    });
+  }
+
+  // Rooms somebody has to look at by eye — over capacity, or a family sharing
+  // with strangers. Reported as one alert rather than one per room, because a
+  // spreadsheet import tends to produce several at once.
+  const oddRooms = roomsNeedingReview(snapshot);
+  if (oddRooms.length) {
+    const worst = oddRooms.filter((room) => room.mixedHouseholds);
+    const example = (worst[0] ?? oddRooms[0])!;
+    alerts.push({
+      key: "logistics:room-shares",
+      severity: worst.length > 0 ? "important" : "attention",
+      title:
+        oddRooms.length === 1
+          ? `Room ${example.roomNumber} needs a second look`
+          : `${oddRooms.length} rooms need a second look`,
+      detail:
+        `Room ${example.roomNumber} has ${example.occupants} people` +
+        (example.mixedHouseholds ? ` from ${example.households} different households` : "") +
+        ` — ${example.names.join(", ")}.`,
+      href: "/logistics?view=rooms",
+      actionLabel: "Check room allocation",
       group: "logistics",
     });
   }

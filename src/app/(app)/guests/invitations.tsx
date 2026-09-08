@@ -1,11 +1,15 @@
 "use client";
 
 /**
- * Save-the-dates and invitations.
+ * Save-the-dates, invitations and RSVPs.
  *
- * One row per household, because that is how invitations are actually
- * addressed. Two send columns and one answer column — the three facts anybody
- * chasing an RSVP list needs to see at once.
+ * Two levels, because the job has two levels. A household is what gets invited
+ * and what answers; a person is who you actually message. Expanding a row shows
+ * the family, their numbers, and a tick each — so "the Anands are done" and
+ * "everyone in the Anands has been messaged" stay distinguishable.
+ *
+ * Tiers run across the top: the first save-the-dates go to A, B is held back
+ * until A's acceptances are known, C is the reserve.
  */
 
 import * as React from "react";
@@ -13,16 +17,37 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/cn";
-import { Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
+import { Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
 import { Input } from "@/components/ui/form";
-import { CheckIcon, SearchIcon } from "@/components/ui/icons";
-import { setHouseholdReply, setHouseholdSend } from "@/server/actions/guests";
+import { CheckIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
+import {
+  setGuestContact,
+  setGuestSend,
+  setHouseholdReply,
+  setHouseholdSend,
+  setHouseholdTier,
+} from "@/server/actions/guests";
+
+export type Tier = "A" | "B" | "C";
+
+export interface InvitationPerson {
+  guestId: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  saveTheDateSent: boolean;
+  invitationSent: boolean;
+}
 
 export interface InvitationRow {
   householdId: string;
   name: string;
   side: string;
+  tier: Tier;
   headcount: number;
+  people: InvitationPerson[];
+  peopleSaveTheDateSent: number;
+  peopleInvitationSent: number;
   saveTheDateSent: boolean;
   invitationSent: boolean;
   reply: "AWAITING" | "YES" | "NO";
@@ -38,13 +63,33 @@ export interface InvitationStats {
   peopleYes: number;
   peopleNo: number;
   peopleAwaiting: number;
+  peopleStdSent: number;
+  peopleInviteSent: number;
   responseRate: number;
 }
+
+export interface TierStat {
+  tier: Tier;
+  households: number;
+  people: number;
+  stdSent: number;
+  rsvpSent: number;
+  yes: number;
+  no: number;
+  awaiting: number;
+}
+
+const TIER_BLURB: Record<Tier, string> = {
+  A: "First wave — save-the-dates go to these now",
+  B: "Held back until Tier A replies are in",
+  C: "Reserve list",
+};
 
 const FILTERS = [
   { key: "all", label: "Everyone" },
   { key: "std-not-sent", label: "No save-the-date" },
   { key: "not-invited", label: "No invitation" },
+  { key: "partial", label: "Partly messaged" },
   { key: "awaiting", label: "Awaiting reply" },
   { key: "yes", label: "Coming" },
   { key: "no", label: "Not coming" },
@@ -53,62 +98,105 @@ const FILTERS = [
 export function Invitations({
   rows,
   stats,
+  tiers,
   canEdit,
 }: {
   rows: InvitationRow[];
   stats: InvitationStats;
+  tiers: TierStat[];
   canEdit: boolean;
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState<string>("all");
+  const [tierFilter, setTierFilter] = React.useState<Tier | "">("");
+  const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [busy, setBusy] = React.useState<string | null>(null);
 
   const filtered = React.useMemo(() => {
     const q = query.toLowerCase().trim();
     return rows
+      .filter((row) => !tierFilter || row.tier === tierFilter)
       .filter((row) => {
         switch (filter) {
           case "std-not-sent": return !row.saveTheDateSent;
           case "not-invited": return !row.invitationSent;
+          case "partial":
+            // Somebody in the house has been messaged and somebody hasn't —
+            // the households most likely to be quietly forgotten.
+            return (
+              row.headcount > 1 &&
+              row.peopleSaveTheDateSent > 0 &&
+              row.peopleSaveTheDateSent < row.headcount
+            );
           case "awaiting": return row.reply === "AWAITING";
           case "yes": return row.reply === "YES";
           case "no": return row.reply === "NO";
           default: return true;
         }
       })
-      .filter((row) => !q || row.name.toLowerCase().includes(q));
-  }, [rows, filter, query]);
+      .filter(
+        (row) =>
+          !q ||
+          row.name.toLowerCase().includes(q) ||
+          row.people.some((p) => p.name.toLowerCase().includes(q)),
+      );
+  }, [rows, filter, tierFilter, query]);
 
-  async function toggleSend(row: InvitationRow, which: "saveTheDate" | "invitation") {
-    if (!canEdit) return;
-    const key = `${row.householdId}:${which}`;
-    setBusy(key);
-    const sent = which === "saveTheDate" ? row.saveTheDateSent : row.invitationSent;
-    await setHouseholdSend(row.householdId, which, !sent);
-    setBusy(null);
-    router.refresh();
+  function toggleExpanded(id: string) {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
-  async function setReply(row: InvitationRow, reply: InvitationRow["reply"]) {
+  async function run(key: string, work: () => Promise<unknown>) {
     if (!canEdit) return;
-    setBusy(`${row.householdId}:reply`);
-    // Clicking the answer a household already gave clears it back to awaiting,
-    // so a mis-click is one click to undo rather than a dead end.
-    await setHouseholdReply(row.householdId, row.reply === reply ? "AWAITING" : reply);
+    setBusy(key);
+    await work();
     setBusy(null);
     router.refresh();
   }
 
   return (
     <div>
+      {/* Waves */}
+      <div className="mb-6 grid gap-2 sm:grid-cols-3">
+        {tiers.map((tier) => (
+          <button
+            key={tier.tier}
+            type="button"
+            onClick={() => setTierFilter((t) => (t === tier.tier ? "" : tier.tier))}
+            className={cn(
+              "rounded-xl border p-3 text-left transition-colors",
+              tierFilter === tier.tier
+                ? "border-saffron/40 bg-saffron-soft"
+                : "border-line hover:border-line-strong",
+            )}
+          >
+            <div className="flex items-baseline justify-between">
+              <span className="text-[12.5px] font-medium text-ink">Tier {tier.tier}</span>
+              <span className="tabular text-[12px] text-ink-muted">
+                {tier.households} · {tier.people} people
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11.5px] leading-snug text-ink-faint">
+              {TIER_BLURB[tier.tier]}
+            </p>
+            <p className="tabular mt-2 text-[11.5px] text-ink-muted">
+              {tier.stdSent}/{tier.households} save-the-dates ·{" "}
+              {tier.yes} yes
+            </p>
+          </button>
+        ))}
+      </div>
+
       {/* Overview */}
-      <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 border-y border-line py-5 sm:grid-cols-5">
-        <Figure
-          value={`${stats.stdSent}/${stats.households}`}
-          label="Save-the-dates sent"
-        />
+      <div className="mb-6 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-line py-5 sm:grid-cols-5">
+        <Figure value={`${stats.stdSent}/${stats.households}`} label="Save-the-dates sent" />
         <Figure value={`${stats.rsvpSent}/${stats.households}`} label="Invitations sent" />
         <Figure value={stats.yes} label="Said yes" tone="positive" />
         <Figure value={stats.no} label="Said no" />
@@ -126,6 +214,8 @@ export function Invitations({
       <p className="mb-6 text-[12px] text-ink-muted">
         {stats.peopleYes} confirmed · {stats.peopleAwaiting} still to answer ·{" "}
         {stats.peopleNo} not coming
+        <span className="mx-2 text-ink-faint">·</span>
+        {stats.peopleStdSent} people personally messaged
       </p>
 
       {/* Filters */}
@@ -136,7 +226,7 @@ export function Invitations({
             type="button"
             onClick={() => setFilter(f.key)}
             className={cn(
-              "rounded-lg border px-2.5 py-1 text-[12.5px] transition-colors",
+              "min-h-[32px] rounded-lg border px-2.5 text-[12.5px] transition-colors",
               filter === f.key
                 ? "border-saffron/30 bg-saffron-soft text-saffron"
                 : "border-line text-ink-muted hover:border-line-strong hover:text-ink",
@@ -145,7 +235,7 @@ export function Invitations({
             {f.label}
           </button>
         ))}
-        <div className="relative ml-auto">
+        <div className="relative w-full sm:ml-auto sm:w-56">
           <SearchIcon
             size={14}
             className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"
@@ -153,8 +243,8 @@ export function Invitations({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search households…"
-            className="h-7 w-56 pl-8 text-[12.5px]"
+            placeholder="Search households or people…"
+            className="h-8 w-full pl-8 text-[12.5px]"
           />
         </div>
       </div>
@@ -165,93 +255,301 @@ export function Invitations({
           description="Try a different filter, or clear the search."
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] border-collapse">
-            <thead>
-              <tr className="border-b border-line">
-                <th className="py-2 pr-3 text-left text-[11.5px] font-medium text-ink-muted">
-                  Household
-                </th>
-                <th className="px-3 py-2 text-center text-[11.5px] font-medium text-ink-muted">
-                  Save the date
-                </th>
-                <th className="px-3 py-2 text-center text-[11.5px] font-medium text-ink-muted">
-                  Invitation
-                </th>
-                <th className="px-3 py-2 text-center text-[11.5px] font-medium text-ink-muted">
-                  Coming?
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row, index) => (
-                <motion.tr
-                  key={row.householdId}
-                  initial={reduce ? false : { opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.28,
-                    ease: [0.22, 1, 0.36, 1],
-                    delay: reduce ? 0 : Math.min(index * 0.012, 0.24),
-                  }}
-                  className="border-b border-line/60 transition-colors hover:bg-ink/[0.015]"
-                >
-                  <td className="py-2.5 pr-3">
-                    <span className="text-[13.5px] text-ink">{row.name}</span>
-                    <span className="tabular ml-2 text-[11.5px] text-ink-faint">
-                      {row.headcount}
+        <div className="border-t border-line">
+          {filtered.map((row, index) => {
+            const open = expanded.has(row.householdId);
+            return (
+              <motion.div
+                key={row.householdId}
+                initial={reduce ? false : { opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.26,
+                  ease: [0.22, 1, 0.36, 1],
+                  delay: reduce ? 0 : Math.min(index * 0.01, 0.2),
+                }}
+                className="border-b border-line/60"
+              >
+                {/* Household */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(row.householdId)}
+                    aria-expanded={open}
+                    className="flex min-h-[36px] min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <motion.span
+                      animate={{ rotate: open ? 90 : 0 }}
+                      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                      className="text-ink-faint"
+                    >
+                      <ChevronRightIcon size={14} />
+                    </motion.span>
+                    <span className="min-w-0">
+                      <span className="text-[13.5px] text-ink">{row.name}</span>
+                      <span className="tabular ml-2 text-[11.5px] text-ink-faint">
+                        {row.headcount}
+                      </span>
                     </span>
-                  </td>
+                    {row.peopleSaveTheDateSent > 0 &&
+                    row.peopleSaveTheDateSent < row.headcount ? (
+                      <Badge variant="attention" size="xs">
+                        {row.peopleSaveTheDateSent}/{row.headcount} messaged
+                      </Badge>
+                    ) : null}
+                  </button>
 
-                  <td className="px-3 py-2.5 text-center">
-                    <SentToggle
-                      sent={row.saveTheDateSent}
-                      busy={busy === `${row.householdId}:saveTheDate`}
-                      disabled={!canEdit}
-                      onClick={() => toggleSend(row, "saveTheDate")}
-                    />
-                  </td>
+                  <TierSelect
+                    tier={row.tier}
+                    disabled={!canEdit || busy === `${row.householdId}:tier`}
+                    onChange={(tier) =>
+                      run(`${row.householdId}:tier`, () =>
+                        setHouseholdTier(row.householdId, tier),
+                      )
+                    }
+                  />
 
-                  <td className="px-3 py-2.5 text-center">
-                    <SentToggle
-                      sent={row.invitationSent}
-                      busy={busy === `${row.householdId}:invitation`}
-                      disabled={!canEdit}
-                      onClick={() => toggleSend(row, "invitation")}
-                    />
-                  </td>
-
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center justify-center gap-1">
-                      <ReplyButton
-                        active={row.reply === "YES"}
-                        tone="yes"
+                  <div className="flex items-center gap-4">
+                    <Labelled label="Save the date">
+                      <SentToggle
+                        sent={row.saveTheDateSent}
+                        busy={busy === `${row.householdId}:saveTheDate`}
                         disabled={!canEdit}
-                        onClick={() => setReply(row, "YES")}
-                      >
-                        Yes
-                      </ReplyButton>
-                      <ReplyButton
-                        active={row.reply === "NO"}
-                        tone="no"
+                        onClick={() =>
+                          run(`${row.householdId}:saveTheDate`, () =>
+                            setHouseholdSend(
+                              row.householdId,
+                              "saveTheDate",
+                              !row.saveTheDateSent,
+                            ),
+                          )
+                        }
+                      />
+                    </Labelled>
+                    <Labelled label="Invitation">
+                      <SentToggle
+                        sent={row.invitationSent}
+                        busy={busy === `${row.householdId}:invitation`}
                         disabled={!canEdit}
-                        onClick={() => setReply(row, "NO")}
-                      >
-                        No
-                      </ReplyButton>
+                        onClick={() =>
+                          run(`${row.householdId}:invitation`, () =>
+                            setHouseholdSend(
+                              row.householdId,
+                              "invitation",
+                              !row.invitationSent,
+                            ),
+                          )
+                        }
+                      />
+                    </Labelled>
+                    <Labelled label="Coming?">
+                      <div className="flex items-center gap-1">
+                        <ReplyButton
+                          active={row.reply === "YES"}
+                          tone="yes"
+                          disabled={!canEdit}
+                          onClick={() =>
+                            run(`${row.householdId}:reply`, () =>
+                              setHouseholdReply(
+                                row.householdId,
+                                row.reply === "YES" ? "AWAITING" : "YES",
+                              ),
+                            )
+                          }
+                        >
+                          Yes
+                        </ReplyButton>
+                        <ReplyButton
+                          active={row.reply === "NO"}
+                          tone="no"
+                          disabled={!canEdit}
+                          onClick={() =>
+                            run(`${row.householdId}:reply`, () =>
+                              setHouseholdReply(
+                                row.householdId,
+                                row.reply === "NO" ? "AWAITING" : "NO",
+                              ),
+                            )
+                          }
+                        >
+                          No
+                        </ReplyButton>
+                      </div>
+                    </Labelled>
+                  </div>
+                </div>
+
+                {/* The family */}
+                {open ? (
+                  <motion.div
+                    initial={reduce ? false : { opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mb-2 ml-6 border-l border-line pl-4">
+                      {row.people.length === 0 ? (
+                        <p className="py-2 text-[12.5px] text-ink-faint">
+                          Nobody is listed in this household yet.
+                        </p>
+                      ) : (
+                        row.people.map((person) => (
+                          <PersonRow
+                            key={person.guestId}
+                            person={person}
+                            canEdit={canEdit}
+                            busy={busy}
+                            onSend={(which, sent) =>
+                              run(`${person.guestId}:${which}`, () =>
+                                setGuestSend(person.guestId, which, sent),
+                              )
+                            }
+                            onPhone={(value) =>
+                              run(`${person.guestId}:phone`, () =>
+                                setGuestContact(person.guestId, "phone", value),
+                              )
+                            }
+                          />
+                        ))
+                      )}
                     </div>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+                  </motion.div>
+                ) : null}
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-/** Sent or not. A tick that fills, rather than a checkbox that looks like a form. */
+function PersonRow({
+  person,
+  canEdit,
+  busy,
+  onSend,
+  onPhone,
+}: {
+  person: InvitationPerson;
+  canEdit: boolean;
+  busy: string | null;
+  onSend(which: "saveTheDate" | "invitation", sent: boolean): void;
+  onPhone(value: string): void;
+}) {
+  const [phone, setPhone] = React.useState(person.phone ?? "");
+  const [editing, setEditing] = React.useState(false);
+
+  React.useEffect(() => setPhone(person.phone ?? ""), [person.phone]);
+
+  function commit() {
+    setEditing(false);
+    if (phone.trim() !== (person.phone ?? "")) onPhone(phone);
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line/40 py-2 last:border-b-0">
+      <span className="min-w-0 flex-1 truncate text-[13px] text-ink-soft">
+        {person.name}
+      </span>
+
+      {editing || phone ? (
+        <Input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          onFocus={() => setEditing(true)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              setPhone(person.phone ?? "");
+              setEditing(false);
+            }
+          }}
+          disabled={!canEdit}
+          inputMode="tel"
+          placeholder="Phone"
+          className="h-7 w-36 text-[12px]"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          disabled={!canEdit}
+          className="h-7 rounded-lg border border-dashed border-line px-2 text-[11.5px] text-ink-faint transition-colors hover:border-line-strong hover:text-ink-muted"
+        >
+          + Number
+        </button>
+      )}
+
+      <div className="flex items-center gap-4">
+        <Labelled label="STD">
+          <SentToggle
+            sent={person.saveTheDateSent}
+            busy={busy === `${person.guestId}:saveTheDate`}
+            disabled={!canEdit}
+            onClick={() => onSend("saveTheDate", !person.saveTheDateSent)}
+          />
+        </Labelled>
+        <Labelled label="Invite">
+          <SentToggle
+            sent={person.invitationSent}
+            busy={busy === `${person.guestId}:invitation`}
+            disabled={!canEdit}
+            onClick={() => onSend("invitation", !person.invitationSent)}
+          />
+        </Labelled>
+      </div>
+    </div>
+  );
+}
+
+function TierSelect({
+  tier,
+  disabled,
+  onChange,
+}: {
+  tier: Tier;
+  disabled: boolean;
+  onChange(tier: Tier): void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg border border-line p-0.5">
+      {(["A", "B", "C"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(option)}
+          aria-pressed={tier === option}
+          aria-label={`Tier ${option}`}
+          className={cn(
+            "h-6 w-6 rounded-md text-[11.5px] font-medium transition-colors",
+            tier === option
+              ? "bg-ink text-canvas"
+              : "text-ink-faint hover:bg-surface-sunken hover:text-ink-muted",
+            disabled && "cursor-default opacity-60",
+          )}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A tiny caption above a control, so the ticks aren't a guessing game. */
+function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-[9.5px] uppercase tracking-[0.08em] text-ink-faint">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
 function SentToggle({
   sent,
   busy,
@@ -271,7 +569,7 @@ function SentToggle({
       onClick={onClick}
       disabled={disabled || busy}
       aria-pressed={sent}
-      aria-label={sent ? "Sent — click to unmark" : "Not sent — click to mark as sent"}
+      aria-label={sent ? "Sent — tap to unmark" : "Not sent — tap to mark as sent"}
       className={cn(
         "inline-flex h-6 w-6 items-center justify-center rounded-full border transition-all",
         sent
@@ -313,7 +611,7 @@ function ReplyButton({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "rounded-lg border px-2.5 py-0.5 text-[12px] transition-colors",
+        "min-h-[26px] rounded-lg border px-2.5 text-[12px] transition-colors",
         active && tone === "yes" && "border-positive/30 bg-positive-soft text-positive",
         active && tone === "no" && "border-line-strong bg-ink/[0.04] text-ink",
         !active && "border-line text-ink-faint hover:border-line-strong hover:text-ink-muted",
@@ -338,7 +636,7 @@ function Figure({
     <div>
       <div
         className={cn(
-          "tabular font-display text-[26px] leading-none",
+          "tabular font-display text-[24px] leading-none sm:text-[26px]",
           tone === "positive" && "text-positive",
           tone === "attention" && "text-attention",
           !tone && "text-ink",

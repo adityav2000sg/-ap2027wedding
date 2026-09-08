@@ -10,12 +10,34 @@
  * and what has come back, and collapsing that to yes/no hides the chase list.
  */
 
-import type { RsvpReply, WeddingSnapshot } from "./types";
+import type { GuestTier, RsvpReply, WeddingSnapshot } from "./types";
+
+export const TIERS: GuestTier[] = ["A", "B", "C"];
+
+export const TIER_LABEL: Record<GuestTier, string> = {
+  A: "Tier A — first wave",
+  B: "Tier B — held back",
+  C: "Tier C — reserve",
+};
+
+export interface OutreachPerson {
+  guestId: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  saveTheDateSent: boolean;
+  invitationSent: boolean;
+}
 
 export interface OutreachRow {
   householdId: string;
   name: string;
   side: string;
+  tier: GuestTier;
+  people: OutreachPerson[];
+  /** How many of this household have personally been sent each thing. */
+  peopleSaveTheDateSent: number;
+  peopleInvitationSent: number;
   /** People in this household, so a "no" carries its real weight. */
   headcount: number;
   saveTheDateSent: boolean;
@@ -44,21 +66,52 @@ export interface OutreachStats {
   peopleAwaiting: number;
   /** Share of sent invitations that have come back, 0–100. */
   responseRate: number;
+  /** People personally sent each thing, as opposed to household roll-ups. */
+  peopleStdSent: number;
+  peopleInviteSent: number;
+}
+
+export interface TierStats {
+  tier: GuestTier;
+  households: number;
+  people: number;
+  stdSent: number;
+  rsvpSent: number;
+  yes: number;
+  no: number;
+  awaiting: number;
 }
 
 export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
-  const headcount = new Map<string, number>();
+  const members = new Map<string, OutreachPerson[]>();
   for (const guest of snapshot.guests) {
     if (!guest.householdId) continue;
-    headcount.set(guest.householdId, (headcount.get(guest.householdId) ?? 0) + 1);
+    const list = members.get(guest.householdId) ?? [];
+    list.push({
+      guestId: guest.id,
+      name: `${guest.firstName} ${guest.lastName}`.trim(),
+      phone: guest.phone ?? null,
+      email: guest.email ?? null,
+      saveTheDateSent: Boolean(guest.saveTheDateSentAt),
+      invitationSent: Boolean(guest.invitationSentAt),
+    });
+    members.set(guest.householdId, list);
   }
 
   return snapshot.households
-    .map((household) => ({
+    .map((household) => {
+      const people = (members.get(household.id) ?? []).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+      return {
       householdId: household.id,
       name: household.name,
       side: household.side,
-      headcount: headcount.get(household.id) ?? 0,
+      tier: household.tier ?? "A",
+      people,
+      peopleSaveTheDateSent: people.filter((p) => p.saveTheDateSent).length,
+      peopleInvitationSent: people.filter((p) => p.invitationSent).length,
+      headcount: people.length,
       // Truthiness, not `!== null`: an absent field is "not sent", and reading
       // `undefined !== null` as "sent" would silently mark the whole list done.
       saveTheDateSent: Boolean(household.saveTheDateSentAt),
@@ -67,8 +120,10 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
       invitationSentAt: household.rsvpSentAt ?? null,
       reply: household.rsvpReply ?? "AWAITING",
       repliedAt: household.rsvpRepliedAt ?? null,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+      };
+    })
+    // Tier first — the first wave is the list anybody is actually working from.
+    .sort((a, b) => a.tier.localeCompare(b.tier) || a.name.localeCompare(b.name));
 }
 
 export function outreachStats(snapshot: WeddingSnapshot): OutreachStats {
@@ -87,9 +142,14 @@ export function outreachStats(snapshot: WeddingSnapshot): OutreachStats {
     peopleNo: 0,
     peopleAwaiting: 0,
     responseRate: 0,
+    peopleStdSent: 0,
+    peopleInviteSent: 0,
   };
 
   for (const row of rows) {
+    stats.peopleStdSent += row.peopleSaveTheDateSent;
+    stats.peopleInviteSent += row.peopleInvitationSent;
+
     if (row.saveTheDateSent) stats.stdSent += 1;
     else stats.stdNotSent += 1;
 
@@ -128,4 +188,23 @@ export function outreachGaps(snapshot: WeddingSnapshot) {
     neverContacted: rows.filter((r) => !r.saveTheDateSent && !r.invitationSent),
     repliedWithoutInvite: rows.filter((r) => !r.invitationSent && r.reply !== "AWAITING"),
   };
+}
+
+/** The same counts, split by wave — what you look at when deciding to send B. */
+export function outreachByTier(snapshot: WeddingSnapshot): TierStats[] {
+  const rows = outreachRows(snapshot);
+
+  return TIERS.map((tier) => {
+    const inTier = rows.filter((row) => row.tier === tier);
+    return {
+      tier,
+      households: inTier.length,
+      people: inTier.reduce((sum, row) => sum + row.headcount, 0),
+      stdSent: inTier.filter((row) => row.saveTheDateSent).length,
+      rsvpSent: inTier.filter((row) => row.invitationSent).length,
+      yes: inTier.filter((row) => row.reply === "YES").length,
+      no: inTier.filter((row) => row.reply === "NO").length,
+      awaiting: inTier.filter((row) => row.reply === "AWAITING").length,
+    };
+  }).filter((tier) => tier.households > 0);
 }

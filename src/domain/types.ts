@@ -24,6 +24,7 @@ import type {
   OutfitStatus,
   PaymentStatus,
   PlanPhase,
+  GuestTier,
   ResponsibilityStatus,
   RsvpReply,
   RsvpStatus,
@@ -51,6 +52,7 @@ export type {
   OutfitStatus,
   PaymentStatus,
   PlanPhase,
+  GuestTier,
   ResponsibilityStatus,
   RsvpReply,
   RsvpStatus,
@@ -139,6 +141,7 @@ export interface HouseholdNode {
   saveTheDateSentAt: Date | null;
   rsvpSentAt: Date | null;
   rsvpReply: RsvpReply;
+  tier: GuestTier;
   rsvpRepliedAt: Date | null;
   rsvpSubmittedAt: Date | null;
   giftReceived: boolean;
@@ -164,6 +167,8 @@ export interface GuestNode {
   allergies: string | null;
   accessibilityNeeds: string | null;
   needsAccommodation: boolean;
+  saveTheDateSentAt: Date | null;
+  invitationSentAt: Date | null;
   needsTransport: boolean;
   notes: string | null;
 }

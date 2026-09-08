@@ -296,3 +296,59 @@ export function rsvpProgress(snapshot: WeddingSnapshot): {
     percent: total === 0 ? 0 : Math.round((responded / total) * 100),
   };
 }
+
+export interface RoomShare {
+  roomNumber: string;
+  occupants: number;
+  /** Distinct households sleeping in this room. */
+  households: number;
+  names: string[];
+  overCapacity: boolean;
+  mixedHouseholds: boolean;
+}
+
+/**
+ * Rooms that need a human to look at them.
+ *
+ * Two things go wrong when a room list is built from a spreadsheet: more people
+ * are put in a room than it sleeps, and people from different families end up
+ * sharing. Neither is automatically an error — friends travelling alone are
+ * routinely paired up, and a family of three in a triple is fine — so this
+ * reports rather than corrects, and separates the two reasons so the obvious
+ * ones can be dismissed at a glance.
+ *
+ * What it caught on the real list: a room holding two Sawhney teenagers and an
+ * older Chowdhry couple, which is both at once.
+ */
+export function roomsNeedingReview(snapshot: WeddingSnapshot): RoomShare[] {
+  const capacity = Math.max(1, snapshot.wedding.guestsPerRoom);
+  const guestById = new Map(snapshot.guests.map((g) => [g.id, g]));
+  const byRoom = new Map<string, { names: string[]; households: Set<string> }>();
+
+  for (const stay of snapshot.stays) {
+    if (!stay.roomNumber) continue;
+    const guest = guestById.get(stay.guestId);
+    if (!guest) continue;
+
+    const room = byRoom.get(stay.roomNumber) ?? { names: [], households: new Set() };
+    room.names.push(`${guest.firstName} ${guest.lastName}`.trim());
+    // Someone with no household counts as their own, so a lone guest sharing
+    // with a family still reads as mixed.
+    room.households.add(guest.householdId ?? `solo:${guest.id}`);
+    byRoom.set(stay.roomNumber, room);
+  }
+
+  return [...byRoom.entries()]
+    .map(([roomNumber, room]) => ({
+      roomNumber,
+      occupants: room.names.length,
+      households: room.households.size,
+      names: room.names.sort((a, b) => a.localeCompare(b)),
+      overCapacity: room.names.length > capacity,
+      // Two singles sharing is normal and deliberate. A whole family plus
+      // somebody else is what's worth a second look.
+      mixedHouseholds: room.households.size > 1 && room.names.length > capacity,
+    }))
+    .filter((room) => room.overCapacity || room.mixedHouseholds)
+    .sort((a, b) => Number(a.roomNumber) - Number(b.roomNumber) || a.roomNumber.localeCompare(b.roomNumber));
+}
