@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 import { formatDueLabel, formatMediumDate, toDateInput } from "@/lib/dates";
 import { Avatar, Badge, Button, EmptyState } from "@/components/ui/primitives";
 import { Sheet } from "@/components/ui/overlays";
+import { PeoplePicker, TaskComposer } from "./task-composer";
 import { FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { SearchIcon } from "@/components/ui/icons";
 import { TaskRow } from "@/components/wedding/task-row";
@@ -29,6 +30,7 @@ import {
 
 interface Task extends TaskRowData {
   ownerId: string | null;
+  collaboratorIds: string[];
   eventId: string | null;
   description: string | null;
   phase: string;
@@ -70,6 +72,7 @@ export function TasksWorkspace({
   initialEvent: string | null;
   readinessPercent: number;
 }) {
+  const [composing, setComposing] = React.useState(false);
   const router = useRouter();
   const reduce = useReducedMotion();
   const [view, setView] = React.useState(
@@ -149,17 +152,29 @@ export function TasksWorkspace({
             </p>
           </div>
 
-          <div className="relative">
-            <SearchIcon
-              size={14}
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"
-            />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search tasks…"
-              className="h-8 w-56 pl-8 text-[12.5px]"
-            />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative min-w-0 flex-1 sm:flex-none">
+              <SearchIcon
+                size={14}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"
+              />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search tasks…"
+                className="h-9 w-full pl-8 text-[12.5px] sm:w-56"
+              />
+            </div>
+            {canEdit ? (
+              <Button
+                variant="primary"
+                size="sm"
+                className="h-9 shrink-0"
+                onClick={() => setComposing(true)}
+              >
+                New task
+              </Button>
+            ) : null}
           </div>
         </div>
       </header>
@@ -323,6 +338,14 @@ export function TasksWorkspace({
         </div>
       )}
 
+      <TaskComposer
+        open={composing}
+        onOpenChange={setComposing}
+        members={members}
+        events={events}
+        viewerMemberId={viewerMemberId}
+      />
+
       <TaskSheet
         task={active}
         members={members}
@@ -462,6 +485,16 @@ function TaskSheet({
             {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </Select>
         </FormField>
+
+        {/* Tagging is a separate act from assigning: these people are kept in
+            the loop, and they're told, but the task isn't theirs. */}
+        <PeoplePicker
+          label="Also tagged"
+          members={members.filter((m) => m.id !== task.ownerId)}
+          selected={task.collaboratorIds}
+          disabled={!canEdit}
+          onChange={(next) => patch({ collaboratorIds: next })}
+        />
 
         <FormField label="Due" htmlFor="t-due">
           <Input

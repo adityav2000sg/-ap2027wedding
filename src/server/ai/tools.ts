@@ -17,11 +17,13 @@ import { computeGuestCounts, roomsContracted, roomsRequired } from "@/domain/gue
 import { VENDOR_CATEGORY_LABEL, VENDOR_STATUS_TEXT } from "@/domain/impact";
 import { computeEventReadiness, computeWeddingReadiness } from "@/domain/readiness";
 import { computeAlerts } from "@/domain/risk";
+import { outreachByTier, outreachRows, outreachStats } from "@/domain/outreach";
 import { analyseTasks, nextBestActions, overdueTasks } from "@/domain/tasks";
 import { detectConflicts, snapshotEventVenues } from "@/domain/timeline";
 import { daysBetween, formatMediumDate, formatMinute } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import type { WeddingSnapshot } from "@/domain/types";
+import { db } from "@/server/db";
 import type { Viewer } from "@/server/permissions";
 import type { ToolDefinition } from "./qwen";
 
@@ -139,6 +141,57 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       name: "get_wardrobe_and_media",
       description:
         "Outfits and their status per person, jewellery, and what moodboards and documents exist. Metadata only — the model cannot see the images themselves.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_recent_activity",
+      description:
+        "The changelog: what has actually been changed in this wedding plan recently, who did it and when. Use this for any question about recent changes, what has moved, what someone did, or what happened since a date.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "How many entries to return, newest first. Default 25, max 100.",
+          },
+          entityType: {
+            type: "string",
+            description:
+              "Optional filter, e.g. 'task', 'guest', 'household', 'vendor', 'budgetItem', 'payment', 'event'.",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_invitations",
+      description:
+        "Save-the-dates, invitations and RSVP replies by household, including which tier (wave) each household is in — A goes out first, B is held back, C is the reserve. Also reports who has personally been messaged. Use for anything about who has been invited, who has replied, or what is left to send.",
+      parameters: {
+        type: "object",
+        properties: {
+          tier: { type: "string", description: "Optional: 'A', 'B' or 'C'." },
+          onlyOutstanding: {
+            type: "boolean",
+            description: "Only households still missing a send or a reply.",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_people",
+      description:
+        "The family members who have accounts, what each is responsible for, and how many open and overdue tasks each is carrying. Use for questions about who is doing what, workload, or who to ask.",
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
@@ -516,6 +569,115 @@ export async function runTool(
           title: d.title, type: d.kind,
         })),
         note: "Image contents cannot be seen — only this metadata.",
+      });
+    }
+
+    case "get_recent_activity": {
+      // The activity log lives outside the snapshot — it's history, not state —
+      // so it's read directly here rather than being carried in every request.
+      const limit = Math.min(Math.max(Number(args.limit ?? 25) || 25, 1), 100);
+      const entityType =
+        typeof args.entityType === "string" && args.entityType.trim()
+          ? args.entityType.trim()
+          : undefined;
+
+      const entries = await db.activityLog.findMany({
+        where: { weddingId: viewer.weddingId, ...(entityType ? { entityType } : {}) },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        include: { actor: { select: { name: true } } },
+      });
+
+      return json({
+        note:
+          entries.length === 0
+            ? "Nothing has been changed yet."
+            : `The ${entries.length} most recent changes, newest first.`,
+        changes: entries.map((entry) => ({
+          when: formatMediumDate(entry.createdAt),
+          daysAgo: daysBetween(entry.createdAt, snapshot.today),
+          who: entry.actor?.name ?? "The system",
+          what: entry.summary,
+          area: entry.entityType,
+          subject: entry.entityLabel,
+          action: entry.action,
+          wasUndone: entry.undoneAt !== null,
+        })),
+      });
+    }
+
+    case "get_invitations": {
+      const rows = outreachRows(snapshot);
+      const stats = outreachStats(snapshot);
+      const byTier = outreachByTier(snapshot);
+
+      const tier = typeof args.tier === "string" ? args.tier.toUpperCase() : null;
+      const onlyOutstanding = args.onlyOutstanding === true;
+
+      const filtered = rows
+        .filter((row) => !tier || row.tier === tier)
+        .filter(
+          (row) =>
+            !onlyOutstanding ||
+            !row.saveTheDateSent ||
+            !row.invitationSent ||
+            row.reply === "AWAITING",
+        );
+
+      return json({
+        howTiersWork:
+          "Tier A gets the first save-the-dates. Tier B is held back until Tier A replies are known. Tier C is the reserve list.",
+        overall: {
+          households: stats.households,
+          HOUSEHOLDS_sentSaveTheDate: stats.stdSent,
+          HOUSEHOLDS_sentInvitation: stats.rsvpSent,
+          HOUSEHOLDS_repliedYes: stats.yes,
+          HOUSEHOLDS_repliedNo: stats.no,
+          HOUSEHOLDS_awaiting: stats.awaiting,
+          PEOPLE_confirmed: stats.peopleYes,
+          PEOPLE_awaiting: stats.peopleAwaiting,
+          PEOPLE_personallyMessaged: stats.peopleStdSent,
+          responseRatePercent: stats.responseRate,
+        },
+        byTier,
+        households: filtered.slice(0, 120).map((row) => ({
+          id: row.householdId,
+          name: row.name,
+          tier: row.tier,
+          PEOPLE_inHousehold: row.headcount,
+          saveTheDateSent: row.saveTheDateSent,
+          invitationSent: row.invitationSent,
+          reply: row.reply,
+          PEOPLE_personallyMessaged: row.peopleSaveTheDateSent,
+        })),
+        truncated: filtered.length > 120 ? filtered.length - 120 : 0,
+      });
+    }
+
+    case "get_people": {
+      return json({
+        note: "Task counts are open tasks owned by that person, not tasks they were merely tagged in.",
+        people: snapshot.members.map((member) => {
+          const owned = tasks.filter((t) => t.ownerId === member.id && !t.isDone);
+          return {
+            id: member.id,
+            name: member.name,
+            relation: member.relation,
+            TASKS_open: owned.length,
+            TASKS_overdue: owned.filter(
+              (t) => t.daysUntilDue !== null && t.daysUntilDue < 0,
+            ).length,
+            TASKS_dueWithin14Days: owned.filter(
+              (t) => t.daysUntilDue !== null && t.daysUntilDue >= 0 && t.daysUntilDue <= 14,
+            ).length,
+            nextUp: owned
+              .slice()
+              .sort((a, b) => (a.daysUntilDue ?? 9999) - (b.daysUntilDue ?? 9999))
+              .slice(0, 3)
+              .map((t) => t.title),
+          };
+        }),
+        unassignedOpenTasks: tasks.filter((t) => !t.ownerId && !t.isDone).length,
       });
     }
 

@@ -132,6 +132,7 @@ export function makeTask(id: string, overrides: Partial<TaskNode> = {}): TaskNod
     area: null,
     createdAt: TODAY,
     commentCount: 0,
+    collaboratorIds: [],
     ...overrides,
   };
 }

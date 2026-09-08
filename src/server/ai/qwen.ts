@@ -62,11 +62,18 @@ export async function chat(
   }
 
   const baseUrl = (process.env.QWEN_BASE_URL || DEFAULT_BASE).replace(/\/$/, "");
-  const model = process.env.QWEN_MODEL || "qwen-plus";
+  // qwen-max, not qwen-plus: plus was observed inventing figures — reporting
+  // "42 rooms needed, 0 held" when the tools had returned 134 and 112 — by
+  // grabbing an adjacent number and relabelling it. The tool data was right
+  // both times; the smaller model was the problem.
+  // qwen-max first, qwen-plus if this account can't reach it. Not every key has
+  // max enabled, and a planner that refuses to answer is worse than one using
+  // the smaller model.
+  const preferred = process.env.QWEN_MODEL || "qwen-max";
+  const candidates = process.env.QWEN_MODEL ? [preferred] : [preferred, "qwen-plus"];
 
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
+  async function callModel(model: string): Promise<Response> {
+    return fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -82,6 +89,21 @@ export async function chat(
       }),
       signal: options.signal ?? AbortSignal.timeout(60_000),
     });
+  }
+
+  let response: Response;
+  try {
+    response = await callModel(candidates[0]);
+
+    // A model this key can't use comes back as 400/404 naming the model, never
+    // as 401 — an auth failure is about the key and retrying won't help.
+    if (!response.ok && candidates.length > 1 && response.status !== 401 && response.status !== 403) {
+      const body = await response.clone().text().catch(() => "");
+      if (/model/i.test(body) && /(not.?found|not.?exist|unsupported|no.?permission|access)/i.test(body)) {
+        console.warn(`[ai] ${candidates[0]} unavailable on this key, falling back to ${candidates[1]}.`);
+        response = await callModel(candidates[1]);
+      }
+    }
   } catch (error) {
     if ((error as Error).name === "TimeoutError") {
       throw new AiUnavailableError("The AI Planner took too long to respond.");

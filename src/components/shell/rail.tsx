@@ -21,6 +21,7 @@ import { isActiveHref, type NavItem } from "./nav";
 import { NAV_ICONS } from "./nav-icons";
 import { signOut } from "@/app/login/actions";
 import { CurrencyPicker } from "./currency-picker";
+import { NotificationBell, type NotificationItem } from "./notifications";
 
 export interface ShellViewer {
   name: string;
@@ -34,12 +35,16 @@ export function Rail({
   items,
   viewer,
   alertCount,
+  notifications,
+  unreadCount,
   onOpenSearch,
   onOpenQuickAdd,
 }: {
   items: NavItem[];
   viewer: ShellViewer;
   alertCount: number;
+  notifications: NotificationItem[];
+  unreadCount: number;
   onOpenSearch(): void;
   onOpenQuickAdd(): void;
 }) {
@@ -103,6 +108,7 @@ export function Rail({
       </nav>
 
       <div className="mt-3 flex flex-col items-center gap-2">
+        <NotificationBell items={notifications} unread={unreadCount} />
         <CurrencyPicker current={viewer.displayCurrency} />
         <ViewerMenu viewer={viewer} />
       </div>

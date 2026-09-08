@@ -9,6 +9,8 @@ import { Avatar, Badge, Button } from "@/components/ui/primitives";
 import { MenuIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { CommandPalette } from "./command-palette";
 import { MobileNav } from "./mobile-nav";
+import { NotificationBell, type NotificationItem } from "./notifications";
+import { AiSprite } from "@/components/wedding/ai-sprite";
 import { QuickAdd } from "./quick-add";
 import { Rail, type ShellViewer } from "./rail";
 import { isActiveHref, type NavItem } from "./nav";
@@ -43,6 +45,9 @@ export function AppShell({
   viewer,
   wedding,
   alertCount,
+  notifications,
+  unreadCount,
+  aiHint,
   quickAddOptions,
   children,
 }: {
@@ -50,6 +55,10 @@ export function AppShell({
   viewer: ShellViewer;
   wedding: ShellWedding;
   alertCount: number;
+  notifications: NotificationItem[];
+  unreadCount: number;
+  /** One line for the owl to offer — usually the most pressing open question. */
+  aiHint?: string | null;
   quickAddOptions: QuickAddOptions;
   children: React.ReactNode;
 }) {
@@ -94,6 +103,8 @@ export function AppShell({
         items={items}
         viewer={viewer}
         alertCount={alertCount}
+        notifications={notifications}
+        unreadCount={unreadCount}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenQuickAdd={() => setQuickAddOpen(true)}
       />
@@ -147,6 +158,7 @@ export function AppShell({
           >
             <SearchIcon size={17} />
           </Button>
+          <NotificationBell items={notifications} unread={unreadCount} />
         </header>
 
         <main className="min-w-0 flex-1 pb-20 lg:pb-0">{children}</main>
@@ -193,6 +205,10 @@ export function AppShell({
           </button>
         </nav>
       </div>
+
+      {/* Everywhere, not just the dashboard — the moment you want to ask is the
+          moment you're looking at something confusing. */}
+      <AiSprite hint={aiHint} />
 
       <MobileNav
         open={menuOpen}

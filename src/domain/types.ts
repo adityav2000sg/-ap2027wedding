@@ -305,6 +305,8 @@ export interface TaskNode {
   area: string | null;
   createdAt: Date;
   commentCount: number;
+  /// Members tagged into the task. Kept in the loop; they don't own it.
+  collaboratorIds: string[];
 }
 
 export interface DependencyEdge {

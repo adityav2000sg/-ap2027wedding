@@ -6,6 +6,7 @@ import { formatDueLabel } from "@/lib/dates";
 import { analyseTasks, wouldCreateCycle } from "@/domain/tasks";
 import { logViewerActivity } from "@/server/activity";
 import { db } from "@/server/db";
+import { notify } from "@/server/notifications";
 import { fetchSnapshot } from "@/server/snapshot-query";
 import {
   civilDate,
@@ -31,6 +32,8 @@ const createSchema = z.object({
   vendorId: optionalId.optional(),
   categoryId: optionalId.optional(),
   parentId: optionalId.optional(),
+  /// Other members tagged into this task. They're told; they don't own it.
+  collaboratorIds: z.array(z.string().min(1)).max(20).optional(),
   estimatedCost: optionalMoney.optional(),
 });
 
@@ -53,8 +56,18 @@ export async function createTask(input: unknown) {
         parentId: data.parentId ?? null,
         estimatedCost: data.estimatedCost ?? null,
         createdById: viewer.memberId,
+        collaborators: data.collaboratorIds?.length
+          ? { create: data.collaboratorIds.map((memberId) => ({ memberId })) }
+          : undefined,
       },
       select: { id: true, title: true, dueDate: true },
+    });
+
+    await notifyAssignment(viewer, task.id, task.title, {
+      owner: data.ownerId ?? null,
+      tagged: data.collaboratorIds ?? [],
+      due: task.dueDate,
+      verb: "added",
     });
 
     await logViewerActivity(viewer, {
@@ -88,16 +101,20 @@ const updateSchema = z.object({
   categoryId: optionalId.optional(),
   budgetItemId: optionalId.optional(),
   estimatedCost: optionalMoney.optional(),
+  collaboratorIds: z.array(z.string().min(1)).max(20).optional(),
 });
 
 export async function updateTask(input: unknown) {
   return withAction("tasks.edit", async (viewer) => {
-    const { id, ...patch } = updateSchema.parse(input);
+    const { id, collaboratorIds, ...patch } = updateSchema.parse(input);
 
     const existing = await db.task.findFirst({
       where: { id, weddingId: viewer.weddingId },
+      include: { collaborators: { select: { memberId: true } } },
     });
     if (!existing) throw new Error("That task no longer exists.");
+
+    const previousTags = existing.collaborators.map((c) => c.memberId);
 
     // Completion timestamps are derived from status, never set by hand.
     const completedAt =
@@ -110,8 +127,35 @@ export async function updateTask(input: unknown) {
     const updated = await db.task.update({
       where: { id },
       data: { ...patch, ...(completedAt !== undefined ? { completedAt } : {}) },
-      select: { id: true, title: true, status: true },
+      select: { id: true, title: true, status: true, dueDate: true },
     });
+
+    // Replace the tag list wholesale — the editor always sends the full set,
+    // so a diff here would just be guessing at intent.
+    if (collaboratorIds) {
+      await db.$transaction([
+        db.taskCollaborator.deleteMany({ where: { taskId: id } }),
+        db.taskCollaborator.createMany({
+          data: collaboratorIds.map((memberId) => ({ taskId: id, memberId })),
+          skipDuplicates: true,
+        }),
+      ]);
+    }
+
+    // Only tell people who weren't already on it. Re-saving a task shouldn't
+    // re-notify everyone who was already tagged.
+    const newlyTagged = (collaboratorIds ?? []).filter((m) => !previousTags.includes(m));
+    const ownerChanged =
+      patch.ownerId !== undefined && patch.ownerId !== existing.ownerId;
+
+    if (newlyTagged.length > 0 || ownerChanged) {
+      await notifyAssignment(viewer, updated.id, updated.title, {
+        owner: ownerChanged ? patch.ownerId ?? null : null,
+        tagged: newlyTagged,
+        due: updated.dueDate,
+        verb: "updated",
+      });
+    }
 
     const summary = describeTaskChange(viewer.name, existing, patch);
     if (summary) {
@@ -381,4 +425,51 @@ function snapshotOf(
     before[key] = value instanceof Date ? value.toISOString() : value;
   }
   return before;
+}
+
+/**
+ * Tell the owner and anyone newly tagged.
+ *
+ * Split into two messages rather than one, because being handed a task and
+ * being kept in the loop on one are different obligations, and the wording
+ * should say which is which.
+ */
+async function notifyAssignment(
+  viewer: { weddingId: string; memberId: string; name: string },
+  taskId: string,
+  title: string,
+  what: {
+    owner: string | null;
+    tagged: string[];
+    due: Date | null;
+    verb: "added" | "updated";
+  },
+) {
+  const due = what.due ? ` — ${formatDueLabel(what.due).toLowerCase()}` : "";
+
+  if (what.owner) {
+    await notify({
+      weddingId: viewer.weddingId,
+      memberIds: [what.owner],
+      actorId: viewer.memberId,
+      kind: "ASSIGNED",
+      title: `${viewer.name} gave you “${title}”`,
+      body: `You're the owner${due}.`,
+      href: `/tasks?task=${taskId}`,
+      taskId,
+    });
+  }
+
+  if (what.tagged.length > 0) {
+    await notify({
+      weddingId: viewer.weddingId,
+      memberIds: what.tagged,
+      actorId: viewer.memberId,
+      kind: "TAGGED",
+      title: `${viewer.name} tagged you in “${title}”`,
+      body: `You're on this one${due}.`,
+      href: `/tasks?task=${taskId}`,
+      taskId,
+    });
+  }
 }

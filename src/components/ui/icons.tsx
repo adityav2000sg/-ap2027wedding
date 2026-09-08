@@ -167,3 +167,12 @@ export const CommandIcon = (p: IconProps) => (
 export const ImageIcon = (p: IconProps) => (
   <Icon {...p}><rect x="1.5" y="3" width="13" height="10" rx="1.5" /><circle cx="5.5" cy="6.5" r="1.2" /><path d="M2 11l3.5-3 2.5 2.2L11 7l3.5 3.4" /></Icon>
 );
+
+/** The notification bell. */
+export const BellIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </Icon>
+);
+

@@ -62,6 +62,8 @@ model WeddingMember {
 
   ownedTasks             Task[]              @relation("TaskOwner")
   taskCollaborations     TaskCollaborator[]
+  notifications          Notification[]      @relation("NotificationRecipient")
+  notificationsCaused    Notification[]      @relation("NotificationActor")
   ownedVendors           Vendor[]            @relation("VendorOwner")
   ownedResponsibilities  Responsibility[]    @relation("ResponsibilityOwner")
   backupResponsibilities Responsibility[]    @relation("ResponsibilityBackup")
@@ -140,6 +142,7 @@ model Wedding {
   changes           ChangeApplication[]
 
   @@map("weddings")
+  notifications          Notification[]
 }
 
 // ───────────────────────────────────────────────────────────── Venues & events
@@ -846,6 +849,7 @@ model Task {
   @@index([weddingId, dueDate])
   @@index([eventId])
   @@map("tasks")
+  notifications      Notification[]
 }
 
 model TaskDependency {
@@ -881,6 +885,48 @@ model TaskGuestLink {
 
   @@id([taskId, guestId])
   @@map("task_guest_links")
+}
+
+/// Why somebody is being told about something.
+enum NotificationKind {
+  ASSIGNED
+  TAGGED
+  MENTIONED
+  DUE_SOON
+  OVERDUE
+  COMMENTED
+}
+
+/// A thing one person needs to know about, addressed to one member.
+///
+/// Deliberately thin: a kind, a line of text and a link. Notifications are
+/// generated when the event happens rather than derived on read, because the
+/// whole point is to record that *you were told*, which a recomputed list can't
+/// represent once the underlying thing changes.
+model Notification {
+  id         String           @id @default(cuid())
+  weddingId  String
+  /// Who it is for.
+  memberId   String
+  /// Who caused it, when that's meaningful.
+  actorId    String?
+  kind       NotificationKind
+  title      String
+  body       String?
+  /// Where clicking it should go.
+  href       String?
+  taskId     String?
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  wedding Wedding       @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  member  WeddingMember @relation("NotificationRecipient", fields: [memberId], references: [id], onDelete: Cascade)
+  actor   WeddingMember? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  task    Task?         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, readAt])
+  @@index([weddingId, createdAt])
+  @@map("notifications")
 }
 
 model TaskComment {

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { buildBudgetView } from "@/domain/budget";
 import { computeAlerts } from "@/domain/risk";
+import { listNotifications, unreadCount } from "@/server/notifications";
 import { analyseTasks } from "@/domain/tasks";
 import { daysBetween, formatDateRange, toISODate } from "@/lib/dates";
 import { AppShell } from "@/components/shell/app-shell";
@@ -21,6 +22,11 @@ export default async function AppLayout({
   const tasks = analyseTasks(snapshot);
   const budget = buildBudgetView(snapshot, viewer.displayCurrency);
   const alerts = computeAlerts(snapshot, tasks, budget);
+
+  const [notifications, unread] = await Promise.all([
+    listNotifications(viewer.memberId),
+    unreadCount(viewer.memberId),
+  ]);
 
   // Only genuinely pressing things earn a badge on the nav.
   const alertCount = alerts.filter(
@@ -46,6 +52,16 @@ export default async function AppLayout({
         daysToGo: daysBetween(snapshot.today, snapshot.wedding.startDate),
       }}
       alertCount={alertCount}
+      notifications={notifications.map((n) => ({
+        ...n,
+        createdAt: n.createdAt.toISOString(),
+      }))}
+      unreadCount={unread}
+      aiHint={
+        alerts[0]
+          ? `Ask me why: ${alerts[0].title.toLowerCase()}`
+          : "Ask me anything about the wedding."
+      }
       quickAddOptions={{
         events: snapshot.events.map((e) => ({ id: e.id, name: e.name })),
         members: snapshot.members.map((m) => ({ id: m.id, name: m.name })),

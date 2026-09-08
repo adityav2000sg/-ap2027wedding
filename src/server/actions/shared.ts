@@ -30,6 +30,22 @@ export function fail(
 }
 
 /**
+ * For actions that only ever touch the viewer's own row — marking their own
+ * notification read, say. Requires a signed-in member but no feature
+ * permission, because "may I read my own post?" isn't a permission question.
+ */
+export async function withViewer<T>(
+  body: (viewer: Viewer) => Promise<T>,
+): Promise<ActionResult<T>> {
+  try {
+    return ok(await body(await requireViewer()));
+  } catch (error) {
+    if (error instanceof PermissionError) return fail(error.message);
+    return fail(error instanceof Error ? error.message : "Something went wrong.");
+  }
+}
+
+/**
  * Wraps an action body with auth, permission checking and error shaping.
  * Zod issues come back as field errors so forms can highlight the right input.
  */

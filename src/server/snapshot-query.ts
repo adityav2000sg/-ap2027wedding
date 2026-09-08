@@ -77,7 +77,10 @@ export async function fetchSnapshot(
       db.currencyRate.findMany({ where: { weddingId } }),
       db.task.findMany({
         where: { weddingId, ...active },
-        include: { _count: { select: { comments: true } } },
+        include: {
+          _count: { select: { comments: true } },
+          collaborators: { select: { memberId: true } },
+        },
       }),
       db.taskDependency.findMany({ where: { task: { weddingId } } }),
       db.timelineEntry.findMany({ where: { weddingId, ...active } }),
@@ -339,6 +342,7 @@ export async function fetchSnapshot(
         area: deriveArea(t.templateKey),
         createdAt: t.createdAt,
         commentCount: t._count.comments,
+        collaboratorIds: t.collaborators.map((c) => c.memberId),
       })),
 
       dependencies: dependencies.map((d) => ({

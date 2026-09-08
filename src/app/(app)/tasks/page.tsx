@@ -48,6 +48,7 @@ export default async function TasksPage({
       tasks={tasks.map((task) => ({
         ...toTaskRow(task, lookup),
         ownerId: task.ownerId,
+        collaboratorIds: task.collaboratorIds,
         eventId: task.eventId,
         description: task.description,
         phase: task.phase,
