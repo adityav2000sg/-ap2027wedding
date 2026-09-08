@@ -5,7 +5,7 @@
   "engines": {
     "node": ">=22 <23"
   },
-  "description": "Wedding Operating System \u2014 Avantika & Prateek, 16\u201319 June 2027",
+  "description": "Wedding Operating System — Avantika & Prateek, 16–19 June 2027",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -48,6 +48,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
     "jose": "^5.9.6",
     "motion": "^11.18.0",
     "next": "^16.3.3",

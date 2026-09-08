@@ -19,6 +19,7 @@ import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/fo
 import { SearchIcon } from "@/components/ui/icons";
 import { archiveGuest, setGuestAttendance, updateGuest } from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
+import { ExportMenu } from "@/components/wedding/export-menu";
 import { AddGuestButton } from "./guest-composer";
 import {
   Invitations,
@@ -202,6 +203,7 @@ export function GuestsWorkspace({
                 className="h-9 w-full pl-8 text-[12.5px] sm:w-64"
               />
             </div>
+            <ExportMenu kind="guests" />
             {canEdit ? <AddGuestButton households={households} /> : null}
           </div>
         </div>

@@ -12,6 +12,7 @@ import { db } from "@/server/db";
 import { variantUrl } from "@/server/media";
 import { loadSnapshot } from "@/server/snapshot";
 import { VendorDetail } from "./detail";
+import { RemoveVendor } from "./remove-vendor";
 
 export default async function VendorPage({
   params,
@@ -204,6 +205,12 @@ export default async function VendorPage({
           dueDate: task.dueDate ? formatMediumDate(new Date(task.dueDate)) : null,
         }))}
       />
+
+      {viewer.permissions.has("vendors.edit") ? (
+        <div className="mt-10 border-t border-line pt-4">
+          <RemoveVendor vendorId={vendor.id} vendorName={vendor.businessName} />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { formatDateTime, formatMediumDate } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import { Badge, EmptyState } from "@/components/ui/primitives";
 import { BedIcon, PlaneIcon, RouteIcon } from "@/components/ui/icons";
+import { ExportMenu } from "@/components/wedding/export-menu";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import { LogisticsTabs } from "./tabs";
@@ -57,10 +58,15 @@ export default async function LogisticsPage({
     <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-7">
         <div className="eyebrow mb-2">Getting everyone there</div>
-        <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Logistics</h1>
-        <p className="mt-1.5 text-[13.5px] text-ink-muted">
-          Rooms, flights, transfers and who's responsible for what.
-        </p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Logistics</h1>
+            <p className="mt-1.5 text-[13.5px] text-ink-muted">
+              Rooms, flights, transfers and who's responsible for what.
+            </p>
+          </div>
+          <ExportMenu kind="logistics" />
+        </div>
       </header>
 
       {/* Headline numbers */}

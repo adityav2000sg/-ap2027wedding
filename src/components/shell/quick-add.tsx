@@ -10,6 +10,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import {
   EVENT_KIND_LABEL,
@@ -76,6 +77,7 @@ export function QuickAdd({
   // rather than an uncontrolled select.
   const [eventKind, setEventKind] = React.useState<EventKind>("MEHENDI");
   const router = useRouter();
+  const reduce = useReducedMotion();
 
   React.useEffect(() => {
     if (open) setError(null);
@@ -194,10 +196,12 @@ export function QuickAdd({
           const Icon = option.icon;
           const active = option.key === kind;
           return (
-            <button
+            <motion.button
               key={option.key}
               type="button"
               onClick={() => { setKind(option.key); setError(null); }}
+              whileTap={reduce ? undefined : { scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
               className={cn(
                 "flex flex-col items-start gap-1.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-300 transition-natural",
                 active
@@ -209,12 +213,21 @@ export function QuickAdd({
               <span className={cn("text-[13px] font-medium", active ? "text-saffron" : "text-ink")}>
                 {option.label}
               </span>
-            </button>
+            </motion.button>
           );
         })}
       </div>
 
-      <form onSubmit={submit} className="space-y-4" key={kind}>
+      <AnimatePresence mode="wait" initial={false}>
+      <motion.form
+        key={kind}
+        onSubmit={submit}
+        className="space-y-4"
+        initial={reduce ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={reduce ? undefined : { opacity: 0, y: -6 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      >
         {kind === "task" ? (
           <>
             <FormField label="What needs doing?" required htmlFor="qa-title">
@@ -557,7 +570,8 @@ export function QuickAdd({
             {pending ? "Adding…" : "Add"}
           </Button>
         </div>
-      </form>
+      </motion.form>
+      </AnimatePresence>
     </Sheet>
   );
 }
