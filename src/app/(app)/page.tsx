@@ -327,7 +327,7 @@ export default async function HomePage() {
                 {
                   key: "payments",
                   value: paymentsThisMonth,
-                  label: "Payments due this month",
+                  label: "Due this month",
                   href: "/budget?view=payments",
                   tone: paymentsThisMonth > 0 ? ("warning" as const) : ("default" as const),
                 },

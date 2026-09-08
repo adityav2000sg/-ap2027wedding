@@ -36,7 +36,7 @@ export function PlanningPulse({ metrics }: { metrics: PulseMetric[] }) {
   const reduce = useReducedMotion();
 
   return (
-    <div className="grid grid-cols-2 gap-y-8 sm:grid-cols-4 sm:gap-y-0">
+    <div className="grid grid-cols-2 items-start gap-y-8 sm:grid-cols-4 sm:gap-y-0">
       {metrics.map((metric, index) => {
         const body = (
           <>
@@ -54,7 +54,10 @@ export function PlanningPulse({ metrics }: { metrics: PulseMetric[] }) {
                 format={(value) => formatMetric(value, metric)}
               />
             </div>
-            <div className="mt-2.5 text-[11.5px] leading-snug text-ink-muted">
+            {/* Two lines are reserved whether the label needs them or not.
+                Without it, a three-line label stretched the whole row and left
+                the dividers running down empty space beside the short ones. */}
+            <div className="mt-2.5 min-h-[2.4em] text-[11.5px] leading-snug text-ink-muted">
               {metric.label}
             </div>
           </>

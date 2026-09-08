@@ -25,6 +25,8 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Home", icon: "home", group: "plan", mobile: true },
+  // Directly under Home: it's the most-used screen, not a system utility.
+  { href: "/ai", label: "AI Planner", icon: "ai", group: "plan", requires: "ai.use" },
   { href: "/events", label: "Events", icon: "calendar", group: "plan" },
   { href: "/tasks", label: "Tasks", icon: "tasks", group: "plan", mobile: true },
 
@@ -39,7 +41,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/moodboard", label: "Moodboard", icon: "moodboard", group: "day" },
   { href: "/documents", label: "Documents", icon: "documents", group: "day", requires: "documents.view" },
 
-  { href: "/ai", label: "AI Planner", icon: "ai", group: "system", requires: "ai.use" },
   { href: "/activity", label: "Activity", icon: "activity", group: "system" },
   { href: "/settings", label: "Settings", icon: "settings", group: "system" },
 ];

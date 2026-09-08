@@ -1,10 +1,14 @@
 "use client";
 
 /**
- * The navigation rail.
+ * The navigation sidebar.
  *
- * 72px of quiet chrome. Navigation is secondary furniture here — the wedding is
- * the primary visual object, so the rail is icons, a monogram and nothing else.
+ * It was a 72px icon rail, which looked handsome and told nobody anything —
+ * fourteen glyphs with no labels means guessing, or hovering one at a time for a
+ * tooltip. Names are on now. Chrome that has to be decoded isn't quiet, it's
+ * just quietly in the way.
+ *
+ * Grouped as the drawer groups them, so the two navigations teach each other.
  */
 
 import * as React from "react";
@@ -17,7 +21,7 @@ import { cn } from "@/lib/cn";
 import { Avatar, Badge } from "@/components/ui/primitives";
 import { Popover, Tooltip } from "@/components/ui/overlays";
 import { PlusIcon, SearchIcon } from "@/components/ui/icons";
-import { isActiveHref, type NavItem } from "./nav";
+import { isActiveHref, NAV_GROUPS, type NavItem } from "./nav";
 import { NAV_ICONS } from "./nav-icons";
 import { signOut } from "@/app/login/actions";
 import { CurrencyPicker } from "./currency-picker";
@@ -51,66 +55,84 @@ export function Rail({
   const pathname = usePathname();
   const reduce = useReducedMotion();
 
+  const groups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: items.filter((item) => item.group === group.key),
+  })).filter((group) => group.items.length > 0);
+
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[72px] shrink-0 flex-col items-center border-r border-line bg-surface-soft py-4 lg:flex">
+    <aside className="sticky top-0 hidden h-dvh w-[212px] shrink-0 flex-col border-r border-line bg-surface-soft px-3 py-4 lg:flex">
       <Monogram />
 
-      <div className="mt-5 flex flex-col items-center gap-1">
+      <div className="mt-4 flex flex-col gap-0.5">
         <RailButton label="Search" shortcut="⌘K" onClick={onOpenSearch}>
-          <SearchIcon size={17} />
+          <SearchIcon size={16} />
         </RailButton>
         <RailButton label="Quick add" shortcut="C" onClick={onOpenQuickAdd}>
-          <PlusIcon size={17} />
+          <PlusIcon size={16} />
         </RailButton>
       </div>
 
-      <div className="my-4 h-px w-7 bg-line" />
+      <div className="my-3 h-px bg-line" />
 
-      <nav className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto">
-        {items.map((item) => {
-          const active = isActiveHref(pathname, item.href);
-          const Icon = NAV_ICONS[item.icon];
-          return (
-            <Tooltip key={item.href} content={item.label} side="right">
-              <Link
-                href={item.href}
-                aria-label={item.label}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-400 transition-natural active:scale-90",
-                  active
-                    ? "text-saffron"
-                    : "text-ink-faint hover:bg-surface-sunken hover:text-ink-soft",
-                )}
-              >
-                {active ? (
-                  <motion.span
-                    layoutId={reduce ? undefined : "rail-active"}
-                    className="absolute inset-0 rounded-xl bg-saffron-soft"
-                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                  />
-                ) : null}
-                <span className="relative"><Icon size={17} /></span>
+      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2">
+        {groups.map((group) => (
+          <div key={group.key}>
+            {group.label ? (
+              <p className="px-2.5 pb-1 pt-3 text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+                {group.label}
+              </p>
+            ) : (
+              <div className="my-2 h-px bg-line" />
+            )}
 
-                {item.href === "/" && alertCount > 0 ? (
-                  <Badge
-                    variant="critical"
-                    size="xs"
-                    className="tabular absolute -right-0.5 -top-0.5 min-w-[16px] justify-center px-1"
-                  >
-                    {alertCount}
-                  </Badge>
-                ) : null}
-              </Link>
-            </Tooltip>
-          );
-        })}
+            {group.items.map((item) => {
+              const active = isActiveHref(pathname, item.href);
+              const Icon = NAV_ICONS[item.icon];
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative flex h-9 items-center gap-2.5 rounded-xl px-2.5 text-[13px] transition-all duration-400 transition-natural active:scale-[0.98]",
+                    active
+                      ? "text-saffron"
+                      : "text-ink-soft hover:bg-surface-sunken hover:text-ink",
+                  )}
+                >
+                  {active ? (
+                    <motion.span
+                      layoutId={reduce ? undefined : "rail-active"}
+                      className="absolute inset-0 rounded-xl bg-saffron-soft"
+                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    />
+                  ) : null}
+                  <span className="relative shrink-0"><Icon size={16} /></span>
+                  <span className="relative min-w-0 flex-1 truncate">{item.label}</span>
+
+                  {item.href === "/" && alertCount > 0 ? (
+                    <Badge
+                      variant="critical"
+                      size="xs"
+                      className="tabular relative min-w-[16px] justify-center px-1"
+                    >
+                      {alertCount}
+                    </Badge>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
-      <div className="mt-3 flex flex-col items-center gap-2">
-        <NotificationBell items={notifications} unread={unreadCount} />
-        <CurrencyPicker current={viewer.displayCurrency} />
+      <div className="mt-2 flex items-center gap-1 border-t border-line pt-3">
         <ViewerMenu viewer={viewer} />
+        <span className="ml-auto flex items-center gap-0.5">
+          <NotificationBell items={notifications} unread={unreadCount} />
+          <CurrencyPicker current={viewer.displayCurrency} />
+        </span>
       </div>
     </aside>
   );
@@ -118,19 +140,24 @@ export function Rail({
 
 function Monogram() {
   return (
-    <Tooltip content="Avantika & Prateek" side="right">
-      <Link
-        href="/"
-        aria-label="Home — Avantika and Prateek"
-        className="group flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface transition-colors hover:border-saffron/40"
-      >
-        <span className="font-display text-[15px] leading-none text-ink">
+    <Link
+      href="/"
+      aria-label="Home — Avantika and Prateek"
+      className="group flex items-center gap-2.5 rounded-xl px-1.5 py-1 transition-colors"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface transition-colors group-hover:border-saffron/40">
+        <span className="font-display text-[14px] leading-none text-ink">
           A
-          <span className="mx-[1px] text-[11px] text-saffron">|</span>
+          <span className="mx-[1px] text-[10px] text-saffron">|</span>
           P
         </span>
-      </Link>
-    </Tooltip>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-display text-[14px] leading-tight text-ink">
+          Avantika <span className="text-saffron">&</span> Prateek
+        </span>
+      </span>
+    </Link>
   );
 }
 
@@ -162,10 +189,15 @@ function RailButton({
       <button
         type="button"
         onClick={onClick}
-        aria-label={label}
-        className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-faint transition-all duration-400 transition-natural hover:bg-surface-sunken hover:text-ink-soft active:scale-95"
+        className="flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-[13px] text-ink-muted transition-all duration-400 transition-natural hover:bg-surface-sunken hover:text-ink active:scale-[0.98]"
       >
-        {children}
+        <span className="shrink-0">{children}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        {shortcut ? (
+          <kbd className="shrink-0 rounded border border-line px-1 text-[9.5px] text-ink-faint">
+            {shortcut}
+          </kbd>
+        ) : null}
       </button>
     </Tooltip>
   );

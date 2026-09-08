@@ -129,7 +129,12 @@ export function AiPlanner({
     <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-[820px] flex-col px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-6">
         <div className="eyebrow mb-2">Ask anything</div>
-        <h1 className="font-script text-[30px] sm:text-[54px] text-ink">AI Planner</h1>
+        {/* Fraunces here, not the script face. "AI Planner" in a copperplate
+            hand is a puzzle rather than a label — the letterforms fight the
+            initials, and this is a screen people scan on the way to typing. */}
+        <h1 className="font-display text-[27px] leading-tight text-ink sm:text-[38px]">
+          AI Planner
+        </h1>
         <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
           It reads the live wedding — guests, budget, vendors, the run of show —
           and answers from the actual numbers.
