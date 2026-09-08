@@ -13,6 +13,7 @@ import { variantUrl } from "@/server/media";
 import { loadSnapshot } from "@/server/snapshot";
 import { VendorDetail } from "./detail";
 import { RemoveVendor } from "./remove-vendor";
+import { LogPaymentButton } from "@/components/wedding/payment-composer";
 
 export default async function VendorPage({
   params,
@@ -205,6 +206,26 @@ export default async function VendorPage({
           dueDate: task.dueDate ? formatMediumDate(new Date(task.dueDate)) : null,
         }))}
       />
+
+      {viewer.permissions.has("payments.approve") ? (
+        <div className="mt-8 flex justify-start">
+          {/* Prefilled with this vendor, because that's the whole reason you'd
+              be logging a payment from their page. */}
+          <LogPaymentButton
+            context={{
+              vendors: snapshot.vendors.map((v) => ({ id: v.id, name: v.businessName })),
+              payers: snapshot.payers.map((p) => ({ id: p.id, name: p.name })),
+              budgetItems: snapshot.budgetItems.map((item) => ({
+                id: item.id,
+                name: item.name,
+              })),
+              baseCurrency: snapshot.wedding.baseCurrency,
+            }}
+            vendorId={vendor.id}
+            variant="secondary"
+          />
+        </div>
+      ) : null}
 
       {viewer.permissions.has("vendors.edit") ? (
         <div className="mt-10 border-t border-line pt-4">

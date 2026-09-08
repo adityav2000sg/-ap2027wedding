@@ -455,6 +455,49 @@ function OutfitSheet({
 
       {/* Facts */}
       <dl className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 border-y border-line py-4">
+        {/* The name and the function it's for are the two things most likely to
+            be wrong on an imported wardrobe — "Mehendi sharara" was somebody's
+            shorthand, and half of these were tagged to the wrong day. */}
+        <Fact label="What is it">
+          {canEdit ? (
+            <Input
+              defaultValue={outfit.outfitType}
+              onBlur={async (e) => {
+                const next = e.target.value.trim();
+                if (!next || next === outfit.outfitType) return;
+                await updateOutfit({ id: outfit.id, outfitType: next });
+                onChanged();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              className="h-7 text-[12.5px]"
+            />
+          ) : (
+            outfit.outfitType
+          )}
+        </Fact>
+
+        <Fact label="Worn at">
+          {canEdit ? (
+            <Select
+              value={outfit.eventId ?? ""}
+              onChange={async (e) => {
+                await updateOutfit({ id: outfit.id, eventId: e.target.value || null });
+                onChanged();
+              }}
+              className="h-7 text-[12.5px]"
+            >
+              <option value="">Not tied to a function</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>{event.name}</option>
+              ))}
+            </Select>
+          ) : (
+            events.find((e) => e.id === outfit.eventId)?.name ?? "Not tied to a function"
+          )}
+        </Fact>
+
         <Fact label="Status">
           {canEdit ? (
             <Select

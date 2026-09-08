@@ -23,6 +23,7 @@ import { markPaymentPaid } from "@/server/actions/budget";
 import { useRouter } from "next/navigation";
 import { BudgetEditor, type EditorIntent, type EditableItem } from "./budget-editor";
 import { InlineAmount } from "./inline-amount";
+import { LogPaymentButton, type PaymentContext } from "@/components/wedding/payment-composer";
 
 interface Item {
   id: string; name: string; allocated: number; forecast: number; variance: number;
@@ -77,6 +78,24 @@ export function BudgetWorkspace({
   const router = useRouter();
   const reduce = useReducedMotion();
   const [view, setView] = React.useState(initialView);
+
+  // Everything the payment form needs, wherever it's opened from on this page.
+  const paymentContext: PaymentContext = React.useMemo(
+    () => ({
+      vendors,
+      payers: payers
+        .filter((p): p is typeof p & { payerId: string } => Boolean(p.payerId))
+        .map((p) => ({ id: p.payerId, name: p.name })),
+      budgetItems: categories.flatMap((category) =>
+        category.items.map((item) => ({
+          id: item.edit?.id ?? item.id,
+          name: `${category.name} · ${item.name}`,
+        })),
+      ),
+      baseCurrency,
+    }),
+    [vendors, payers, categories, baseCurrency],
+  );
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [paying, setPaying] = React.useState<string | null>(null);
   const [editor, setEditor] = React.useState<EditorIntent | null>(null);
@@ -409,10 +428,16 @@ export function BudgetWorkspace({
 
       {/* ── Payments ────────────────────────────────────────────────────── */}
       {view === "payments" ? (
-        payments.length === 0 ? (
+        <>
+        {canPay ? (
+          <div className="mb-4 flex justify-end">
+            <LogPaymentButton context={paymentContext} variant="primary" />
+          </div>
+        ) : null}
+        {payments.length === 0 ? (
           <EmptyState
-            title="No payments scheduled yet"
-            description="Payments appear here as vendors are contracted and deposits fall due. Nothing is contracted yet, so there's nothing to pay."
+            title="No payments logged yet"
+            description="Log one as soon as money moves — a deposit, a transfer, anything. It'll show against the vendor and the budget line too."
           />
         ) : (
           <ul>
@@ -463,15 +488,22 @@ export function BudgetWorkspace({
               </li>
             ))}
           </ul>
-        )
+        )}
+        </>
       ) : null}
 
       {/* ── Who's paying ────────────────────────────────────────────────── */}
       {view === "payers" ? (
-        payers.length === 0 ? (
+        <>
+        {canPay ? (
+          <div className="mb-4 flex justify-end">
+            <LogPaymentButton context={paymentContext} variant="primary" />
+          </div>
+        ) : null}
+        {payers.length === 0 ? (
           <EmptyState
             title="Nothing paid yet"
-            description="As payments are logged, this shows who has contributed what — useful when two families are splitting the cost."
+            description="Log a payment and this starts showing who has contributed what — useful when two families are splitting the cost."
           />
         ) : (
           <div className="space-y-5">
@@ -492,7 +524,8 @@ export function BudgetWorkspace({
               </div>
             ))}
           </div>
-        )
+        )}
+        </>
       ) : null}
 
       {/* What moves the numbers */}
