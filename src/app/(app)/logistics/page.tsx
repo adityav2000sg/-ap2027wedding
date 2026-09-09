@@ -11,6 +11,7 @@ import { Badge, EmptyState } from "@/components/ui/primitives";
 import { BedIcon, PlaneIcon, RouteIcon } from "@/components/ui/icons";
 import { ExportMenu } from "@/components/wedding/export-menu";
 import { Responsibilities } from "./responsibilities";
+import { RoomBoard } from "./room-board";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import { LogisticsTabs } from "./tabs";
@@ -34,6 +35,51 @@ export default async function LogisticsPage({
   const needRooms = snapshot.guests.filter((g) => g.needsAccommodation);
   const housed = new Set(snapshot.stays.map((s) => s.guestId));
   const unhoused = needRooms.filter((g) => !housed.has(g.id));
+
+  const householdNameById = new Map(snapshot.households.map((h) => [h.id, h.name]));
+  const hotelNameById = new Map(snapshot.hotels.map((h) => [h.id, h.name]));
+  const guestRecordById = new Map(snapshot.guests.map((g) => [g.id, g]));
+
+  // Grouped by room, in room order, with everyone in it.
+  const roomsForBoard = [
+    ...snapshot.stays
+      .filter((stay) => stay.roomNumber)
+      .reduce((map, stay) => {
+        const key = stay.roomNumber!;
+        const guest = guestRecordById.get(stay.guestId);
+        if (!guest) return map;
+
+        const room = map.get(key) ?? {
+          number: key,
+          hotelName: hotelNameById.get(stay.hotelId) ?? "",
+          occupants: [] as {
+            guestId: string;
+            name: string;
+            householdName: string | null;
+            side: string;
+            isChild: boolean;
+            isSenior: boolean;
+            accessibilityNeeds: string | null;
+          }[],
+        };
+
+        room.occupants.push({
+          guestId: guest.id,
+          name: `${guest.firstName} ${guest.lastName}`.trim(),
+          householdName: guest.householdId
+            ? householdNameById.get(guest.householdId) ?? null
+            : null,
+          side: guest.side,
+          isChild: guest.isChild,
+          isSenior: guest.isSenior,
+          accessibilityNeeds: guest.accessibilityNeeds,
+        });
+
+        map.set(key, room);
+        return map;
+      }, new Map<string, { number: string; hotelName: string; occupants: { guestId: string; name: string; householdName: string | null; side: string; isChild: boolean; isSenior: boolean; accessibilityNeeds: string | null }[] }>())
+      .values(),
+  ].sort((a, b) => Number(a.number) - Number(b.number) || a.number.localeCompare(b.number));
 
   const pickups = snapshot.travel.filter(
     (t) => t.direction === "ARRIVAL" && t.pickupRequired,
@@ -108,44 +154,22 @@ export default async function LogisticsPage({
       <LogisticsTabs
         initialView={params.view ?? "rooms"}
         rooms={
-          snapshot.stays.length === 0 ? (
-            <EmptyState
-              title="No rooms allocated yet"
-              description="Once the venue is confirmed and the room block is signed, allocate guests to rooms here. The plan from your spreadsheet is already loaded."
-            />
-          ) : (
-            <>
-              {unhoused.length > 0 ? (
-                <div className="mb-5 rounded-lg border border-attention/25 bg-attention-soft px-3.5 py-2.5">
-                  <p className="text-[12.5px] text-attention">
-                    {unhoused.length} guests have said they need a bed but aren't in a
-                    room yet.
-                  </p>
-                </div>
-              ) : null}
-              <ul className="grid gap-x-8 sm:grid-cols-2">
-                {rooms.map(([number, room]) => (
-                  <li
-                    key={number}
-                    className="flex items-baseline gap-4 border-b border-line py-2.5"
-                  >
-                    <span className="tabular w-9 shrink-0 font-display text-[16px] text-ink">
-                      {number}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] text-ink">
-                        {room.guests.join(" · ")}
-                      </span>
-                      <span className="block text-[11px] text-ink-muted">{room.hotel}</span>
-                    </span>
-                    <span className="tabular shrink-0 text-[11.5px] text-ink-faint">
-                      {room.guests.length}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )
+          <RoomBoard
+            canEdit={viewer.permissions.has("logistics.edit")}
+            perRoom={snapshot.wedding.guestsPerRoom}
+            rooms={roomsForBoard}
+            unhoused={unhoused.map((guest) => ({
+              guestId: guest.id,
+              name: `${guest.firstName} ${guest.lastName}`.trim(),
+              householdName: guest.householdId
+                ? householdNameById.get(guest.householdId) ?? null
+                : null,
+              side: guest.side,
+              isChild: guest.isChild,
+              isSenior: guest.isSenior,
+              accessibilityNeeds: guest.accessibilityNeeds,
+            }))}
+          />
         }
         travel={
           snapshot.travel.length === 0 ? (
