@@ -61,6 +61,13 @@ export function RoomBoard({
   const [busy, setBusy] = React.useState<string | null>(null);
   const [moving, setMoving] = React.useState<string | null>(null);
 
+  // Naming the hotel under every room only helps when there's more than one to
+  // tell apart. With a single venue it's the same three words 112 times.
+  const showHotel = React.useMemo(
+    () => new Set(rooms.map((room) => room.hotelName).filter(Boolean)).size > 1,
+    [rooms],
+  );
+
   const roomNumbers = React.useMemo(
     () =>
       rooms
@@ -197,7 +204,9 @@ export function RoomBoard({
                     <span className="tabular text-[14px] font-medium text-ink">
                       Room {room.number}
                     </span>
-                    <span className="text-[11.5px] text-ink-faint">{room.hotelName}</span>
+                    {showHotel ? (
+                      <span className="text-[11.5px] text-ink-faint">{room.hotelName}</span>
+                    ) : null}
                     <span
                       className={cn(
                         "tabular ml-auto text-[11.5px]",
