@@ -6,10 +6,9 @@
  * room allocation, the real venue shortlist, the real family budget split and
  * the real FX table.
  *
- * The wedding is deliberately seeded at the stage it is actually at: a venue
- * shortlist with proposals in, no venue chosen, no date locked, no invitations
- * sent. That produces a low readiness score and a pointed attention list, which
- * is the truth rather than a flattering demo.
+ * The wedding is deliberately seeded at the stage it is actually at: Conrad
+ * Bali selected, the site visit completed, the dates set, and the first guest
+ * list ready for save-the-dates. Open supplier work remains open.
  */
 
 import { randomBytes, randomUUID } from "node:crypto";
@@ -677,24 +676,47 @@ async function progressTasks(
   const done = new Set([
     "foundation-guest-estimate", "foundation-budget", "foundation-split",
     "foundation-events", "foundation-cities", "foundation-traditions",
-    "invite-guest-list", "hotel-estimate", "venue-research",
+    "foundation-date", "invite-guest-list", "hotel-estimate", "venue-research",
+    "venue-availability", "venue-walkthrough", "venue-capacity", "venue-pricing",
   ]);
   const inProgress = new Set([
-    "foundation-date", "venue-availability", "venue-pricing", "venue-walkthrough",
     "foundation-planner", "hotel-shortlist", "travel-collect", "foundation-style",
   ]);
+
+  const completedInAugust = new Set([
+    "foundation-date", "venue-research", "venue-availability", "venue-walkthrough",
+    "venue-capacity", "venue-pricing",
+  ]);
+  const actualDueDate: Record<string, string> = {
+    "foundation-date": "2026-08-26",
+    "venue-research": "2026-08-12",
+    "venue-availability": "2026-08-18",
+    "venue-walkthrough": "2026-08-26",
+    "venue-capacity": "2026-08-27",
+    "venue-pricing": "2026-08-29",
+  };
 
   for (const [index, task] of tasks.entries()) {
     const base = (task.templateKey ?? "").split(":")[0];
     let status: "NOT_STARTED" | "IN_PROGRESS" | "DONE" = "NOT_STARTED";
     if (done.has(base)) status = "DONE";
     else if (inProgress.has(base)) status = "IN_PROGRESS";
+    const realDueDate = actualDueDate[base] ? civil(actualDueDate[base]) : null;
 
     await db.task.update({
       where: { id: task.id },
       data: {
         status,
-        completedAt: status === "DONE" ? day(-20 - (index % 60)) : null,
+        completedAt:
+          status === "DONE"
+            ? completedInAugust.has(base)
+              ? civil("2026-08-26")
+              : day(-20 - (index % 60))
+            : null,
+        dueDate: realDueDate ?? task.dueDate,
+        offsetDays: realDueDate
+          ? Math.round((realDueDate.getTime() - WEDDING_START.getTime()) / 86_400_000)
+          : undefined,
         ownerId: index % 5 === 4 ? null : owners[index % owners.length],
         categoryId: pickCategory(base, categories),
       },

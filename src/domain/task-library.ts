@@ -2,10 +2,10 @@
  * The North Indian wedding planning library.
  *
  * These are *templates*, not tasks. When a wedding is created they're
- * instantiated against its real dates and real event list — templates tagged
- * with `eventKinds` produce one task per matching event, so a five-function
- * wedding gets five "confirm venue walkthrough" tasks, correctly named and
- * correctly dated, while a two-function wedding gets two.
+ * instantiated against its real dates and real event list. Templates tagged
+ * with `eventKinds` produce one task per matching event only when the work is
+ * genuinely different for each function — menus and decor, for example. A
+ * destination hotel is booked and walked through once, not once per function.
  *
  * `offsetDays` is relative to the first day of the wedding (negative = before).
  * Because every generated task keeps its offset, moving the wedding date can
@@ -38,7 +38,9 @@ export interface TaskTemplateDefinition {
 /** Anchor offset for each planning phase, in days before the wedding. */
 const PHASE_ANCHOR: Record<PlanPhase, number> = {
   TWELVE_PLUS_MONTHS: -400,
-  NINE_TO_TWELVE_MONTHS: -320,
+  // Use the end of this window as the deadline. At 9–10 months out, core
+  // supplier shortlists should be current work, not already forty days late.
+  NINE_TO_TWELVE_MONTHS: -270,
   SIX_TO_NINE_MONTHS: -230,
   FOUR_TO_SIX_MONTHS: -150,
   THREE_MONTHS: -90,
@@ -141,14 +143,14 @@ const foundation = area("Foundation", [
 // ───────────────────────────────────────────────────────────────────── Venue
 
 const venue = area("Venue", [
-  ["venue-research", "Research venues", "TWELVE_PLUS_MONTHS", 5, "CRITICAL", { eventKinds: ALL_MAIN_EVENTS }],
-  ["venue-availability", "Check date availability", "NINE_TO_TWELVE_MONTHS", 5, "CRITICAL", { eventKinds: ALL_MAIN_EVENTS, dependsOn: ["venue-research"] }],
-  ["venue-walkthrough", "Do a site walkthrough", "NINE_TO_TWELVE_MONTHS", 5, "CRITICAL", { eventKinds: ALL_MAIN_EVENTS, dependsOn: ["venue-availability"] }],
-  ["venue-capacity", "Confirm capacity against the guest estimate", "NINE_TO_TWELVE_MONTHS", 5, "CRITICAL", { eventKinds: ALL_MAIN_EVENTS }],
-  ["venue-pricing", "Get written pricing and what's included", "NINE_TO_TWELVE_MONTHS", 5, "CRITICAL", { eventKinds: ALL_MAIN_EVENTS }],
-  ["venue-book", "Book the venue and pay the deposit", "SIX_TO_NINE_MONTHS", 5, "CRITICAL", { eventKinds: ALL_MAIN_EVENTS, isMilestone: true, dependsOn: ["venue-walkthrough", "venue-pricing"] }],
-  ["venue-restrictions", "Note venue restrictions and house rules", "SIX_TO_NINE_MONTHS", 4, "HIGH", { eventKinds: ALL_MAIN_EVENTS }],
-  ["venue-curfew", "Confirm the music and guest curfew", "SIX_TO_NINE_MONTHS", 4, "HIGH", { eventKinds: ALL_MAIN_EVENTS }],
+  ["venue-research", "Research and select the destination venue", "TWELVE_PLUS_MONTHS", 5, "CRITICAL"],
+  ["venue-availability", "Confirm the wedding dates with the venue", "NINE_TO_TWELVE_MONTHS", 5, "CRITICAL", { dependsOn: ["venue-research"] }],
+  ["venue-walkthrough", "Complete the venue site visit", "NINE_TO_TWELVE_MONTHS", 5, "CRITICAL", { dependsOn: ["venue-availability"] }],
+  ["venue-capacity", "Confirm venue capacity for the full guest list", "NINE_TO_TWELVE_MONTHS", 5, "CRITICAL"],
+  ["venue-pricing", "Review the venue proposal and inclusions", "NINE_TO_TWELVE_MONTHS", 5, "CRITICAL"],
+  ["venue-book", "Sign the venue contract and pay the deposit", "SIX_TO_NINE_MONTHS", 5, "CRITICAL", { isMilestone: true, dependsOn: ["venue-walkthrough", "venue-pricing"] }],
+  ["venue-restrictions", "Review venue house rules across all functions", "SIX_TO_NINE_MONTHS", 4, "HIGH"],
+  ["venue-curfew", "Confirm music curfews across the venue spaces", "SIX_TO_NINE_MONTHS", 4, "HIGH"],
   ["venue-alcohol", "Confirm alcohol rules and licensing", "SIX_TO_NINE_MONTHS", 3, "MEDIUM"],
   ["venue-catering-rules", "Confirm whether outside catering is allowed", "SIX_TO_NINE_MONTHS", 4, "HIGH"],
   ["venue-vendor-rules", "Confirm restrictions on outside vendors", "SIX_TO_NINE_MONTHS", 3, "MEDIUM"],
@@ -210,7 +212,7 @@ const photography = area("Photography & Video", [
   ["photo-coverage", "Confirm coverage across every function", "SIX_TO_NINE_MONTHS", 5, "CRITICAL", { dependsOn: ["photo-book"] }],
   ["photo-second-shooter", "Confirm second shooter and team size", "FOUR_TO_SIX_MONTHS", 3, "MEDIUM"],
   ["photo-cinematography", "Contract the cinematography team", "SIX_TO_NINE_MONTHS", 4, "HIGH"],
-  ["photo-drone", "Check drone permissions at each venue", "FOUR_TO_SIX_MONTHS", 3, "MEDIUM"],
+  ["photo-drone", "Check Conrad Bali's drone permissions", "FOUR_TO_SIX_MONTHS", 3, "MEDIUM"],
   ["photo-deliverables", "Agree deliverables in writing", "FOUR_TO_SIX_MONTHS", 4, "HIGH"],
   ["photo-turnaround", "Agree delivery turnaround times", "FOUR_TO_SIX_MONTHS", 3, "MEDIUM"],
   ["photo-film", "Confirm the wedding film format and length", "FOUR_TO_SIX_MONTHS", 3, "MEDIUM"],
@@ -272,7 +274,6 @@ const haldi = area("Haldi", [
   ["haldi-music", "Prepare the Haldi playlist and dholak", "ONE_MONTH", 2, "LOW"],
   ["haldi-food", "Confirm the Haldi menu", "ONE_MONTH", 3, "MEDIUM"],
   ["haldi-photographer", "Brief the photographer on Haldi coverage", "TWO_WEEKS", 3, "MEDIUM"],
-  ["haldi-transport", "Arrange transport to the Haldi venue", "TWO_WEEKS", 3, "MEDIUM"],
   ["haldi-cleanup", "Arrange post-Haldi cleanup crew", "TWO_WEEKS", 2, "LOW"],
 ]);
 
@@ -404,10 +405,10 @@ const entertainment = area("Entertainment", [
   ["ent-mc-brief", "Brief the MC on names and pronunciations", "ONE_MONTH", 3, "MEDIUM"],
   ["ent-rider", "Collect the technical rider from every act", "TWO_MONTHS", 3, "MEDIUM"],
   ["ent-microphones", "Confirm microphone count and types", "ONE_MONTH", 3, "MEDIUM"],
-  ["ent-sound", "Confirm the sound system per venue", "ONE_MONTH", 4, "HIGH"],
+  ["ent-sound", "Confirm the sound system for each function", "ONE_MONTH", 4, "HIGH"],
   ["ent-playlists", "Build the playlists for each function", "ONE_MONTH", 2, "LOW"],
   ["ent-do-not-play", "Give the DJ the do-not-play list", "TWO_WEEKS", 2, "LOW"],
-  ["ent-sound-limits", "Confirm decibel limits at each venue", "TWO_WEEKS", 3, "MEDIUM"],
+  ["ent-sound-limits", "Confirm Conrad Bali's sound limits", "TWO_WEEKS", 3, "MEDIUM"],
 ]);
 
 // ────────────────────────────────────────────────── Invitations & stationery
@@ -527,10 +528,10 @@ const jewellery = area("Jewellery", [
 
 const accommodation = area("Accommodation", [
   ["hotel-estimate", "Estimate how many guests need rooms", "SIX_TO_NINE_MONTHS", 4, "HIGH"],
-  ["hotel-shortlist", "Shortlist hotels near the venues", "SIX_TO_NINE_MONTHS", 4, "HIGH", { dependsOn: ["hotel-estimate"] }],
-  ["hotel-negotiate", "Negotiate the room block rate", "FOUR_TO_SIX_MONTHS", 4, "HIGH", { dependsOn: ["hotel-shortlist"] }],
-  ["hotel-block", "Confirm the hotel room block", "FOUR_TO_SIX_MONTHS", 5, "CRITICAL", { isMilestone: true, dependsOn: ["hotel-negotiate"] }],
-  ["hotel-contract", "Sign the hotel contract", "FOUR_TO_SIX_MONTHS", 5, "CRITICAL", { dependsOn: ["hotel-block"] }],
+  ["hotel-shortlist", "Review Conrad Bali room-block options", "SIX_TO_NINE_MONTHS", 4, "HIGH", { dependsOn: ["hotel-estimate"] }],
+  ["hotel-negotiate", "Agree the Conrad Bali room rate and inclusions", "FOUR_TO_SIX_MONTHS", 4, "HIGH", { dependsOn: ["hotel-shortlist"] }],
+  ["hotel-block", "Confirm the Conrad Bali room block", "FOUR_TO_SIX_MONTHS", 5, "CRITICAL", { isMilestone: true, dependsOn: ["hotel-negotiate"] }],
+  ["hotel-contract", "Sign the accommodation terms with Conrad Bali", "FOUR_TO_SIX_MONTHS", 5, "CRITICAL", { dependsOn: ["hotel-block"] }],
   ["hotel-room-types", "Confirm room types and inventory", "THREE_MONTHS", 3, "MEDIUM"],
   ["hotel-bridal-suite", "Book the bridal suite", "THREE_MONTHS", 4, "HIGH"],
   ["hotel-groom-suite", "Book the groom's suite", "THREE_MONTHS", 3, "MEDIUM"],
@@ -562,12 +563,10 @@ const travel = area("Travel", [
 // ──────────────────────────────────────────────────────────────── Transport
 
 const transport = area("Transport", [
-  ["transport-plan", "Plan transport across every function", "THREE_MONTHS", 4, "HIGH"],
+  ["transport-plan", "Plan airport transfers and family transport", "THREE_MONTHS", 4, "HIGH"],
   ["transport-vendor", "Book the transport vendor", "THREE_MONTHS", 4, "HIGH", { dependsOn: ["transport-plan"] }],
   ["transport-airport", "Schedule airport pickups", "TWO_MONTHS", 4, "HIGH", { dependsOn: ["transport-vendor"] }],
-  ["transport-station", "Schedule railway station pickups", "TWO_MONTHS", 3, "MEDIUM"],
-  ["transport-shuttles", "Schedule shuttles between hotel and venues", "TWO_MONTHS", 4, "HIGH"],
-  ["transport-capacity", "Check vehicle capacity against guest numbers", "TWO_MONTHS", 4, "HIGH", { dependsOn: ["transport-shuttles"] }],
+  ["transport-capacity", "Check airport-transfer capacity against arrival groups", "TWO_MONTHS", 4, "HIGH", { dependsOn: ["transport-airport"] }],
   ["transport-family-cars", "Arrange family cars", "ONE_MONTH", 3, "MEDIUM"],
   ["transport-bride-car", "Arrange and decorate the bride's car", "ONE_MONTH", 4, "HIGH"],
   ["transport-groom-car", "Arrange the groom's car", "ONE_MONTH", 3, "MEDIUM"],
@@ -587,7 +586,7 @@ const hospitality = area("Hospitality", [
   ["hosp-team", "Assign the hospitality team", "TWO_MONTHS", 4, "HIGH"],
   ["hosp-contacts", "Publish a contact sheet for every family group", "ONE_MONTH", 4, "HIGH"],
   ["hosp-hampers", "Order welcome hampers", "ONE_MONTH", 2, "LOW"],
-  ["hosp-water", "Arrange water at every venue and vehicle", "TWO_WEEKS", 3, "MEDIUM"],
+  ["hosp-water", "Arrange water in function spaces and vehicles", "TWO_WEEKS", 3, "MEDIUM"],
   ["hosp-room-delivery", "Arrange in-room delivery of itineraries", "TWO_WEEKS", 2, "LOW"],
   ["hosp-emergency-kits", "Prepare guest emergency kits", "TWO_WEEKS", 2, "LOW"],
   ["hosp-vip", "Assign VIP handlers", "TWO_WEEKS", 3, "MEDIUM"],

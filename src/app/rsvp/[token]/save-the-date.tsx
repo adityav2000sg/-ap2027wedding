@@ -226,14 +226,14 @@ export function SaveTheDate({
             </p>
             <span aria-hidden className="h-px w-8 bg-[#cf8a68]" />
           </div>
-          {/* Halimun draws this name at 14.5em wide, so a fixed size that fits a
-              laptop runs off a desktop — which is exactly what it did. One fluid
-              size, capped where the line still fits the 1120px column, and free
-              to wrap onto two lines on a phone rather than overflow. */}
+          {/* Halimun is exceptionally wide. Keep the original single-line
+              lockup from tablet upward, but give a phone one deliberate break
+              after Avantika so Prateek can never disappear off the screen. */}
           <h1 className="font-invite-script text-[clamp(34px,5.9vw,68px)] leading-[1.12] text-white drop-shadow-[0_3px_22px_rgba(0,0,0,0.38)] sm:whitespace-nowrap">
             {partnerA}
-            <span className="mx-1.5 text-[#e0a084] sm:mx-3 lg:mx-5">&</span>
-            {partnerB}
+            <br className="sm:hidden" />
+            <span className="mx-1.5 inline-block text-[#e0a084] sm:mx-3 lg:mx-5">&</span>
+            <span className="inline-block">{partnerB}</span>
           </h1>
           <p className="mt-8 text-[16px] tracking-[0.02em] text-white/90 sm:text-[17px]">
             {date}
@@ -282,11 +282,9 @@ export function SaveTheDate({
                   <p className="text-[13.5px] font-medium uppercase tracking-[0.18em] text-[#6d8f7f]">
                     Your reply
                   </p>
-                  <h2
-                    className="mt-2.5 font-invite-script text-[34px] font-bold leading-[1.18] text-[#cf8a68] sm:text-[46px]"
-                    style={{ WebkitTextStroke: "0.45px currentColor" }}
-                  >
-                    Will you join us in Bali?
+                  <h2 className="mt-3 font-invite text-[28px] font-bold leading-[1.08] tracking-[-0.035em] text-[#cf8a68] sm:text-[42px]">
+                    <span className="block sm:inline">Will you join us</span>{" "}
+                    <span className="block sm:inline">in Bali?</span>
                   </h2>
                   <p className="mt-3.5 text-[15px] leading-relaxed text-[#5d7a6c] sm:text-[14.5px]">
                     {onePerson
