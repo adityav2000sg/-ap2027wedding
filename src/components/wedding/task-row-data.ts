@@ -20,8 +20,11 @@ export interface TaskRowData {
   isBlocked: boolean;
   daysLate: number;
   dueDate: string | null;
+  ownerId: string | null;
   ownerName: string | null;
   ownerTone: string | null;
+  /// Members tagged in, so the row can show and change them without a fetch.
+  collaboratorIds: string[];
   eventName: string | null;
   eventTone: string | null;
   area: string | null;
@@ -55,6 +58,8 @@ export function toTaskRow(task: AnalysedTask, lookup: TaskRowLookup): TaskRowDat
     isBlocked: task.isBlocked,
     daysLate: task.daysLate,
     dueDate: task.dueDate ? new Date(task.dueDate).toISOString() : null,
+    ownerId: task.ownerId,
+    collaboratorIds: task.collaboratorIds ?? [],
     ownerName: owner?.name ?? null,
     ownerTone: owner?.tone ?? null,
     eventName: event?.name ?? null,

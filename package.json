@@ -25,7 +25,8 @@
     "accounts:provision": "tsx scripts/provision-accounts.ts",
     "fix:allocations": "tsx scripts/fix-allocations.ts",
     "fix:households": "tsx scripts/split-households.ts",
-    "import:tiers": "tsx scripts/import-tiers.ts"
+    "import:tiers": "tsx scripts/import-tiers.ts",
+    "tasks:reset-owners": "tsx scripts/reset-task-owners.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

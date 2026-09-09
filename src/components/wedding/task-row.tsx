@@ -19,6 +19,7 @@ import { Tooltip } from "@/components/ui/overlays";
 import { ClockIcon, LockIcon } from "@/components/ui/icons";
 import { toggleTaskComplete } from "@/server/actions/tasks";
 import type { TaskRowData } from "./task-row-data";
+import { AssignMenu, type AssignableMember } from "./assign-menu";
 
 export type { TaskRowData };
 
@@ -30,6 +31,7 @@ export function TaskRow({
   showEvent = true,
   compact,
   canEdit = true,
+  members,
 }: {
   task: TaskRowData;
   onSelect?(id: string): void;
@@ -38,6 +40,8 @@ export function TaskRow({
   showEvent?: boolean;
   compact?: boolean;
   canEdit?: boolean;
+  /** Given, the avatar becomes a one-tap way to hand the task over. */
+  members?: AssignableMember[];
 }) {
   const router = useRouter();
   const [done, setDone] = React.useState(task.isDone);
@@ -199,7 +203,17 @@ export function TaskRow({
         ) : null}
       </div>
 
-      {task.ownerName ? (
+      {members ? (
+        <AssignMenu
+          taskId={task.id}
+          ownerId={task.ownerId ?? null}
+          ownerName={task.ownerName}
+          ownerTone={task.ownerTone}
+          collaboratorIds={task.collaboratorIds ?? []}
+          members={members}
+          canEdit={canEdit}
+        />
+      ) : task.ownerName ? (
         <Avatar name={task.ownerName} tone={task.ownerTone} size="sm" className="mt-0.5" />
       ) : (
         <Tooltip content="Nobody is handling this yet">

@@ -317,6 +317,7 @@ export function TasksWorkspace({
                     key={task.id}
                     task={task}
                     canEdit={canEdit}
+                    members={members}
                     onSelect={setOpenTask}
                     selected={selected.has(task.id)}
                     onToggleSelect={

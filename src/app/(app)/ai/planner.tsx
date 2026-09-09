@@ -282,9 +282,22 @@ export function AiPlanner({
             <div ref={endRef} />
           </div>
 
+          {/* The composer is the thing you come to this page to use, so it's
+              built as one solid object rather than a textarea with a button
+              parked on top of it. The whole card takes the focus ring, and the
+              textarea inside is transparent and unresizable — the drag handle
+              poking out of the corner was most of what made it look cheap. */}
           <div className="sticky bottom-0 mt-5 bg-canvas pb-2 pt-3">
-            <div className="relative">
-              <Textarea
+            <div
+              className={cn(
+                "flex items-end gap-2 rounded-2xl border border-line bg-surface p-2 pl-3.5",
+                "shadow-raised transition-all duration-300 transition-natural",
+                "focus-within:border-saffron/50 focus-within:shadow-float",
+                "focus-within:ring-[3px] focus-within:ring-saffron/15",
+                pending && "opacity-70",
+              )}
+            >
+              <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -293,21 +306,25 @@ export function AiPlanner({
                     ask(draft);
                   }
                 }}
+                rows={1}
                 placeholder="Ask about the budget, the guests…"
-                className="min-h-[64px] pr-[86px] text-[15px] sm:min-h-[52px] sm:pr-24 sm:text-[14px]"
+                className={cn(
+                  "min-h-[40px] flex-1 resize-none border-0 bg-transparent py-2.5 text-[15px] leading-snug",
+                  "text-ink placeholder:text-ink-faint focus:outline-none sm:text-[14.5px]",
+                )}
                 disabled={pending}
               />
               <Button
                 variant="primary"
                 size="sm"
-                className="absolute bottom-2.5 right-2.5 min-h-[36px]"
+                className="mb-0.5 h-9 shrink-0 px-4"
                 disabled={pending || draft.trim().length === 0}
                 onClick={() => ask(draft)}
               >
                 {pending ? "Thinking…" : "Ask"}
               </Button>
             </div>
-            <p className="mt-1.5 text-[11px] text-ink-faint">
+            <p className="mt-2 px-1 text-[11px] text-ink-faint">
               It reads the live wedding and can suggest changes — you see exactly
               what each one affects before anything is applied.
             </p>
