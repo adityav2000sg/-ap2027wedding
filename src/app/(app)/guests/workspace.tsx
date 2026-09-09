@@ -43,6 +43,36 @@ interface Guest {
 const RSVP_CYCLE = ["NOT_INVITED", "PENDING", "CONFIRMED", "TENTATIVE", "DECLINED"] as const;
 
 /**
+ * Whose list somebody is on.
+ *
+ * Stored as BRIDE / GROOM, shown as the surnames, because that's how the two
+ * families actually talk about it — "is she on the Chowdhry list or the Mehan
+ * one" — and because with 267 names the side is the first thing you want to
+ * know when a name is unfamiliar.
+ */
+function SideTag({ side }: { side: string }) {
+  if (side === "BOTH") {
+    return (
+      <span className="shrink-0 rounded-md bg-surface-sunken px-1.5 py-px text-[10px] font-medium text-ink-muted">
+        Both
+      </span>
+    );
+  }
+  const bride = side === "BRIDE";
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-md px-1.5 py-px text-[10px] font-medium",
+        bride ? "bg-rose-soft text-rose" : "bg-indigo-soft text-indigo",
+      )}
+      title={bride ? "On the Chowdhry (bride's) list" : "On the Mehan (groom's) list"}
+    >
+      {bride ? "Chowdhry" : "Mehan"}
+    </span>
+  );
+}
+
+/**
  * A guest's single answer, read off their per-event invitations.
  *
  * They should all agree when the wedding is set to one answer per guest, but
@@ -371,11 +401,14 @@ export function GuestsWorkspace({
                         <span className="block truncate text-[13.5px] text-ink underline decoration-line decoration-dotted underline-offset-[3px]">
                           {guest.firstName} {guest.lastName}
                         </span>
-                        {guest.relationship ? (
-                          <span className="block truncate text-[11.5px] text-ink-faint">
-                            {guest.relationship}
-                          </span>
-                        ) : null}
+                        <span className="mt-0.5 flex items-center gap-1.5">
+                          <SideTag side={guest.side} />
+                          {guest.relationship ? (
+                            <span className="truncate text-[11.5px] text-ink-faint">
+                              {guest.relationship}
+                            </span>
+                          ) : null}
+                        </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-1">
                         {guest.needsAccommodation ? (
@@ -528,6 +561,7 @@ export function GuestsWorkspace({
                                 {guest.firstName} {guest.lastName}
                               </span>
                               {guest.isVIP ? <span className="text-saffron">★</span> : null}
+                              <SideTag side={guest.side} />
                               <ChevronRightIcon
                                 size={12}
                                 className="shrink-0 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100"

@@ -77,10 +77,14 @@ export function PlanningPulse({ metrics }: { metrics: PulseMetric[] }) {
               delay: reduce ? 0 : index * 0.07,
             }}
             className={cn(
-              "min-w-0 px-1 py-2 sm:px-6 sm:py-3",
+              // Centred within its column. Left-aligned content in equal columns
+              // made the gap to the next rule depend on how wide the figure
+              // happened to be — "18%" sat miles from its rule while "S$340K"
+              // nearly touched the next one. Centring evens the rhythm out
+              // whatever the numbers are.
+              "flex min-w-0 flex-col items-center px-1 py-2 text-center sm:px-4 sm:py-3",
               // Vertical rules between metrics, not around them.
               index > 0 ? "sm:border-l sm:border-line" : "",
-              index === 0 ? "sm:pl-0" : "",
             )}
           >
             {metric.href ? (

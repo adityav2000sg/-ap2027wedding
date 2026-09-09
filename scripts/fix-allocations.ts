@@ -11,6 +11,9 @@
  * 2. The men's reception outfits came in as a tuxedo and two suits. The
  *    reception is Indian, so they become Indo-western and bandhgala.
  *
+ * 3. Aditya Vaidya has an account and is in the wedding party, but was never
+ *    added to the wardrobe, so he had no tab of his own.
+ *
  * Idempotent and safe to re-run: each change checks the current value first and
  * does nothing if it has already been made, or if somebody has since changed it
  * to something else. Nothing is deleted.
@@ -100,6 +103,27 @@ async function main() {
       await db.outfit.update({
         where: { id: outfit.id },
         data: { outfitType: change.to },
+      });
+    }
+  }
+
+  // ── 3. Anyone in the wedding party with no wardrobe tab ─────────────────
+  const MISSING_PEOPLE = [{ name: "Aditya Vaidya", role: "Bride's Brother-in-law" }];
+
+  for (const person of MISSING_PEOPLE) {
+    const existing = await db.wardrobePerson.findFirst({ where: { name: person.name } });
+    if (existing) continue;
+
+    const wedding = await db.wedding.findFirst({ select: { id: true } });
+    if (!wedding) {
+      skipped.push("No wedding found, so no wardrobe person was added.");
+      break;
+    }
+
+    planned.push(`Add ${person.name} to the wardrobe as ${person.role}.`);
+    if (apply) {
+      await db.wardrobePerson.create({
+        data: { weddingId: wedding.id, name: person.name, role: person.role },
       });
     }
   }

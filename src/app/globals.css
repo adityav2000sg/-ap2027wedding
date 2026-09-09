@@ -449,42 +449,12 @@
     way at half the duration. Every one of these is switched off wholesale by
     the reduced-motion block at the bottom of this file.
   */
-  .animate-rise {
-    animation: rise 700ms var(--ease-out-quint) both;
-  }
-  .animate-fade {
-    animation: fade 420ms var(--ease-out-quint) both;
-  }
 
   /* Side sheets — the main way detail opens without leaving the page. */
-  .animate-sheet-in {
-    animation: sheet-in 620ms var(--ease-out-quint) both;
-  }
   /* The mobile navigation drawer, which comes from the other side. */
-  .animate-drawer-in {
-    animation: drawer-in 380ms var(--ease-out-quint) both;
-  }
-  .animate-drawer-out {
-    animation: drawer-out 240ms var(--ease-in-out-soft) both;
-  }
-  .animate-sheet-out {
-    animation: sheet-out 300ms var(--ease-in-out-soft) both;
-  }
 
   /* Modals and popovers rise into place from just below centre. */
-  .animate-pop-in {
-    animation: pop-in 520ms var(--ease-out-quint) both;
-  }
-  .animate-pop-out {
-    animation: pop-out 220ms var(--ease-in-out-soft) both;
-  }
 
-  .animate-overlay-in {
-    animation: fade 420ms var(--ease-out-quint) both;
-  }
-  .animate-overlay-out {
-    animation: fade-out 260ms var(--ease-in-out-soft) both;
-  }
 
   @keyframes rise {
     from { opacity: 0; transform: translateY(10px); }
@@ -533,9 +503,6 @@
     25% { transform: translateX(-2px); }
     75% { transform: translateX(2px); }
   }
-  .animate-nudge {
-    animation: nudge 380ms var(--ease-in-out-soft);
-  }
 
   .skeleton {
     position: relative;
@@ -566,4 +533,50 @@
     scroll-behavior: auto !important;
   }
   .skeleton::after { animation: none; }
+}
+
+/* ── Motion ──
+   Defined with @utility rather than as plain classes in @layer utilities.
+   Tailwind only generates variants for utilities it knows about, so
+   `data-[state=open]:animate-sheet-in` against a hand-written class compiled to
+   nothing at all — every sheet and modal in the app was appearing instantly at
+   full opacity. That was the flash.
+
+   Entrances take the better part of a second: an arriving panel is scenery, and
+   you read it while it settles. Exits are a decision already made, so they clear
+   out in a third of the time. All of it is switched off by the reduced-motion
+   block at the foot of this file. */
+
+@utility animate-rise {
+  animation: rise 800ms var(--ease-out-quint) both;
+}
+@utility animate-fade {
+  animation: fade 800ms var(--ease-out-quint) both;
+}
+@utility animate-sheet-in {
+  animation: sheet-in 800ms var(--ease-out-quint) both;
+}
+@utility animate-sheet-out {
+  animation: sheet-out 320ms var(--ease-in-out-soft) both;
+}
+@utility animate-drawer-in {
+  animation: drawer-in 620ms var(--ease-out-quint) both;
+}
+@utility animate-drawer-out {
+  animation: drawer-out 280ms var(--ease-in-out-soft) both;
+}
+@utility animate-pop-in {
+  animation: pop-in 800ms var(--ease-out-quint) both;
+}
+@utility animate-pop-out {
+  animation: pop-out 280ms var(--ease-in-out-soft) both;
+}
+@utility animate-overlay-in {
+  animation: fade 700ms var(--ease-out-quint) both;
+}
+@utility animate-overlay-out {
+  animation: fade-out 300ms var(--ease-in-out-soft) both;
+}
+@utility animate-nudge {
+  animation: nudge 380ms var(--ease-in-out-soft);
 }
