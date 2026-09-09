@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { formatLongDate, formatTimeAgo, toISODate } from "@/lib/dates";
+import { formatLongDate, formatMediumDate, formatTimeAgo, toISODate } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import { Avatar, EmptyState } from "@/components/ui/primitives";
 import { getViewer } from "@/server/auth";
@@ -104,12 +104,42 @@ export default async function ActivityPage() {
   );
 }
 
+/** A cuid, which is what most of the id columns hold. */
+const LOOKS_LIKE_ID = /^c[a-z0-9]{20,}$/i;
+
+/**
+ * Values worth showing under a change.
+ *
+ * Reference columns are skipped entirely. "Owner — → cmta7tzzs0006qf5b8zwfxngr"
+ * told the reader nothing they could act on, and the sentence above it already
+ * said who was put on what in plain words. Anything whose value is a raw id
+ * goes the same way, whatever the column is called.
+ */
+function isShowable(key: string, before: unknown, after: unknown): boolean {
+  if (/Id$|Ids$/.test(key)) return false;
+  return ![before, after].some(
+    (value) => typeof value === "string" && LOOKS_LIKE_ID.test(value),
+  );
+}
+
+/** Dates as dates, booleans as words, everything else as itself. */
+function readable(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return formatMediumDate(new Date(value));
+  }
+  if (Array.isArray(value)) return value.length === 0 ? "—" : `${value.length}`;
+  return String(value);
+}
+
 function Diff({ before, after }: { before: unknown; after: unknown }) {
   const b = (before ?? {}) as Record<string, unknown>;
   const a = (after ?? {}) as Record<string, unknown>;
 
   const changes = Object.keys(a)
     .filter((key) => key in b && String(b[key]) !== String(a[key]))
+    .filter((key) => isShowable(key, b[key], a[key]))
     .slice(0, 3);
 
   if (changes.length === 0) return null;
@@ -119,9 +149,9 @@ function Diff({ before, after }: { before: unknown; after: unknown }) {
       {changes.map((key) => (
         <li key={key} className="text-[11.5px] text-ink-faint">
           <span className="text-ink-muted">{humanise(key)}</span>{" "}
-          <span className="line-through">{String(b[key] ?? "—")}</span>
+          <span className="line-through">{readable(b[key])}</span>
           {" → "}
-          <span className="text-ink-soft">{String(a[key] ?? "—")}</span>
+          <span className="text-ink-soft">{readable(a[key])}</span>
         </li>
       ))}
     </ul>

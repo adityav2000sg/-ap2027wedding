@@ -26,8 +26,11 @@ const FIELD_BASE =
   "shadow-[inset_0_1px_2px_rgba(26,23,20,0.04)] " +
   "placeholder:text-ink-faint transition-all duration-300 transition-natural " +
   "hover:border-line-strong hover:bg-surface-sunken " +
-  "focus:border-saffron focus:bg-surface focus:outline-none " +
-  "focus:shadow-[0_0_0_3px_var(--color-saffron-soft),inset_0_1px_2px_rgba(26,23,20,0.03)] " +
+  // Focus is ink, not saffron. Saffron is the warning colour everywhere else in
+  // this app, so an orange ring around a field with a red asterisk beside it
+  // read as a validation error on a form nobody had submitted yet.
+  "focus:border-ink-faint focus:bg-surface focus:outline-none " +
+  "focus:shadow-[0_0_0_3px_rgba(26,23,20,0.07),inset_0_1px_2px_rgba(26,23,20,0.03)] " +
   "disabled:opacity-50 disabled:bg-surface-sunken disabled:shadow-none";
 
 export const Input = React.forwardRef<
@@ -96,10 +99,14 @@ export function FormField({
     <div className={cn("group space-y-1.5", className)}>
       <label
         htmlFor={htmlFor}
-        className="flex items-baseline gap-1 text-[12.5px] font-medium text-ink-soft transition-colors duration-300 group-focus-within:text-saffron"
+        className="flex items-baseline gap-1 text-[12.5px] font-medium text-ink-soft transition-colors duration-300 group-focus-within:text-ink"
       >
         {label}
-        {required ? <span className="text-critical">*</span> : null}
+        {required ? (
+          <span className="text-ink-faint" aria-hidden>
+            (required)
+          </span>
+        ) : null}
       </label>
       {children}
       {error ? (
