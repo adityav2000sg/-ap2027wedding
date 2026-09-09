@@ -580,11 +580,50 @@ export async function setHouseholdReply(
 const TIERS = ["A", "B", "C"] as const;
 
 /**
- * Move a household between waves.
+ * Set one person's tier.
  *
- * Tier is about who gets asked and when — it never touches who has already been
- * sent something, so demoting a household you've already written to leaves that
+ * Tier lives on the guest, not the household: four households genuinely span
+ * two of them, an aunt on the core list with her adult children considered and
+ * not invited. It's about who gets asked and when, and never touches who has
+ * already been sent something — demoting somebody you've written to leaves that
  * record intact rather than quietly rewriting history.
+ */
+export async function setGuestTier(guestId: string, tier: (typeof TIERS)[number]) {
+  return withAction("guests.edit", async (viewer) => {
+    z.enum(TIERS).parse(tier);
+
+    const guest = await db.guest.findFirst({
+      where: { id: guestId, weddingId: viewer.weddingId },
+      select: { id: true, firstName: true, lastName: true, tier: true },
+    });
+    if (!guest) throw new Error("That guest no longer exists.");
+    if (guest.tier === tier) return { id: guest.id };
+
+    await db.guest.update({ where: { id: guestId }, data: { tier } });
+
+    const name = `${guest.firstName} ${guest.lastName}`.trim();
+    await logViewerActivity(viewer, {
+      entityType: "guest",
+      entityId: guest.id,
+      entityLabel: name,
+      action: "tier_updated",
+      summary: `${viewer.name} moved ${name} to tier ${tier}.`,
+      before: { tier: guest.tier },
+      after: { tier },
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id: guest.id };
+  });
+}
+
+/**
+ * Move a whole household between waves.
+ *
+ * Sets every member, since that's what somebody means when they move a family
+ * — and the household's own tier is only ever read back as the strongest tier
+ * among its members.
  */
 export async function setHouseholdTier(
   householdId: string,
@@ -598,9 +637,14 @@ export async function setHouseholdTier(
       select: { id: true, name: true, tier: true },
     });
     if (!household) throw new Error("That household no longer exists.");
-    if (household.tier === tier) return { id: household.id };
 
-    await db.household.update({ where: { id: householdId }, data: { tier } });
+    await db.$transaction([
+      db.household.update({ where: { id: householdId }, data: { tier } }),
+      db.guest.updateMany({
+        where: { householdId, weddingId: viewer.weddingId, archivedAt: null },
+        data: { tier },
+      }),
+    ]);
 
     await logViewerActivity(viewer, {
       entityType: "household",

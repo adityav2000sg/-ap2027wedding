@@ -12,13 +12,14 @@ function populated() {
     guests: [
       makeGuest("g1", {
         householdId: "h1",
+        tier: "B",
         firstName: "Rohan",
         lastName: "Anand",
         phone: "+44 7700 900000",
         dietary: "JAIN",
         needsAccommodation: true,
       }),
-      makeGuest("g2", { householdId: "h1", firstName: "Priya", lastName: "Anand" }),
+      makeGuest("g2", { householdId: "h1", firstName: "Priya", lastName: "Anand", tier: "B" }),
     ],
   });
 }

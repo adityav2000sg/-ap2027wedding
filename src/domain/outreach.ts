@@ -22,6 +22,8 @@ export const TIER_LABEL: Record<GuestTier, string> = {
 
 export interface OutreachPerson {
   guestId: string;
+  /// Their own tier — households can span two of them.
+  tier: GuestTier;
   name: string;
   phone: string | null;
   email: string | null;
@@ -91,6 +93,7 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
     const list = members.get(guest.householdId) ?? [];
     list.push({
       guestId: guest.id,
+      tier: guest.tier,
       name: `${guest.firstName} ${guest.lastName}`.trim(),
       phone: guest.phone ?? null,
       email: guest.email ?? null,
@@ -110,7 +113,12 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
       rsvpToken: household.rsvpToken,
       name: household.name,
       side: household.side,
-      tier: household.tier ?? "A",
+      // Derived, never read from the household's own column. Tier lives on the
+      // guest, and a household with anyone on the A list goes out in wave A —
+      // you don't post half an envelope.
+      tier: (["A", "B", "C"] as const).find((t) =>
+        people.some((p) => p.tier === t),
+      ) ?? "C",
       people,
       peopleSaveTheDateSent: people.filter((p) => p.saveTheDateSent).length,
       peopleInvitationSent: people.filter((p) => p.invitationSent).length,

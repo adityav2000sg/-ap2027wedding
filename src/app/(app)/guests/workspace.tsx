@@ -17,7 +17,7 @@ import { Avatar, Badge, Button, EmptyState, SegmentBar } from "@/components/ui/p
 import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { CheckIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
-import { archiveGuest, setGuestAttendance, updateGuest } from "@/server/actions/guests";
+import { archiveGuest, setGuestAttendance, setGuestTier, updateGuest } from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
 import { ExportMenu } from "@/components/wedding/export-menu";
 import { AddGuestButton } from "./guest-composer";
@@ -188,6 +188,14 @@ export function GuestsWorkspace({
   }, [filtered]);
 
   const active = guests.find((g) => g.id === openGuest) ?? null;
+
+  async function setTier(guestId: string, tier: string) {
+    if (!canEdit) return;
+    setSavingCell(`${guestId}:tier`);
+    await setGuestTier(guestId, tier as "A");
+    setSavingCell(null);
+    router.refresh();
+  }
 
   async function setAttendance(guestId: string, status: string) {
     if (!canEdit) return;
@@ -578,23 +586,12 @@ export function GuestsWorkspace({
                       {singleRsvp ? (
                         <>
                           <td className="px-2 py-1.5 text-center">
-                            <span
-                              className={cn(
-                                "inline-flex h-5 w-5 items-center justify-center rounded-md text-[11px] font-medium",
-                                guest.tier === "A"
-                                  ? "bg-saffron-soft text-saffron"
-                                  : "bg-surface-sunken text-ink-faint",
-                              )}
-                              title={
-                                guest.tier === "A"
-                                  ? "First wave"
-                                  : guest.tier === "B"
-                                    ? "Held back"
-                                    : "Reserve list"
-                              }
-                            >
-                              {guest.tier}
-                            </span>
+                            <TierCell
+                              tier={guest.tier}
+                              canEdit={canEdit}
+                              busy={savingCell === `${guest.id}:tier`}
+                              onChange={(next) => setTier(guest.id, next)}
+                            />
                           </td>
                           <td className="px-2 py-1.5">
                             <Select
@@ -1093,5 +1090,71 @@ function SaveStatus({
       {state === "saved" ? <CheckIcon size={13} /> : null}
       {state === "saved" ? "Saved" : "Saving…"}
     </motion.span>
+  );
+}
+
+/**
+ * Which list somebody is on.
+ *
+ * Three buttons rather than a dropdown: there are only ever three answers, and
+ * deciding tiers is done in a sweep down the list where a menu per row would be
+ * two clicks instead of one.
+ */
+function TierCell({
+  tier,
+  canEdit,
+  busy,
+  onChange,
+}: {
+  tier: string;
+  canEdit: boolean;
+  busy: boolean;
+  onChange(tier: string): void;
+}) {
+  if (!canEdit) {
+    return (
+      <span
+        className={cn(
+          "inline-flex h-5 w-5 items-center justify-center rounded-md text-[11px] font-medium",
+          tier === "A" ? "bg-saffron-soft text-saffron" : "bg-surface-sunken text-ink-faint",
+        )}
+      >
+        {tier}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-lg border border-line p-0.5",
+        busy && "opacity-50",
+      )}
+    >
+      {(["A", "B", "C"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          disabled={busy}
+          onClick={() => onChange(option)}
+          aria-pressed={tier === option}
+          title={
+            option === "A"
+              ? "First wave — invited from the outset"
+              : option === "B"
+                ? "Held back until tier A leaves room"
+                : "Considered, not invited"
+          }
+          className={cn(
+            "h-5 w-5 rounded-md text-[10.5px] font-medium transition-colors",
+            tier === option
+              ? "bg-ink text-canvas"
+              : "text-ink-faint hover:bg-surface-sunken hover:text-ink-muted",
+          )}
+        >
+          {option}
+        </button>
+      ))}
+    </span>
   );
 }

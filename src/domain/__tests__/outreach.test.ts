@@ -24,13 +24,17 @@ function snapshotWith(
     ...overrides,
   }));
 
+  // A household's tier is derived from its members, so the fixture's household
+  // tier is pushed down onto the people in it.
+  const tierOf = (index: number) => built[index]?.tier ?? "A";
+
   return {
     ...base,
     households: built,
     guests: [
-      { ...base.guests[0], id: "g0", householdId: "h0", firstName: "Ana", lastName: "One" },
-      { ...base.guests[0], id: "g1", householdId: "h0", firstName: "Bo", lastName: "One" },
-      { ...base.guests[0], id: "g2", householdId: "h1", firstName: "Cal", lastName: "Two" },
+      { ...base.guests[0], id: "g0", householdId: "h0", firstName: "Ana", lastName: "One", tier: tierOf(0) },
+      { ...base.guests[0], id: "g1", householdId: "h0", firstName: "Bo", lastName: "One", tier: tierOf(0) },
+      { ...base.guests[0], id: "g2", householdId: "h1", firstName: "Cal", lastName: "Two", tier: tierOf(1) },
     ],
   };
 }

@@ -57,7 +57,7 @@ export default async function GuestsPage({
           relationship: guest.relationship,
           householdId: guest.householdId,
           householdName: household?.name ?? null,
-          tier: household?.tier ?? "A",
+          tier: guest.tier,
           city: guest.city,
           country: guest.country,
           phone: guest.phone,
