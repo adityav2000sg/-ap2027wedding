@@ -98,6 +98,7 @@ export default async function GuestsPage({
       }}
       invitations={outreachRows(snapshot).map((row) => ({
         householdId: row.householdId,
+        rsvpToken: row.rsvpToken,
         name: row.name,
         side: row.side,
         tier: row.tier,

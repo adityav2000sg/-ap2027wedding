@@ -41,6 +41,7 @@ export interface InvitationPerson {
 
 export interface InvitationRow {
   householdId: string;
+  rsvpToken: string;
   name: string;
   side: string;
   tier: Tier;
@@ -298,6 +299,8 @@ export function Invitations({
                       </Badge>
                     ) : null}
                   </button>
+
+                  <CopyLink token={row.householdId ? row.rsvpToken : ""} name={row.name} />
 
                   <TierSelect
                     tier={row.tier}
@@ -646,5 +649,48 @@ function Figure({
       </div>
       <div className="mt-1.5 text-[12px] text-ink-muted">{label}</div>
     </div>
+  );
+}
+
+/**
+ * The link you send this household.
+ *
+ * Copying is the whole interaction — these go out over WhatsApp one family at a
+ * time — so it's one button that puts the address on the clipboard and says so.
+ * The link is per household and unguessable; it opens their reply and nobody
+ * else's.
+ */
+function CopyLink({ token, name }: { token: string; name: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  async function copy() {
+    const url = `${window.location.origin}/rsvp/${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Clipboard access can be refused; opening it is the next best thing.
+      window.prompt(`Their link for ${name}`, url);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (!token) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={`Copy the invitation link for ${name}`}
+      className={cn(
+        "shrink-0 rounded-lg border px-2 py-1 text-[11.5px] transition-colors",
+        copied
+          ? "border-positive/30 bg-positive-soft text-positive"
+          : "border-line text-ink-faint hover:border-line-strong hover:text-ink",
+      )}
+    >
+      {copied ? "Copied" : "Copy link"}
+    </button>
   );
 }

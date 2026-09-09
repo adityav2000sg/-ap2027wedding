@@ -1,0 +1,200 @@
+/**
+ * The page a guest opens from their invitation.
+ *
+ * Public — no sign-in, no account, nothing to remember. The token in the URL is
+ * the whole key, so this file reads one household by that token and shows only
+ * what belongs to it. A bad token gets the ordinary not-found page rather than
+ * anything that would confirm the shape of a real one.
+ *
+ * It is styled as an invitation rather than a form, because that is what it is
+ * to the person opening it. The wedding's own photograph, the names in the same
+ * hand as everywhere else, then the questions.
+ */
+
+import { existsSync } from "node:fs";
+import path from "node:path";
+
+import Image from "next/image";
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+
+import { formatDateRange, daysBetween } from "@/lib/dates";
+import { db } from "@/server/db";
+import { RsvpForm, type RsvpPerson } from "./rsvp-form";
+
+// The reply must reflect what was just submitted, never a cached copy.
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  // A wedding invitation has no business in a search index.
+  robots: { index: false, follow: false },
+};
+
+async function loadHousehold(token: string) {
+  return db.household.findUnique({
+    where: { rsvpToken: token },
+    select: {
+      id: true,
+      name: true,
+      rsvpMessage: true,
+      rsvpSubmittedAt: true,
+      guests: {
+        where: { archivedAt: null },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          email: true,
+          dietary: true,
+          allergies: true,
+          accessibilityNeeds: true,
+          needsAccommodation: true,
+          needsTransport: true,
+          invitations: { select: { status: true }, take: 1 },
+        },
+      },
+      wedding: {
+        select: {
+          partnerAName: true,
+          partnerBName: true,
+          startDate: true,
+          endDate: true,
+          weddingType: true,
+          cities: true,
+          rsvpEnabled: true,
+        },
+      },
+    },
+  });
+}
+
+export default async function RsvpPage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
+  const { token } = await params;
+  const household = await loadHousehold(token);
+  if (!household) notFound();
+
+  const { wedding } = household;
+  const days = daysBetween(new Date(), wedding.startDate);
+
+  // Same photograph as the sign-in screen, if it's there.
+  const photo = ["/brand/proposal.jpg", "/brand/hero-mandap.jpg"].find((file) =>
+    existsSync(path.join(process.cwd(), "public", file)),
+  );
+
+  const people: RsvpPerson[] = household.guests.map((guest) => {
+    const status = guest.invitations[0]?.status;
+    return {
+      guestId: guest.id,
+      firstName: guest.firstName,
+      name: `${guest.firstName} ${guest.lastName}`.trim(),
+      dietary: guest.dietary,
+      allergies: guest.allergies,
+      accessibilityNeeds: guest.accessibilityNeeds,
+      needsAccommodation: guest.needsAccommodation,
+      needsTransport: guest.needsTransport,
+      // Only a real answer counts as answered; pending is still a blank.
+      coming: status === "CONFIRMED" ? "YES" : status === "DECLINED" ? "NO" : null,
+    };
+  });
+
+  const contact = household.guests.find((g) => g.phone || g.email);
+
+  return (
+    <main className="min-h-dvh bg-canvas">
+      <header className="relative overflow-hidden border-b border-line">
+        {photo ? (
+          <>
+            <Image
+              src={photo}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-[62%_center]"
+            />
+            <div aria-hidden className="absolute inset-0 bg-[#2a1c14]/35" />
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-gradient-to-t from-[#1a1310]/85 via-[#1a1310]/30 to-[#1a1310]/25"
+            />
+          </>
+        ) : null}
+
+        <div className="relative mx-auto max-w-[680px] px-5 py-14 text-center sm:py-20">
+          <p
+            className={`eyebrow ${photo ? "text-white/70" : ""}`}
+            style={photo ? { color: "rgba(255,255,255,0.72)" } : undefined}
+          >
+            You are invited to the wedding of
+          </p>
+
+          <h1
+            className={`mt-3 font-script text-[46px] leading-tight sm:text-[76px] ${
+              photo ? "text-white" : "text-ink"
+            }`}
+            style={photo ? { textShadow: "0 2px 24px rgba(0,0,0,0.45)" } : undefined}
+          >
+            {wedding.partnerAName}
+            <span className="mx-3 text-saffron-soft">&</span>
+            {wedding.partnerBName}
+          </h1>
+
+          <p className={`mt-4 text-[15px] ${photo ? "text-white/85" : "text-ink-soft"}`}>
+            {formatDateRange(wedding.startDate, wedding.endDate)}
+            {wedding.cities.length > 0 ? (
+              <>
+                <span className="mx-2 opacity-50">·</span>
+                {wedding.cities.join(" or ")}
+              </>
+            ) : null}
+          </p>
+
+          {days > 0 ? (
+            <p className={`mt-1.5 text-[13px] ${photo ? "text-white/65" : "text-ink-muted"}`}>
+              {days} days to go
+            </p>
+          ) : null}
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-[680px] px-5 py-10 sm:py-14">
+        {wedding.rsvpEnabled ? (
+          <>
+            <div className="mb-8 text-center">
+              <h2 className="font-display text-[24px] text-ink">
+                {household.name}
+              </h2>
+              <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed text-ink-muted">
+                It would mean a great deal to have you there for the whole week.
+                Let us know who can come, and we'll take care of the rest.
+              </p>
+            </div>
+
+            <RsvpForm
+              token={token}
+              people={people}
+              phone={contact?.phone ?? ""}
+              email={contact?.email ?? ""}
+              message={household.rsvpMessage ?? ""}
+              alreadyReplied={household.rsvpSubmittedAt !== null}
+            />
+          </>
+        ) : (
+          <p className="rounded-2xl border border-line bg-surface p-6 text-center text-[14px] text-ink-soft">
+            We're not collecting replies just yet — we'll be in touch very soon.
+          </p>
+        )}
+
+        <p className="mt-10 text-center text-[11.5px] text-ink-faint">
+          This link is just for {household.name}. Do keep it to yourselves.
+        </p>
+      </div>
+    </main>
+  );
+}

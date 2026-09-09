@@ -1422,6 +1422,8 @@ enum ActivitySource {
   MANUAL
   AUTOMATED
   AI
+  /// A guest replying on the public link, rather than anyone in the family.
+  RSVP
 }
 
 model ActivityLog {

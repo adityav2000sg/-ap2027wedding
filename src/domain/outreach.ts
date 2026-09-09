@@ -31,6 +31,8 @@ export interface OutreachPerson {
 
 export interface OutreachRow {
   householdId: string;
+  /// The household's own invitation link — what actually gets sent.
+  rsvpToken: string;
   name: string;
   side: string;
   tier: GuestTier;
@@ -105,6 +107,7 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
       );
       return {
       householdId: household.id,
+      rsvpToken: household.rsvpToken,
       name: household.name,
       side: household.side,
       tier: household.tier ?? "A",
