@@ -193,7 +193,7 @@ export function SaveTheDate({
   }
 
   return (
-    <main className="font-invite min-h-dvh bg-[#eef3ef] text-[#33413a]">
+    <main className="min-h-dvh bg-[#eef3ef] text-[#33413a]">
       {music ? <Music src={music} /> : null}
 
       {/* Petals fall over the whole page, so they are mounted here rather than
@@ -229,7 +229,7 @@ export function SaveTheDate({
           {/* Halimun is exceptionally wide. Keep the original single-line
               lockup from tablet upward, but give a phone one deliberate break
               after Avantika so Prateek can never disappear off the screen. */}
-          <h1 className="font-invite-script text-[clamp(34px,5.9vw,68px)] leading-[1.12] text-white drop-shadow-[0_3px_22px_rgba(0,0,0,0.38)] sm:whitespace-nowrap">
+          <h1 className="font-script text-[clamp(38px,7.4vw,86px)] leading-[1.12] text-white drop-shadow-[0_3px_22px_rgba(0,0,0,0.38)] sm:whitespace-nowrap">
             {partnerA}
             <br className="sm:hidden" />
             <span className="mx-1.5 inline-block text-[#e0a084] sm:mx-3 lg:mx-5">&</span>
@@ -282,7 +282,7 @@ export function SaveTheDate({
                   <p className="text-[13.5px] font-medium uppercase tracking-[0.18em] text-[#6d8f7f]">
                     Your reply
                   </p>
-                  <h2 className="mt-3 font-invite text-[28px] font-bold leading-[1.08] tracking-[-0.03em] text-[#cf8a68] sm:text-[42px]">
+                  <h2 className="mt-3 font-display text-[30px] leading-[1.12] text-[#cf8a68] sm:text-[44px]">
                     <span className="block sm:inline">Will you join us</span>{" "}
                     <span className="block sm:inline">in Bali?</span>
                   </h2>
@@ -314,7 +314,7 @@ export function SaveTheDate({
                             : "border-[#cfe0d5] bg-white/88",
                       )}
                     >
-                      <p className="font-invite text-[17px] font-bold leading-tight tracking-[-0.02em] text-[#33493f]">
+                      <p className="font-display text-[19px] leading-tight text-[#33493f]">
                         {person.name}
                       </p>
                       <div className="grid grid-cols-2 gap-2.5">
@@ -419,7 +419,7 @@ export function SaveTheDate({
       </section>
 
       <footer className="border-t border-[#ded8cf] px-5 py-8 text-center">
-        <p className="font-invite text-[20px] font-bold tracking-[-0.02em] text-[#cf8a68]">
+        <p className="font-script text-[32px] text-[#cf8a68]">
           {partnerA} <span className="text-[#cf8a68]">&</span> {partnerB}
         </p>
       </footer>
@@ -452,7 +452,7 @@ function ReplyBy({ date, days }: { date: string; days: number }) {
         <span aria-hidden className="h-px w-8 bg-[#a9c6b6]" />
       </div>
 
-      <p className="mt-2.5 font-invite text-[27px] font-bold leading-[1.08] tracking-[-0.03em] text-[#24372d] sm:text-[33px]">
+      <p className="mt-2.5 font-display text-[30px] leading-[1.08] text-[#24372d] sm:text-[36px]">
         {date}
       </p>
 
@@ -703,7 +703,7 @@ function Thanks({
 
       <Ornament />
 
-      <h2 className="font-invite text-[28px] font-bold leading-[1.08] tracking-[-0.03em] text-[#cf8a68] sm:text-[42px]">
+      <h2 className="font-display text-[30px] leading-[1.12] text-[#cf8a68] sm:text-[44px]">
         {celebrating ? "We can't wait" : "We'll miss you"}
       </h2>
 
@@ -721,7 +721,7 @@ function Thanks({
         initial={reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1.4, delay: 0.6 }}
-        className="mt-8 font-invite text-[19px] font-bold tracking-[-0.02em] text-[#cf8a68]"
+        className="mt-8 font-script text-[30px] text-[#cf8a68]"
       >
         {partnerA} <span className="text-[#cf8a68]">&</span> {partnerB}
       </motion.p>

@@ -23,21 +23,6 @@
   font-display: swap;
 }
 
-/*
-  The invitation's two faces.
-
-  Halimun for the couple's names — the hand from the printed card — and the
-  app's own Inter for every other word on the page. Two faces, no more: a third
-  was making the invitation read as three designs taking turns.
-*/
-@font-face {
-  font-family: "Halimun";
-  src: url("/fonts/halimun.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 @font-face {
   font-family: "Golden Hour";
   src: url("/fonts/golden-hour.woff2") format("woff2");
@@ -335,18 +320,6 @@
 }
 
 @layer components {
-  /* The stationery faces, for the pages a guest sees. */
-  .font-invite-script {
-    font-family: "Halimun", "Edwardian Script", cursive;
-  }
-
-  .font-invite {
-    font-family: var(--font-sans);
-    /* Tighter than the app's own setting: stationery sets closer than a
-       dashboard does, and Inter takes it well at these sizes. */
-    letter-spacing: -0.018em;
-  }
-
   .surface {
     background: linear-gradient(
       160deg,
