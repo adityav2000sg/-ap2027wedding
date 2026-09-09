@@ -16,10 +16,11 @@ import { cn, toneClasses } from "@/lib/cn";
 import { formatMediumDate } from "@/lib/dates";
 import { formatCompactMoney, formatMoney } from "@/lib/money";
 import { Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
-import { Tooltip } from "@/components/ui/overlays";
+import { Sheet, Tooltip } from "@/components/ui/overlays";
+import { FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { AnimatedNumber, Sparkline } from "@/components/ui/motion";
 import { PlusIcon, PencilIcon } from "@/components/ui/icons";
-import { markPaymentPaid } from "@/server/actions/budget";
+import { archivePayment, markPaymentPaid, updatePayment } from "@/server/actions/budget";
 import { useRouter } from "next/navigation";
 import { BudgetEditor, type EditorIntent, type EditableItem } from "./budget-editor";
 import { InlineAmount } from "./inline-amount";
@@ -40,8 +41,12 @@ interface Category {
 interface Payment {
   id: string; label: string; amount: number; nativeAmount: number; nativeCurrency: string;
   status: string; dueDate: string; paidDate: string | null;
-  vendorName: string | null; payerName: string | null; isOverdue: boolean;
+  vendorId: string | null; vendorName: string | null;
+  payerId: string | null; payerName: string | null;
+  notes: string | null; isOverdue: boolean;
 }
+
+const PAYMENT_STATUSES = ["UPCOMING", "DUE", "PAID", "OVERDUE", "CANCELLED"] as const;
 
 const SOURCE_LABEL: Record<string, string> = {
   contracted: "Contracted", negotiated: "Negotiated", quoted: "Quoted",
@@ -98,6 +103,21 @@ export function BudgetWorkspace({
   );
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [paying, setPaying] = React.useState<string | null>(null);
+  /** The payment whose details are open for editing. */
+  const [editing, setEditing] = React.useState<Payment | null>(null);
+
+  /**
+   * Who paid, set from the row itself.
+   *
+   * Tagging a payment against a payer is the whole point of the payers view,
+   * and it was the one thing a logged payment couldn't be given.
+   */
+  async function assignPayer(payment: Payment, payerId: string) {
+    setPaying(payment.id);
+    await updatePayment({ id: payment.id, payerId: payerId || null });
+    setPaying(null);
+    router.refresh();
+  }
   const [editor, setEditor] = React.useState<EditorIntent | null>(null);
 
   const worst = categories
@@ -469,6 +489,23 @@ export function BudgetWorkspace({
                     {formatCompactMoney(payment.amount, currency)}
                   </span>
 
+                  {canPay ? (
+                    <Select
+                      value={payment.payerId ?? ""}
+                      disabled={paying === payment.id}
+                      onChange={(e) => assignPayer(payment, e.target.value)}
+                      className="h-8 w-auto min-w-[132px] max-w-full shrink-0 text-[12px]"
+                      aria-label={`Who paid for ${payment.label}`}
+                    >
+                      <option value="">Nobody tagged</option>
+                      {paymentContext.payers.map((payer) => (
+                        <option key={payer.id} value={payer.id}>
+                          {payer.name}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : null}
+
                   {canPay && payment.status !== "PAID" && payment.status !== "CANCELLED" ? (
                     <Button
                       variant="ghost"
@@ -482,6 +519,12 @@ export function BudgetWorkspace({
                       }}
                     >
                       {paying === payment.id ? "…" : "Mark paid"}
+                    </Button>
+                  ) : null}
+
+                  {canPay ? (
+                    <Button variant="ghost" size="xs" onClick={() => setEditing(payment)}>
+                      Edit
                     </Button>
                   ) : null}
                 </div>
@@ -543,6 +586,17 @@ export function BudgetWorkspace({
         </p>
       </section>
 
+      <PaymentEditor
+        payment={editing}
+        payers={paymentContext.payers}
+        vendors={vendors}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
+          router.refresh();
+        }}
+      />
+
       {canEdit ? (
         <BudgetEditor
           intent={editor}
@@ -574,5 +628,189 @@ function Figure({
       </div>
       <div className="mt-1.5 text-[11.5px] text-ink-muted">{label}</div>
     </div>
+  );
+}
+
+/**
+ * A logged payment, after the fact.
+ *
+ * Money moves before anybody writes it down, and what gets written down is
+ * often wrong: the wrong date, the wrong amount, nobody's name against it.
+ * Marking one paid was the only thing that could be done to a payment once it
+ * existed — everything else meant a trip to the database.
+ */
+function PaymentEditor({
+  payment,
+  payers,
+  vendors,
+  onClose,
+  onSaved,
+}: {
+  payment: Payment | null;
+  payers: { id: string; name: string }[];
+  vendors: { id: string; name: string }[];
+  onClose(): void;
+  onSaved(): void;
+}) {
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [confirmingRemove, setConfirmingRemove] = React.useState(false);
+
+  React.useEffect(() => {
+    setError(null);
+    setConfirmingRemove(false);
+  }, [payment?.id]);
+
+  if (!payment) return null;
+
+  const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!payment) return;
+    const form = new FormData(event.currentTarget);
+    setPending(true);
+    setError(null);
+
+    const result = await updatePayment({
+      id: payment.id,
+      label: String(form.get("label") ?? ""),
+      amount: Number(form.get("amount") ?? 0),
+      dueDate: String(form.get("dueDate") ?? ""),
+      paidDate: String(form.get("paidDate") ?? ""),
+      status: String(form.get("status") ?? payment.status),
+      payerId: String(form.get("payerId") ?? "") || null,
+      vendorId: String(form.get("vendorId") ?? "") || null,
+      notes: String(form.get("notes") ?? ""),
+    });
+
+    setPending(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onSaved();
+  }
+
+  async function remove() {
+    if (!payment) return;
+    setPending(true);
+    const result = await archivePayment(payment.id);
+    setPending(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onSaved();
+  }
+
+  return (
+    <Sheet
+      open
+      onOpenChange={(next) => !next && onClose()}
+      title="Edit this payment"
+      description={`${payment.nativeCurrency} ${payment.nativeAmount.toLocaleString()}`}
+      width="sm"
+    >
+      <form onSubmit={submit} className="space-y-4">
+        <FormField label="What it's for" required htmlFor="pe-label">
+          <Input id="pe-label" name="label" required defaultValue={payment.label} />
+        </FormField>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label={`Amount (${payment.nativeCurrency})`} required htmlFor="pe-amount">
+            <Input
+              id="pe-amount"
+              name="amount"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              defaultValue={payment.nativeAmount}
+            />
+          </FormField>
+          <FormField label="Status" htmlFor="pe-status">
+            <Select id="pe-status" name="status" defaultValue={payment.status}>
+              {PAYMENT_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status.charAt(0) + status.slice(1).toLowerCase()}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Due" required htmlFor="pe-due">
+            <Input id="pe-due" name="dueDate" type="date" required defaultValue={day(payment.dueDate)} />
+          </FormField>
+          <FormField label="Paid" hint="Leave blank until it has gone out." htmlFor="pe-paid">
+            <Input id="pe-paid" name="paidDate" type="date" defaultValue={day(payment.paidDate)} />
+          </FormField>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Who paid" htmlFor="pe-payer">
+            <Select id="pe-payer" name="payerId" defaultValue={payment.payerId ?? ""}>
+              <option value="">Nobody tagged</option>
+              {payers.map((payer) => (
+                <option key={payer.id} value={payer.id}>
+                  {payer.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="Vendor" htmlFor="pe-vendor">
+            <Select id="pe-vendor" name="vendorId" defaultValue={payment.vendorId ?? ""}>
+              <option value="">Not tied to one</option>
+              {vendors.map((vendor) => (
+                <option key={vendor.id} value={vendor.id}>
+                  {vendor.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        </div>
+
+        <FormField label="Notes" htmlFor="pe-notes">
+          <Textarea id="pe-notes" name="notes" rows={2} defaultValue={payment.notes ?? ""} />
+        </FormField>
+
+        {error ? (
+          <p role="alert" className="rounded-lg border border-critical/20 bg-critical-soft px-3 py-2 text-[12.5px] text-critical">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+          {confirmingRemove ? (
+            <>
+              <span className="mr-auto text-[12.5px] text-ink-muted">Remove this payment?</span>
+              <Button type="button" variant="ghost" onClick={() => setConfirmingRemove(false)} disabled={pending}>
+                Keep
+              </Button>
+              <Button type="button" variant="danger" onClick={remove} disabled={pending}>
+                Remove
+              </Button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingRemove(true)}
+              disabled={pending}
+              className="mr-auto text-[12.5px] text-ink-muted transition-colors hover:text-critical"
+            >
+              Remove this payment
+            </button>
+          )}
+          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {pending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Sheet>
   );
 }

@@ -24,6 +24,7 @@ import {
   archiveBudgetItem,
   createBudgetCategory,
   updateBudgetCategory,
+  archiveBudgetCategory,
 } from "@/server/actions/budget";
 
 export interface EditableItem {
@@ -182,6 +183,21 @@ export function BudgetEditor({
             pending={pending}
             error={error}
             onCancel={onClose}
+            onRemove={
+              intent.kind === "edit-category"
+                ? async () => {
+                    setError(null);
+                    setPending(true);
+                    try {
+                      await handle(await archiveBudgetCategory(intent.category.id));
+                    } catch (caught) {
+                      setError(caught instanceof Error ? caught.message : "Something went wrong.");
+                    } finally {
+                      setPending(false);
+                    }
+                  }
+                : undefined
+            }
             onSubmit={async (payload) => {
               setError(null);
               setPending(true);
@@ -449,7 +465,7 @@ const RATE_LABEL: Record<string, string> = {
 // ─────────────────────────────────────────────────────────────── Category form
 
 function CategoryForm({
-  category, baseCurrency, pending, error, onCancel, onSubmit,
+  category, baseCurrency, pending, error, onCancel, onSubmit, onRemove,
 }: {
   category: EditableCategory | null;
   baseCurrency: string;
@@ -457,7 +473,10 @@ function CategoryForm({
   error: string | null;
   onCancel(): void;
   onSubmit(payload: Record<string, unknown>): Promise<boolean>;
+  /** Absent when creating: there is nothing to remove yet. */
+  onRemove?(): void;
 }) {
+  const [confirmingRemove, setConfirmingRemove] = React.useState(false);
   const [tone, setTone] = React.useState(category?.tone ?? "saffron");
   const symbol = currencySymbol(baseCurrency);
 
@@ -515,7 +534,31 @@ function CategoryForm({
         </p>
       ) : null}
 
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+        {category && onRemove ? (
+          confirmingRemove ? (
+            <>
+              <span className="mr-auto text-[12.5px] text-ink-muted">
+                Remove “{category.name}”?
+              </span>
+              <Button type="button" variant="ghost" onClick={() => setConfirmingRemove(false)} disabled={pending}>
+                Keep
+              </Button>
+              <Button type="button" variant="danger" onClick={onRemove} disabled={pending}>
+                Remove
+              </Button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingRemove(true)}
+              disabled={pending}
+              className="mr-auto text-[12.5px] text-ink-muted transition-colors hover:text-critical"
+            >
+              Remove this category
+            </button>
+          )
+        ) : null}
         <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>Cancel</Button>
         <Button type="submit" variant="primary" disabled={pending}>
           {pending ? "Saving…" : category ? "Save changes" : "Create category"}

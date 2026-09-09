@@ -313,6 +313,46 @@ const paymentSchema = z.object({
   documentId: optionalId.optional(),
 });
 
+/**
+ * Take a category off the budget.
+ *
+ * Refused while it still holds lines, rather than orphaning them or quietly
+ * taking them with it: a category is a heading, and deleting a heading should
+ * never delete the money underneath it. Move or remove its lines first.
+ */
+export async function archiveBudgetCategory(id: string) {
+  return withAction("budget.edit", async (viewer) => {
+    const category = await db.budgetCategory.findFirst({
+      where: { id, weddingId: viewer.weddingId, archivedAt: null },
+      select: { id: true, name: true, _count: { select: { items: true } } },
+    });
+    if (!category) throw new Error("That category no longer exists.");
+
+    const live = await db.budgetItem.count({
+      where: { categoryId: id, archivedAt: null },
+    });
+    if (live > 0) {
+      throw new Error(
+        `“${category.name}” still has ${live} ${live === 1 ? "line" : "lines"} in it. Move or remove ${live === 1 ? "it" : "them"} first.`,
+      );
+    }
+
+    await db.budgetCategory.update({ where: { id }, data: { archivedAt: new Date() } });
+    await captureForecast(viewer.weddingId, `Removed the “${category.name}” category`, viewer.name);
+
+    await logViewerActivity(viewer, {
+      entityType: "budgetCategory",
+      entityId: id,
+      entityLabel: category.name,
+      action: "archived",
+      summary: `${viewer.name} removed the “${category.name}” category.`,
+    });
+
+    revalidateWedding();
+    return { id };
+  });
+}
+
 export async function createPayment(input: unknown) {
   return withAction("payments.approve", async (viewer) => {
     const data = paymentSchema.parse(input);

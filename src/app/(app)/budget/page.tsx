@@ -116,8 +116,11 @@ export default async function BudgetPage({
           status: payment.status,
           dueDate: payment.dueDate.toISOString(),
           paidDate: payment.paidDate?.toISOString() ?? null,
+          vendorId: payment.vendorId,
           vendorName: payment.vendorId ? vendorById.get(payment.vendorId) ?? null : null,
+          payerId: payment.payerId,
           payerName: payment.payerId ? payerById.get(payment.payerId) ?? null : null,
+          notes: payment.notes ?? null,
           isOverdue:
             payment.status !== "PAID" &&
             payment.status !== "CANCELLED" &&
