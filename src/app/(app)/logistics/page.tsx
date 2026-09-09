@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { Badge, EmptyState } from "@/components/ui/primitives";
 import { BedIcon, PlaneIcon, RouteIcon } from "@/components/ui/icons";
 import { ExportMenu } from "@/components/wedding/export-menu";
+import { Responsibilities } from "./responsibilities";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import { LogisticsTabs } from "./tabs";
@@ -236,50 +237,22 @@ export default async function LogisticsPage({
           )
         }
         responsibilities={
-          <>
-            {unownedResponsibilities.length > 0 ? (
-              <div className="mb-5 rounded-lg border border-attention/25 bg-attention-soft px-3.5 py-2.5">
-                <p className="text-[12.5px] text-attention">
-                  {unownedResponsibilities.length} jobs have nobody's name against them.
-                  These are the ones that get forgotten.
-                </p>
-              </div>
-            ) : null}
-            <ul>
-              {snapshot.responsibilities
-                .slice()
-                .sort((a, b) => Number(!!a.ownerId) - Number(!!b.ownerId) || b.importance - a.importance)
-                .map((responsibility) => (
-                  <li
-                    key={responsibility.id}
-                    className="flex items-center gap-4 border-b border-line py-2.5"
-                  >
-                    <span className="w-[96px] shrink-0 text-[11.5px] text-ink-muted">
-                      {responsibility.area}
-                    </span>
-                    <span className="min-w-0 flex-1 text-[13.5px] text-ink">
-                      {responsibility.title}
-                    </span>
-                    {responsibility.ownerId ? (
-                      <span className="shrink-0 text-right">
-                        <span className="block text-[12.5px] text-ink">
-                          {memberById.get(responsibility.ownerId)}
-                        </span>
-                        {responsibility.backupId ? (
-                          <span className="block text-[11px] text-ink-muted">
-                            backup: {memberById.get(responsibility.backupId)}
-                          </span>
-                        ) : null}
-                      </span>
-                    ) : (
-                      <Badge size="xs" variant="attention" className="shrink-0">
-                        Nobody yet
-                      </Badge>
-                    )}
-                  </li>
-                ))}
-            </ul>
-          </>
+          <Responsibilities
+            canEdit={viewer.permissions.has("logistics.edit")}
+            rows={snapshot.responsibilities.map((r) => ({
+              id: r.id,
+              title: r.title,
+              area: r.area,
+              ownerId: r.ownerId,
+              backupId: r.backupId,
+              eventId: r.eventId,
+              importance: r.importance,
+              status: r.status,
+              notes: r.notes,
+            }))}
+            members={snapshot.members.map((m) => ({ id: m.id, name: m.name }))}
+            events={snapshot.events.map((e) => ({ id: e.id, name: e.name }))}
+          />
         }
       />
     </div>

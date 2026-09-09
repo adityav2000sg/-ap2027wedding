@@ -87,6 +87,26 @@ export default async function TimelinePage({
         initialView={params.view ?? "plan"}
         planning={
           <div className="space-y-8">
+            {/* This tab confused people, reasonably: it looks like a list you
+                should be able to add to, and it isn't one. It's the task list
+                seen a different way. */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-soft px-3.5 py-2.5">
+              <p className="text-[12.5px] leading-snug text-ink-muted">
+                Every task you have, sorted by when it needs doing rather than by
+                area. Add or change anything on the{" "}
+                <Link href="/tasks" className="text-saffron underline-offset-2 hover:underline">
+                  Tasks
+                </Link>{" "}
+                page — this view follows.
+              </p>
+              <Link
+                href="/tasks"
+                className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-[12.5px] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"
+              >
+                Open tasks
+              </Link>
+            </div>
+
             {[...byPhase.entries()].map(([phase, phaseTasks]) => (
               <section key={phase}>
                 <div className="rule-heading mb-3">
@@ -152,6 +172,11 @@ export default async function TimelinePage({
         }
         runOfShow={
           <div className="space-y-10">
+            <p className="rounded-xl border border-line bg-surface-soft px-3.5 py-2.5 text-[12.5px] leading-snug text-ink-muted">
+              The run of show, hour by hour, for each day of the wedding week.
+              This one is the real schedule rather than a view of something else —
+              add a moment against any day below.
+            </p>
             {days.map((day) => {
               const dayEvents = snapshot.events.filter(
                 (e) => e.date.toISOString().slice(0, 10) === day.date,
