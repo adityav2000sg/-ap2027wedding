@@ -21,6 +21,8 @@
  *   because guessing here moves a real person into a stranger's room.
  */
 
+import { randomBytes, randomUUID } from "node:crypto";
+
 import { PrismaClient } from "@prisma/client";
 import ExcelJS from "exceljs";
 
@@ -67,7 +69,8 @@ async function main() {
 
   const groups: string[][] = [];
   sheet.eachRow((row) => {
-    const names = row.values
+    const cells = Array.isArray(row.values) ? row.values : [];
+    const names = cells
       .slice(1)
       .map((value) => (value && typeof value === "object" && "text" in value ? String(value.text) : value))
       .filter((value): value is string => typeof value === "string" && value.trim() !== "")
@@ -250,7 +253,15 @@ async function main() {
       const household =
         existing ??
         (await tx.household.create({
-          data: { weddingId: wedding.id, name, side: "BOTH", tier: "A" },
+          data: {
+            weddingId: wedding.id,
+            name,
+            side: "BOTH",
+            tier: "A",
+            // Unguessable, and never derived from an id — the same rule the
+            // app uses when it mints one.
+            rsvpToken: randomUUID().replace(/-/g, "") + randomBytes(6).toString("hex"),
+          },
           select: { id: true },
         }));
 
