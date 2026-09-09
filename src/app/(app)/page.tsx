@@ -56,7 +56,7 @@ export default async function HomePage() {
   );
   const lookup = { members: memberLookup, events: eventLookup, currency };
 
-  const [activity, moodboard, heroMedia] = await Promise.all([
+  const [activity, moodboard] = await Promise.all([
     db.activityLog.findMany({
       where: { weddingId: viewer.weddingId },
       orderBy: { createdAt: "desc" },
@@ -73,12 +73,6 @@ export default async function HomePage() {
         },
         _count: { select: { items: true } },
       },
-    }),
-    // Any photograph the couple has uploaded becomes the hero wash. Until then
-    // the seeded reference image stands in.
-    db.mediaAsset.findFirst({
-      where: { weddingId: viewer.weddingId, kind: "PHOTO", archivedAt: null },
-      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -164,9 +158,16 @@ export default async function HomePage() {
   }).length;
 
   const isWeddingWeek = daysToGo <= 7 && daysToGo >= -1;
-  const heroImageUrl = heroMedia
-    ? variantUrl(heroMedia, "large")
-    : "/brand/hero-mandap.jpg";
+  /**
+   * The proposal photograph, the same one the invitation opens with.
+   *
+   * It used to be whichever photograph had been uploaded most recently, which
+   * meant the wash changed every time somebody added a picture to a moodboard —
+   * and showed nothing at all when that file was no longer on disk. This is a
+   * committed asset: it is always there, and the app and the invitation now
+   * open on the same image.
+   */
+  const heroImageUrl = "/brand/proposal.jpg";
 
   return (
     <div className="pb-16">
