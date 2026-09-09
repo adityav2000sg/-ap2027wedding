@@ -352,7 +352,7 @@ function RoomPicker({
           if (value === "__none") onPick(null);
           else if (value) onPick(value);
         }}
-        className="h-8 w-auto min-w-[150px] text-[12px]"
+        className="h-8 w-auto min-w-[150px] max-w-full text-[12px]"
       >
         <option value="">
           {current ? `Room ${current} — stay put` : "Choose a room…"}

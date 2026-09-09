@@ -53,26 +53,50 @@ export const Textarea = React.forwardRef<
 ));
 Textarea.displayName = "Textarea";
 
+/**
+ * Width classes belong on the box, not on the select inside it.
+ *
+ * The chevron is drawn against the wrapper's right edge, and the wrapper was
+ * always a full-width block. So a select asked to be `w-auto` shrank to its
+ * text while its arrow stayed pinned to the far side of whatever cell it sat
+ * in — an arrow floating alone in the middle of a table row, hundreds of
+ * pixels from the control it belongs to.
+ *
+ * Any width the caller passes is applied to the wrapper instead, and the
+ * select fills it. `w-auto` becomes `w-fit`, because "auto" on the select
+ * means "as wide as the content" and on a block wrapper it would mean the
+ * opposite.
+ */
+const WIDTH_CLASS = /^(w-|min-w-|max-w-)/;
+
 export const Select = React.forwardRef<
   HTMLSelectElement,
   React.SelectHTMLAttributes<HTMLSelectElement>
->(({ className, children, ...props }, ref) => (
-  <div className="relative">
-    <select
-      ref={ref}
-      className={cn(FIELD_BASE, "h-9 appearance-none pr-8", className)}
-      {...props}
-    >
-      {children}
-    </select>
-    <svg
-      className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted"
-      width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden
-    >
-      <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  </div>
-));
+>(({ className, children, ...props }, ref) => {
+  const classes = (className ?? "").split(/\s+/).filter(Boolean);
+  const width = classes
+    .filter((name) => WIDTH_CLASS.test(name))
+    .map((name) => (name === "w-auto" ? "w-fit" : name));
+  const rest = classes.filter((name) => !WIDTH_CLASS.test(name));
+
+  return (
+    <div className={cn("relative", width.length > 0 ? width : "w-full")}>
+      <select
+        ref={ref}
+        className={cn(FIELD_BASE, "h-9 w-full appearance-none pr-8", rest)}
+        {...props}
+      >
+        {children}
+      </select>
+      <svg
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted"
+        width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden
+      >
+        <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+});
 Select.displayName = "Select";
 
 /** Label + control + error, the standard vertical stack. */

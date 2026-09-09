@@ -557,14 +557,18 @@ export function GuestsWorkspace({
           <table className="w-full min-w-[720px] border-collapse">
             <thead>
               <tr className="border-b border-line">
-                <th className="sticky left-0 z-10 bg-canvas py-2 pr-3 text-left text-[11.5px] font-medium text-ink-muted">
+                {/* The name column absorbs the spare width. Without this the
+                    table handed it all to whatever came last, which left the
+                    answer sitting in the middle of an empty acre and the needs
+                    column out at the window. */}
+                <th className="sticky left-0 z-10 w-full bg-canvas py-2 pr-3 text-left text-[11.5px] font-medium text-ink-muted">
                   Guest
                 </th>
                 {singleRsvp ? (
                   // Tier lives in the guest's own panel now. Every row on this
                   // list is already the wave named at the top of the page, so a
                   // three-way toggle against 231 identical answers was noise.
-                  <th className="px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
+                  <th className="w-px whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
                     Coming?
                   </th>
                 ) : (
@@ -579,7 +583,7 @@ export function GuestsWorkspace({
                     </th>
                   ))
                 )}
-                <th className="px-2 py-2 text-right text-[11.5px] font-medium text-ink-muted">
+                <th className="w-px whitespace-nowrap px-2 py-2 text-right text-[11.5px] font-medium text-ink-muted">
                   Needs
                 </th>
               </tr>
@@ -632,13 +636,15 @@ export function GuestsWorkspace({
                       </td>
 
                       {singleRsvp ? (
-                        <td className="px-2 py-1.5">
+                        <td className="w-px whitespace-nowrap px-2 py-1.5">
                           <Select
                             value={overallStatus(guest)}
                             disabled={!canEdit || savingCell === guest.id}
                             onChange={(e) => setAttendance(guest.id, e.target.value)}
                             className={cn(
-                              "h-7 w-auto min-w-[136px] text-[12.5px]",
+                              // Wide enough for "Awaiting a reply" to clear the
+                              // chevron rather than run under it.
+                              "h-7 w-auto min-w-[156px] text-[12.5px]",
                               savingCell === guest.id && "opacity-40",
                             )}
                           >
@@ -712,7 +718,7 @@ export function GuestsWorkspace({
                       })
                       )}
 
-                      <td className="px-2 py-1.5 text-right">
+                      <td className="w-px whitespace-nowrap px-2 py-1.5 text-right">
                         <span className="inline-flex gap-1">
                           {guest.needsAccommodation ? (
                             <Tooltip content="Needs a room"><span className="text-[11px] text-ink-muted">🛏</span></Tooltip>

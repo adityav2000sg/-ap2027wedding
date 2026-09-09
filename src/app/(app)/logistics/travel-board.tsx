@@ -249,7 +249,7 @@ export function TravelBoard({
                     value={row.journeyId ?? ""}
                     disabled={busy === row.id}
                     onChange={(e) => assignPickup(row.id, e.target.value)}
-                    className="h-8 w-auto min-w-[150px] shrink-0 text-[12px]"
+                    className="h-8 w-auto min-w-[150px] max-w-full shrink-0 text-[12px]"
                   >
                     <option value="">Needs a pickup…</option>
                     {journeys.map((journey) => (
