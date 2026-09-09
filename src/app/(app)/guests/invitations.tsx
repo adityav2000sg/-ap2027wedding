@@ -39,7 +39,11 @@ export interface InvitationPerson {
   email: string | null;
   saveTheDateSent: boolean;
   invitationSent: boolean;
+  /** What they said to the save-the-date, if they've said anything. */
+  stdResponse: "YES" | "NO" | null;
 }
+
+export type StdReply = "YES" | "NO" | "PARTIAL" | "AWAITING";
 
 export interface InvitationRow {
   householdId: string;
@@ -54,6 +58,11 @@ export interface InvitationRow {
   saveTheDateSent: boolean;
   invitationSent: boolean;
   reply: "AWAITING" | "YES" | "NO";
+  /** The save-the-date answer, rolled up from the people in the household. */
+  stdReply: StdReply;
+  stdYes: number;
+  stdNo: number;
+  stdAwaiting: number;
 }
 
 export interface InvitationStats {
@@ -69,6 +78,10 @@ export interface InvitationStats {
   peopleStdSent: number;
   peopleInviteSent: number;
   responseRate: number;
+  stdYes: number;
+  stdNo: number;
+  stdAwaiting: number;
+  stdHouseholdsReplied: number;
 }
 
 export interface TierStat {
@@ -76,6 +89,8 @@ export interface TierStat {
   households: number;
   people: number;
   stdSent: number;
+  stdYes: number;
+  stdNo: number;
   rsvpSent: number;
   yes: number;
   no: number;
@@ -96,13 +111,21 @@ export function Invitations({
   rows,
   stats,
   tiers,
+  stage,
   canEdit,
 }: {
   rows: InvitationRow[];
   stats: InvitationStats;
   tiers: TierStat[];
+  /** Which mailing is out. The two are answered in different columns. */
+  stage: "SAVE_THE_DATE" | "INVITATION";
   canEdit: boolean;
 }) {
+  // A year out, "have they replied?" means the save-the-date. The household's
+  // own YES/NO belongs to the invitation proper and stays untouched until it
+  // goes out, so filtering and counting on it here showed every reply as
+  // awaiting — which is exactly what a guest who had just answered saw.
+  const savingTheDate = stage === "SAVE_THE_DATE";
   const router = useRouter();
   const reduce = useReducedMotion();
   const [query, setQuery] = React.useState("");
@@ -127,9 +150,16 @@ export function Invitations({
               row.peopleSaveTheDateSent > 0 &&
               row.peopleSaveTheDateSent < row.headcount
             );
-          case "awaiting": return row.reply === "AWAITING";
-          case "yes": return row.reply === "YES";
-          case "no": return row.reply === "NO";
+          case "awaiting":
+            return savingTheDate
+              ? row.stdReply === "AWAITING" || row.stdReply === "PARTIAL"
+              : row.reply === "AWAITING";
+          case "yes":
+            return savingTheDate ? row.stdYes > 0 : row.reply === "YES";
+          case "no":
+            return savingTheDate
+              ? row.stdNo > 0 && row.stdYes === 0
+              : row.reply === "NO";
           default: return true;
         }
       })
@@ -139,7 +169,7 @@ export function Invitations({
           row.name.toLowerCase().includes(q) ||
           row.people.some((p) => p.name.toLowerCase().includes(q)),
       );
-  }, [rows, filter, tierFilter, query]);
+  }, [rows, filter, tierFilter, query, savingTheDate]);
 
   const displayStats = React.useMemo<InvitationStats>(() => {
     if (!tierFilter) return stats;
@@ -180,6 +210,27 @@ export function Invitations({
       ),
       responseRate:
         rsvpSent === 0 ? 0 : Math.round(((yes.length + no.length) / rsvpSent) * 100),
+      stdYes: scoped.reduce(
+        (sum, row) =>
+          sum +
+          row.people.filter((p) => p.tier === tierFilter && p.stdResponse === "YES").length,
+        0,
+      ),
+      stdNo: scoped.reduce(
+        (sum, row) =>
+          sum +
+          row.people.filter((p) => p.tier === tierFilter && p.stdResponse === "NO").length,
+        0,
+      ),
+      stdAwaiting: scoped.reduce(
+        (sum, row) =>
+          sum +
+          row.people.filter(
+            (p) => p.tier === tierFilter && p.stdResponse !== "YES" && p.stdResponse !== "NO",
+          ).length,
+        0,
+      ),
+      stdHouseholdsReplied: scoped.filter((row) => row.stdAwaiting === 0).length,
     };
   }, [rows, stats, tierFilter]);
 
@@ -249,23 +300,54 @@ export function Invitations({
       {/* Overview */}
       <div className="stat-row mb-6 border-y border-line py-5" style={{ ["--stat-cols" as string]: 5 }}>
         <Figure value={`${displayStats.stdSent}/${displayStats.households}`} label="Save-the-dates sent" />
-        <Figure value={`${displayStats.rsvpSent}/${displayStats.households}`} label="Invitations sent" />
-        <Figure value={displayStats.yes} label="Said yes" tone="positive" />
-        <Figure value={displayStats.no} label="Said no" />
-        <Figure value={`${displayStats.responseRate}%`} label="Replied" tone="attention" />
+        {savingTheDate ? (
+          <>
+            <Figure value={displayStats.stdYes} label="Hoping to come" tone="positive" />
+            <Figure value={displayStats.stdNo} label="Can't make it" />
+            <Figure value={displayStats.stdAwaiting} label="Yet to answer" tone="attention" />
+            <Figure
+              value={`${displayStats.stdHouseholdsReplied}/${displayStats.households}`}
+              label="Households answered"
+            />
+          </>
+        ) : (
+          <>
+            <Figure value={`${displayStats.rsvpSent}/${displayStats.households}`} label="Invitations sent" />
+            <Figure value={displayStats.yes} label="Said yes" tone="positive" />
+            <Figure value={displayStats.no} label="Said no" />
+            <Figure value={`${displayStats.responseRate}%`} label="Replied" tone="attention" />
+          </>
+        )}
       </div>
 
       <SegmentBar
         className="mb-2"
-        segments={[
-          { value: displayStats.yes, tone: "olive", label: "Yes" },
-          { value: displayStats.no, tone: "slate", label: "No" },
-          { value: displayStats.awaiting, tone: "amber", label: "Awaiting" },
-        ]}
+        segments={
+          savingTheDate
+            ? [
+                { value: displayStats.stdYes, tone: "olive", label: "Hoping to come" },
+                { value: displayStats.stdNo, tone: "slate", label: "Can't make it" },
+                { value: displayStats.stdAwaiting, tone: "amber", label: "Yet to answer" },
+              ]
+            : [
+                { value: displayStats.yes, tone: "olive", label: "Yes" },
+                { value: displayStats.no, tone: "slate", label: "No" },
+                { value: displayStats.awaiting, tone: "amber", label: "Awaiting" },
+              ]
+        }
       />
       <p className="mb-6 text-[12px] text-ink-muted">
-        {displayStats.peopleYes} confirmed · {displayStats.peopleAwaiting} still to answer ·{" "}
-        {displayStats.peopleNo} not coming
+        {savingTheDate ? (
+          <>
+            {displayStats.stdYes} hoping to come · {displayStats.stdAwaiting} still to
+            answer · {displayStats.stdNo} can&rsquo;t make it
+          </>
+        ) : (
+          <>
+            {displayStats.peopleYes} confirmed · {displayStats.peopleAwaiting} still to
+            answer · {displayStats.peopleNo} not coming
+          </>
+        )}
         <span className="mx-2 text-ink-faint">·</span>
         {displayStats.peopleStdSent} people personally messaged
       </p>
@@ -404,7 +486,22 @@ export function Invitations({
                         }
                       />
                     </Labelled>
-                    <Labelled label="Coming?">
+                    {savingTheDate ? (
+                      <Labelled label="Replied">
+                        <StdReplyBadge
+                          reply={row.stdReply}
+                          yes={row.stdYes}
+                          headcount={row.headcount}
+                        />
+                      </Labelled>
+                    ) : null}
+
+                    {/* The household's own yes/no belongs to the invitation
+                        proper. Showing it beside the save-the-date reply put
+                        two "coming?" controls on one row that meant different
+                        things; a reply taken by phone is recorded against the
+                        person, on the guest list, where the answer lives. */}
+                    <Labelled label="Coming?" hidden={savingTheDate}>
                       <div className="flex items-center gap-1">
                         <ReplyButton
                           active={row.reply === "YES"}
@@ -515,6 +612,18 @@ function PersonRow({
         {person.name}
       </span>
 
+      {/* Their answer to the save-the-date, on their own row. Whoever opened
+          the link answered for themselves, so this is where it belongs. */}
+      {person.stdResponse ? (
+        <Badge
+          size="xs"
+          variant={person.stdResponse === "YES" ? "positive" : "neutral"}
+          className="shrink-0"
+        >
+          {person.stdResponse === "YES" ? "Hoping to come" : "Can't make it"}
+        </Badge>
+      ) : null}
+
       {/* The eight couples who answer separately. Each of them replies only
           for themselves, so their link is the one that gets sent — the family
           link deliberately doesn't speak for them. */}
@@ -584,7 +693,16 @@ function PersonRow({
 }
 
 /** A tiny caption above a control, so the ticks aren't a guessing game. */
-function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
+function Labelled({
+  label,
+  hidden,
+  children,
+}: {
+  label: string;
+  hidden?: boolean;
+  children: React.ReactNode;
+}) {
+  if (hidden) return null;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <span className="text-[9.5px] uppercase tracking-[0.08em] text-ink-faint">
@@ -702,6 +820,44 @@ function Figure({
  * The link is per household and unguessable; it opens their reply and nobody
  * else's.
  */
+/**
+ * A household's save-the-date answer.
+ *
+ * Partial is its own state and says how far through it is: a family where two
+ * of four have replied is a chase, not a silence.
+ */
+function StdReplyBadge({
+  reply,
+  yes,
+  headcount,
+}: {
+  reply: StdReply;
+  yes: number;
+  headcount: number;
+}) {
+  if (reply === "AWAITING") {
+    return (
+      <span className="text-[11.5px] text-ink-muted">Not yet</span>
+    );
+  }
+  if (reply === "PARTIAL") {
+    return (
+      <Badge size="xs" variant="attention">
+        {yes > 0 ? `${yes} of ${headcount} coming` : `Part answered`}
+      </Badge>
+    );
+  }
+  return (
+    <Badge size="xs" variant={reply === "YES" ? "positive" : "neutral"}>
+      {reply === "YES"
+        ? headcount > 1
+          ? `${yes} of ${headcount} coming`
+          : "Hoping to come"
+        : "Can't make it"}
+    </Badge>
+  );
+}
+
 function CopyLink({
   token,
   name,

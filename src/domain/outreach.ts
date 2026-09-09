@@ -20,6 +20,9 @@ export const TIER_LABEL: Record<GuestTier, string> = {
   C: "Tier C — reserve",
 };
 
+/** What somebody said to the save-the-date, rolled up for a whole household. */
+export type StdReply = "YES" | "NO" | "PARTIAL" | "AWAITING";
+
 export interface OutreachPerson {
   guestId: string;
   /// Present when this person receives a private link instead of the group's.
@@ -31,6 +34,9 @@ export interface OutreachPerson {
   email: string | null;
   saveTheDateSent: boolean;
   invitationSent: boolean;
+  /// Their own answer to the save-the-date. This is the reply that exists a
+  /// year out; the household's `reply` belongs to the invitation proper.
+  stdResponse: "YES" | "NO" | null;
 }
 
 export interface OutreachRow {
@@ -52,6 +58,15 @@ export interface OutreachRow {
   invitationSentAt: Date | null;
   reply: RsvpReply;
   repliedAt: Date | null;
+  /**
+   * The household's save-the-date answer, rolled up from the people in it.
+   * PARTIAL matters: a family where two have answered and two haven't is the
+   * one you chase, and calling it "awaiting" hides the two who replied.
+   */
+  stdReply: StdReply;
+  stdYes: number;
+  stdNo: number;
+  stdAwaiting: number;
 }
 
 export interface OutreachStats {
@@ -75,6 +90,12 @@ export interface OutreachStats {
   /** People personally sent each thing, as opposed to household roll-ups. */
   peopleStdSent: number;
   peopleInviteSent: number;
+  /** Answers to the save-the-date, counted in people. */
+  stdYes: number;
+  stdNo: number;
+  stdAwaiting: number;
+  /** Households where everybody has answered the save-the-date. */
+  stdHouseholdsReplied: number;
 }
 
 export interface TierStats {
@@ -82,6 +103,9 @@ export interface TierStats {
   households: number;
   people: number;
   stdSent: number;
+  /** Answers to the save-the-date from people on this wave. */
+  stdYes: number;
+  stdNo: number;
   rsvpSent: number;
   yes: number;
   no: number;
@@ -102,6 +126,7 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
       email: guest.email ?? null,
       saveTheDateSent: Boolean(guest.saveTheDateSentAt),
       invitationSent: Boolean(guest.invitationSentAt),
+      stdResponse: guest.stdResponse,
     });
     members.set(guest.householdId, list);
   }
@@ -123,6 +148,15 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
         people.some((p) => p.tier === t),
       ) ?? "C",
       people,
+      stdReply: rollUpStd(people),
+      stdYes: people.filter((p) => p.stdResponse === "YES").length,
+      stdNo: people.filter((p) => p.stdResponse === "NO").length,
+      // The remainder, rather than a count of nulls: "no answer" is every
+      // shape of absent, and an undefined slipping through as "answered" would
+      // quietly mark a household replied.
+      stdAwaiting:
+        people.length -
+        people.filter((p) => p.stdResponse === "YES" || p.stdResponse === "NO").length,
       peopleSaveTheDateSent: people.filter((p) => p.saveTheDateSent).length,
       peopleInvitationSent: people.filter((p) => p.invitationSent).length,
       headcount: people.length,
@@ -138,6 +172,23 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
     })
     // Tier first — the first wave is the list anybody is actually working from.
     .sort((a, b) => a.tier.localeCompare(b.tier) || a.name.localeCompare(b.name));
+}
+
+/**
+ * One household, one answer.
+ *
+ * Anybody coming makes it a yes; a household is only a no when everyone who
+ * answered said no and nobody is outstanding. Anything in between is partial,
+ * which is a different job from awaiting.
+ */
+function rollUpStd(people: OutreachPerson[]): StdReply {
+  if (people.length === 0) return "AWAITING";
+  const answered = people.filter(
+    (person) => person.stdResponse === "YES" || person.stdResponse === "NO",
+  );
+  if (answered.length === 0) return "AWAITING";
+  if (answered.length < people.length) return "PARTIAL";
+  return answered.some((person) => person.stdResponse === "YES") ? "YES" : "NO";
 }
 
 export function outreachStats(snapshot: WeddingSnapshot): OutreachStats {
@@ -158,11 +209,19 @@ export function outreachStats(snapshot: WeddingSnapshot): OutreachStats {
     responseRate: 0,
     peopleStdSent: 0,
     peopleInviteSent: 0,
+    stdYes: 0,
+    stdNo: 0,
+    stdAwaiting: 0,
+    stdHouseholdsReplied: 0,
   };
 
   for (const row of rows) {
     stats.peopleStdSent += row.peopleSaveTheDateSent;
     stats.peopleInviteSent += row.peopleInvitationSent;
+    stats.stdYes += row.stdYes;
+    stats.stdNo += row.stdNo;
+    stats.stdAwaiting += row.stdAwaiting;
+    if (row.stdAwaiting === 0 && row.headcount > 0) stats.stdHouseholdsReplied += 1;
 
     if (row.saveTheDateSent) stats.stdSent += 1;
     else stats.stdNotSent += 1;
@@ -222,6 +281,17 @@ export function outreachByTier(snapshot: WeddingSnapshot): TierStats[] {
         0,
       ),
       stdSent: inTier.filter((row) => row.saveTheDateSent).length,
+      stdYes: rows.reduce(
+        (sum, row) =>
+          sum +
+          row.people.filter((p) => p.tier === tier && p.stdResponse === "YES").length,
+        0,
+      ),
+      stdNo: rows.reduce(
+        (sum, row) =>
+          sum + row.people.filter((p) => p.tier === tier && p.stdResponse === "NO").length,
+        0,
+      ),
       rsvpSent: inTier.filter((row) => row.invitationSent).length,
       yes: inTier.filter((row) => row.reply === "YES").length,
       no: inTier.filter((row) => row.reply === "NO").length,

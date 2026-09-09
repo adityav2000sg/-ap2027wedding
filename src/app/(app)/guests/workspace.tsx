@@ -17,7 +17,13 @@ import { Avatar, Badge, Button, EmptyState, SegmentBar } from "@/components/ui/p
 import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { CheckIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
-import { archiveGuest, setGuestAttendance, setGuestTier, updateGuest } from "@/server/actions/guests";
+import {
+  archiveGuest,
+  setGuestAttendance,
+  setGuestStdResponse,
+  setGuestTier,
+  updateGuest,
+} from "@/server/actions/guests";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
 import { ExportMenu } from "@/components/wedding/export-menu";
 import { AddGuestButton } from "./guest-composer";
@@ -38,6 +44,8 @@ interface Guest {
   needsAccommodation: boolean; needsTransport: boolean;
   notes: string | null; tags: string[];
   tier: string;
+  /** Their answer to the save-the-date, which is the only reply that exists yet. */
+  stdResponse: "YES" | "NO" | null;
   rsvp: Record<string, string>;
 }
 
@@ -89,6 +97,13 @@ function overallStatus(guest: Guest): string {
   return "NOT_INVITED";
 }
 
+/** The save-the-date has two answers and a silence, and nothing else. */
+const STD_CHOICES: { value: string; label: string }[] = [
+  { value: "", label: "Not yet" },
+  { value: "YES", label: "Hoping to come" },
+  { value: "NO", label: "Can't make it" },
+];
+
 const ATTENDANCE_CHOICES: { value: string; label: string }[] = [
   { value: "CONFIRMED", label: "Coming" },
   { value: "TENTATIVE", label: "Maybe" },
@@ -112,6 +127,7 @@ const DIET_LABEL: Record<string, string> = {
 
 export function GuestsWorkspace({
   guests, households, events, statsByTier, canEdit, currency, rsvpEnabled, singleRsvp,
+  invitationStage, saveTheDate,
   invitations, invitationStats, invitationTiers,
   initialFilter, initialEvent, initialGuest, initialSide,
 }: {
@@ -124,6 +140,9 @@ export function GuestsWorkspace({
   currency: string;
   rsvpEnabled: boolean;
   singleRsvp: boolean;
+  /** Which mailing is out — it decides which answer this page is about. */
+  invitationStage: "SAVE_THE_DATE" | "INVITATION";
+  saveTheDate: { asked: number; yes: number; no: number; awaiting: number };
   invitations: InvitationRow[];
   invitationStats: InvitationStats;
   invitationTiers: TierStat[];
@@ -150,6 +169,8 @@ export function GuestsWorkspace({
   // and the counts above it have to mean the same thing.
   const activeTier: Tier = view === "held" ? heldTier : "A";
   const stats = statsByTier[activeTier];
+  // Only tier A has been asked anything yet, so only tier A has answers.
+  const showSaveTheDate = invitationStage === "SAVE_THE_DATE" && activeTier === "A";
 
   // Every RSVP goes through the propagation engine. Most are trivial and save
   // straight away; the ones that move catering, rooms or capacity stop and
@@ -164,6 +185,17 @@ export function GuestsWorkspace({
     return guests
       .filter((guest) => {
         const answered = Object.values(guest.rsvp);
+        if (showSaveTheDate) {
+          switch (filter) {
+            case "confirmed": return guest.stdResponse === "YES";
+            case "pending": return guest.stdResponse === null;
+            case "declined": return guest.stdResponse === "NO";
+            case "accommodation": return guest.needsAccommodation;
+            case "vip": return guest.isVIP;
+            case "not-contacted": return answered.every((s) => s === "NOT_INVITED");
+            default: return true;
+          }
+        }
         switch (filter) {
           case "confirmed": return answered.includes("CONFIRMED");
           case "pending":
@@ -185,7 +217,7 @@ export function GuestsWorkspace({
         `${guest.firstName} ${guest.lastName}`.toLowerCase().includes(q) ||
         (guest.householdName ?? "").toLowerCase().includes(q),
       );
-  }, [guests, filter, side, query, activeTier]);
+  }, [guests, filter, side, query, activeTier, showSaveTheDate]);
 
   // Group by household — a wedding list is families, not individuals.
   const grouped = React.useMemo(() => {
@@ -205,6 +237,14 @@ export function GuestsWorkspace({
     if (!canEdit) return;
     setSavingCell(`${guestId}:tier`);
     await setGuestTier(guestId, tier as "A");
+    setSavingCell(null);
+    router.refresh();
+  }
+
+  async function setStdResponse(guestId: string, response: string) {
+    if (!canEdit) return;
+    setSavingCell(guestId);
+    await setGuestStdResponse(guestId, (response || null) as "YES" | null);
     setSavingCell(null);
     router.refresh();
   }
@@ -318,6 +358,7 @@ export function GuestsWorkspace({
             rows={invitations}
             stats={invitationStats}
             tiers={invitationTiers}
+            stage={invitationStage}
             canEdit={canEdit}
           />
         </motion.div>
@@ -358,33 +399,56 @@ export function GuestsWorkspace({
         </div>
       ) : null}
 
-      {/* Overview */}
+      {/* Overview.
+          A year out, the only answer anybody has given is to the save-the-date;
+          the per-event RSVPs cannot move until the invitation goes out. Showing
+          those instead meant this row read 0 coming, 231 awaiting, no matter
+          how many people had replied. */}
       <div className="stat-row mb-6 border-y border-line py-5" style={{ ["--stat-cols" as string]: 5 }}>
-        <Figure value={stats.invited} label="On the list" />
-        <Figure value={stats.confirmed} label="Coming" tone="positive" />
-        <Figure value={stats.pending} label="Awaiting a reply" tone="attention" />
-        <Figure value={stats.declined} label="Not coming" />
+        {showSaveTheDate ? (
+          <>
+            <Figure value={saveTheDate.asked} label="On the list" />
+            <Figure value={saveTheDate.yes} label="Hoping to come" tone="positive" />
+            <Figure value={saveTheDate.awaiting} label="Yet to answer" tone="attention" />
+            <Figure value={saveTheDate.no} label="Can't make it" />
+          </>
+        ) : (
+          <>
+            <Figure value={stats.invited} label="On the list" />
+            <Figure value={stats.confirmed} label="Coming" tone="positive" />
+            <Figure value={stats.pending} label="Awaiting a reply" tone="attention" />
+            <Figure value={stats.declined} label="Not coming" />
+          </>
+        )}
         <Figure value={`${stats.needAccommodation} · ${stats.rooms} rooms`} label="Need a bed" />
       </div>
 
       <SegmentBar
         className="mb-6"
-        segments={[
-          { value: stats.confirmed, tone: "olive", label: "Coming" },
-          { value: stats.pending, tone: "amber", label: "Awaiting" },
-          { value: stats.declined, tone: "slate", label: "Not coming" },
-          { value: stats.notContacted, tone: "sky", label: "Not invited yet" },
-        ]}
+        segments={
+          showSaveTheDate
+            ? [
+                { value: saveTheDate.yes, tone: "olive", label: "Hoping to come" },
+                { value: saveTheDate.awaiting, tone: "amber", label: "Yet to answer" },
+                { value: saveTheDate.no, tone: "slate", label: "Can't make it" },
+              ]
+            : [
+                { value: stats.confirmed, tone: "olive", label: "Coming" },
+                { value: stats.pending, tone: "amber", label: "Awaiting" },
+                { value: stats.declined, tone: "slate", label: "Not coming" },
+                { value: stats.notContacted, tone: "sky", label: "Not invited yet" },
+              ]
+        }
       />
 
       {/* Filters */}
       <div className="pill-row mb-4 items-center">
         {[
           { key: "all", label: "Everyone" },
-          { key: "confirmed", label: "Coming" },
-          { key: "pending", label: "Awaiting" },
-          { key: "declined", label: "Not coming" },
-          { key: "not-contacted", label: "Not invited yet" },
+          { key: "confirmed", label: showSaveTheDate ? "Hoping to come" : "Coming" },
+          { key: "pending", label: showSaveTheDate ? "Yet to answer" : "Awaiting" },
+          { key: "declined", label: showSaveTheDate ? "Can't make it" : "Not coming" },
+          ...(showSaveTheDate ? [] : [{ key: "not-contacted", label: "Not invited yet" }]),
           { key: "accommodation", label: "Need a room" },
           { key: "vip", label: "VIP" },
         ].map((f) => (
@@ -482,16 +546,24 @@ export function GuestsWorkspace({
                     {singleRsvp ? (
                       <div className="mt-2">
                         <Select
-                          value={overallStatus(guest)}
+                          value={
+                            showSaveTheDate ? guest.stdResponse ?? "" : overallStatus(guest)
+                          }
                           disabled={!canEdit || savingCell === guest.id}
-                          onChange={(e) => setAttendance(guest.id, e.target.value)}
+                          onChange={(e) =>
+                            showSaveTheDate
+                              ? setStdResponse(guest.id, e.target.value)
+                              : setAttendance(guest.id, e.target.value)
+                          }
                           className="h-9 w-full text-[12.5px]"
                         >
-                          {ATTENDANCE_CHOICES.map((choice) => (
-                            <option key={choice.value} value={choice.value}>
-                              {choice.label}
-                            </option>
-                          ))}
+                          {(showSaveTheDate ? STD_CHOICES : ATTENDANCE_CHOICES).map(
+                            (choice) => (
+                              <option key={choice.value} value={choice.value}>
+                                {choice.label}
+                              </option>
+                            ),
+                          )}
                         </Select>
                       </div>
                     ) : (
@@ -569,7 +641,7 @@ export function GuestsWorkspace({
                   // list is already the wave named at the top of the page, so a
                   // three-way toggle against 231 identical answers was noise.
                   <th className="w-px whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
-                    Coming?
+                    {showSaveTheDate ? "Save-the-date" : "Coming?"}
                   </th>
                 ) : (
                   events.map((event) => (
@@ -638,9 +710,17 @@ export function GuestsWorkspace({
                       {singleRsvp ? (
                         <td className="w-px whitespace-nowrap px-2 py-1.5">
                           <Select
-                            value={overallStatus(guest)}
+                            value={
+                              showSaveTheDate
+                                ? guest.stdResponse ?? ""
+                                : overallStatus(guest)
+                            }
                             disabled={!canEdit || savingCell === guest.id}
-                            onChange={(e) => setAttendance(guest.id, e.target.value)}
+                            onChange={(e) =>
+                              showSaveTheDate
+                                ? setStdResponse(guest.id, e.target.value)
+                                : setAttendance(guest.id, e.target.value)
+                            }
                             className={cn(
                               // Wide enough for "Awaiting a reply" to clear the
                               // chevron rather than run under it.
@@ -648,11 +728,13 @@ export function GuestsWorkspace({
                               savingCell === guest.id && "opacity-40",
                             )}
                           >
-                            {ATTENDANCE_CHOICES.map((choice) => (
-                              <option key={choice.value} value={choice.value}>
-                                {choice.label}
-                              </option>
-                            ))}
+                            {(showSaveTheDate ? STD_CHOICES : ATTENDANCE_CHOICES).map(
+                              (choice) => (
+                                <option key={choice.value} value={choice.value}>
+                                  {choice.label}
+                                </option>
+                              ),
+                            )}
                           </Select>
                         </td>
                       ) : (
@@ -764,6 +846,8 @@ export function GuestsWorkspace({
         canEdit={canEdit}
         onSetRsvp={setCell}
         onSetAttendance={setAttendance}
+        onSetStdResponse={setStdResponse}
+        showSaveTheDate={showSaveTheDate}
         onSetTier={setTier}
         savingTier={savingCell === `${active?.id}:tier`}
         household={households.find((h) => h.id === active?.householdId) ?? null}
@@ -841,13 +925,16 @@ function Figure({
 
 function GuestSheet({
   guest, events, canEdit, household, rsvpEnabled, singleRsvp, onClose, onChanged, onSetRsvp,
-  onSetAttendance, onSetTier, savingTier,
+  onSetAttendance, onSetStdResponse, showSaveTheDate, onSetTier, savingTier,
 }: {
   guest: Guest | null;
   events: { id: string; name: string; tone: string }[];
   canEdit: boolean;
   onSetRsvp(guestId: string, eventId: string, status: string): void;
   onSetAttendance(guestId: string, status: string): void;
+  onSetStdResponse(guestId: string, response: string): void;
+  /** A year out, the answer on the panel is the save-the-date's. */
+  showSaveTheDate: boolean;
   onSetTier(guestId: string, tier: string): void;
   savingTier: boolean;
   household: { id: string; name: string; rsvpToken: string } | null;
@@ -938,22 +1025,29 @@ function GuestSheet({
       }
     >
       <section className="mb-5">
-        <h4 className="eyebrow mb-2">{singleRsvp ? "Coming?" : "Coming to"}</h4>
+        <h4 className="eyebrow mb-2">
+          {showSaveTheDate ? "Save-the-date" : singleRsvp ? "Coming?" : "Coming to"}
+        </h4>
         {singleRsvp ? (
           <div>
             <Select
-              value={overallStatus(guest)}
+              value={showSaveTheDate ? guest.stdResponse ?? "" : overallStatus(guest)}
               disabled={!canEdit}
-              onChange={(e) => onSetAttendance(guest.id, e.target.value)}
+              onChange={(e) =>
+                showSaveTheDate
+                  ? onSetStdResponse(guest.id, e.target.value)
+                  : onSetAttendance(guest.id, e.target.value)
+              }
               className="h-8 w-full text-[13px]"
             >
-              {ATTENDANCE_CHOICES.map((choice) => (
+              {(showSaveTheDate ? STD_CHOICES : ATTENDANCE_CHOICES).map((choice) => (
                 <option key={choice.value} value={choice.value}>{choice.label}</option>
               ))}
             </Select>
             <p className="mt-1.5 text-[11.5px] leading-snug text-ink-faint">
-              One answer for the whole week — everyone who comes is there for all
-              of it.
+              {showSaveTheDate
+                ? "What they said to the save-the-date. The invitation proper asks again later."
+                : "One answer for the whole week — everyone who comes is there for all of it."}
             </p>
           </div>
         ) : (

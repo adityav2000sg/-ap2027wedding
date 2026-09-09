@@ -240,6 +240,33 @@ export function householdCountFor(
 }
 
 /** Rooms implied by the guests who told us they need a bed. */
+export interface SaveTheDateCounts {
+  /** People asked — the current wave, not the whole list. */
+  asked: number;
+  yes: number;
+  no: number;
+  awaiting: number;
+}
+
+/**
+ * Answers to the save-the-date.
+ *
+ * Kept apart from `computeGuestCounts` on purpose: a save-the-date is an
+ * intention a year out, not a seat at a table, and it never touches the
+ * per-event invitations. Until the invitation proper goes out, this is the
+ * only reply anybody has actually given — so it is what the guest list should
+ * be showing, rather than a column of "awaiting" that can't move yet.
+ */
+export function saveTheDateCounts(
+  snapshot: WeddingSnapshot,
+  tier: GuestNode["tier"] = "A",
+): SaveTheDateCounts {
+  const asked = snapshot.guests.filter((guest) => guest.tier === tier);
+  const yes = asked.filter((guest) => guest.stdResponse === "YES").length;
+  const no = asked.filter((guest) => guest.stdResponse === "NO").length;
+  return { asked: asked.length, yes, no, awaiting: asked.length - yes - no };
+}
+
 export function roomsRequired(snapshot: WeddingSnapshot): number {
   const perRoom = Math.max(1, snapshot.wedding.guestsPerRoom);
   const needing = snapshot.guests.filter((g) => g.needsAccommodation).length;

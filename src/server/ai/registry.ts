@@ -314,6 +314,15 @@ export const CAPABILITIES: AiCapability[] = [
     schema: z.object({ guestId: id }),
   }),
   capability({
+    action: "guest.saveTheDate",
+    area: "guests",
+    permission: "guests.edit",
+    hint:
+      "Record what somebody said to the save-the-date — including a reply that came by phone. " +
+      "{guestId, response: YES|NO|null}",
+    schema: z.object({ guestId: id, response: z.enum(["YES", "NO"]).nullable() }),
+  }),
+  capability({
     action: "guest.tier",
     area: "guests",
     permission: "guests.edit",

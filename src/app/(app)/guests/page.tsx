@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { computeGuestCounts, roomsRequired } from "@/domain/guests";
+import { computeGuestCounts, roomsRequired, saveTheDateCounts } from "@/domain/guests";
 import { outreachByTier, outreachRows, outreachStats } from "@/domain/outreach";
 import type { GuestTier, WeddingSnapshot } from "@/domain/types";
 import { getViewer } from "@/server/auth";
@@ -101,6 +101,7 @@ export default async function GuestsPage({
           householdId: guest.householdId,
           householdName: household?.name ?? null,
           tier: guest.tier,
+          stdResponse: guest.stdResponse,
           city: guest.city,
           country: guest.country,
           phone: guest.phone,
@@ -143,9 +144,15 @@ export default async function GuestsPage({
         saveTheDateSent: row.saveTheDateSent,
         invitationSent: row.invitationSent,
         reply: row.reply,
+        stdReply: row.stdReply,
+        stdYes: row.stdYes,
+        stdNo: row.stdNo,
+        stdAwaiting: row.stdAwaiting,
       }))}
       invitationStats={outreachStats(snapshot)}
       invitationTiers={outreachByTier(snapshot)}
+      invitationStage={snapshot.wedding.invitationStage}
+      saveTheDate={saveTheDateCounts(snapshot)}
       rsvpEnabled={snapshot.wedding.rsvpEnabled}
       singleRsvp={snapshot.wedding.singleRsvp}
     />

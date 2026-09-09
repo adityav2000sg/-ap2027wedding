@@ -150,6 +150,42 @@ describe("outreach", () => {
     expect(b.households).toBe(0);
   });
 
+  it("rolls a household's save-the-date answers into one, and says when it is half done", () => {
+    const snapshot = snapshotWith([{}, {}]);
+    // h0 holds Ana and Bo; h1 holds Cal.
+    snapshot.guests[0] = { ...snapshot.guests[0], stdResponse: "YES" };
+
+    const partial = outreachRows(snapshot).find((r) => r.householdId === "h0")!;
+    expect(partial.stdReply).toBe("PARTIAL");
+    expect(partial.stdYes).toBe(1);
+    expect(partial.stdAwaiting).toBe(1);
+
+    // Once the second person answers, the household has answered.
+    snapshot.guests[1] = { ...snapshot.guests[1], stdResponse: "NO" };
+    const answered = outreachRows(snapshot).find((r) => r.householdId === "h0")!;
+    // Anybody coming makes it a yes for the household.
+    expect(answered.stdReply).toBe("YES");
+    expect(answered.stdAwaiting).toBe(0);
+
+    // Nobody in h1 has said anything.
+    expect(outreachRows(snapshot).find((r) => r.householdId === "h1")!.stdReply).toBe(
+      "AWAITING",
+    );
+  });
+
+  it("counts save-the-date answers in people across the whole list", () => {
+    const snapshot = snapshotWith([{}, {}]);
+    snapshot.guests[0] = { ...snapshot.guests[0], stdResponse: "YES" };
+    snapshot.guests[2] = { ...snapshot.guests[2], stdResponse: "NO" };
+
+    const stats = outreachStats(snapshot);
+    expect(stats.stdYes).toBe(1);
+    expect(stats.stdNo).toBe(1);
+    expect(stats.stdAwaiting).toBe(1);
+    // One household is fully answered; the other still has somebody outstanding.
+    expect(stats.stdHouseholdsReplied).toBe(1);
+  });
+
   it("reports empty tiers as absent rather than as zeroes", () => {
     const tiers = outreachByTier(snapshotWith([{ tier: "A" }, { tier: "A" }]));
     expect(tiers.map((t) => t.tier)).toEqual(["A"]);

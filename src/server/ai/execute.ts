@@ -68,6 +68,15 @@ export const EXECUTORS: Record<string, Executor> = {
     const { setGuestAttendance } = await import("@/server/actions/guests");
     check(await setGuestAttendance(str(a.guestId), a.status as "CONFIRMED"));
   },
+  "guest.saveTheDate": async (a) => {
+    const { setGuestStdResponse } = await import("@/server/actions/guests");
+    check(
+      await setGuestStdResponse(
+        str(a.guestId),
+        a.response === null ? null : (a.response as "YES" | "NO"),
+      ),
+    );
+  },
   "guest.tier": async (a) => {
     const { setGuestTier } = await import("@/server/actions/guests");
     check(await setGuestTier(str(a.guestId), a.tier as "A"));

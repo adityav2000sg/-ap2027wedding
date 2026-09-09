@@ -791,6 +791,66 @@ export async function setGuestContact(
  * and skips the shaadi, so asking seven times is seven chances to record an
  * inconsistency that means nothing.
  */
+/**
+ * Record somebody's answer to the save-the-date.
+ *
+ * Kept apart from `setGuestAttendance`, which writes the per-event invitations:
+ * a save-the-date is an intention a year out, and conflating the two would put
+ * unconfirmed people into every headcount in the app. Replies arrive by phone
+ * and in person as well as through the link, so they have to be settable here.
+ */
+export async function setGuestStdResponse(
+  guestId: string,
+  response: "YES" | "NO" | null,
+) {
+  return withAction("guests.edit", async (viewer) => {
+    if (response !== null) z.enum(["YES", "NO"]).parse(response);
+
+    const guest = await db.guest.findFirst({
+      where: { id: guestId, weddingId: viewer.weddingId },
+      select: { id: true, firstName: true, lastName: true, householdId: true, tier: true },
+    });
+    if (!guest) throw new Error("That guest no longer exists.");
+
+    await db.guest.update({ where: { id: guestId }, data: { stdResponse: response } });
+
+    // The household is "answered" only when nobody in the current wave is
+    // still outstanding — the same rule the public reply uses.
+    if (guest.householdId) {
+      const outstanding = await db.guest.count({
+        where: {
+          householdId: guest.householdId,
+          archivedAt: null,
+          tier: "A",
+          stdResponse: null,
+        },
+      });
+      await db.household.update({
+        where: { id: guest.householdId },
+        data: { stdRepliedAt: outstanding === 0 ? new Date() : null },
+      });
+    }
+
+    const name = `${guest.firstName} ${guest.lastName}`.trim();
+    await logViewerActivity(viewer, {
+      entityType: "guest",
+      entityId: guest.id,
+      entityLabel: name,
+      action: "std_replied",
+      summary:
+        response === "YES"
+          ? `${viewer.name} noted that ${name} is hoping to come.`
+          : response === "NO"
+            ? `${viewer.name} noted that ${name} can't make it.`
+            : `${viewer.name} put ${name} back to awaiting an answer.`,
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id: guest.id };
+  });
+}
+
 export async function setGuestAttendance(
   guestId: string,
   status: (typeof RSVP)[number],

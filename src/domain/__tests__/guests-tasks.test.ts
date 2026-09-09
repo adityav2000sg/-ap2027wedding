@@ -4,6 +4,7 @@ import {
   computeEventGuestCounts,
   computeGuestCounts,
   roomsRequired,
+  saveTheDateCounts,
   attendanceForecast,
 } from "../guests";
 import { analyseTasks, wouldCreateCycle } from "../tasks";
@@ -284,5 +285,45 @@ describe("attendance forecast", () => {
       guests: [makeGuest("g1", { tier: "A", attendanceScore: null })],
     });
     expect(attendanceForecast(snapshot).expected).toBe(1);
+  });
+});
+
+/**
+ * A save-the-date answer is the only reply that exists a year out. It lives on
+ * the guest, apart from the per-event invitations, and it has to be countable
+ * on its own — otherwise a page that asks "who has replied?" answers with the
+ * invitations, which cannot move until the invitation goes out.
+ */
+describe("save-the-date replies", () => {
+  it("counts the answers of the wave that was asked", () => {
+    const snapshot = makeSnapshot({
+      guests: [
+        makeGuest("yes-1", { stdResponse: "YES" }),
+        makeGuest("yes-2", { stdResponse: "YES" }),
+        makeGuest("no-1", { stdResponse: "NO" }),
+        makeGuest("quiet-1"),
+        // Tier B hasn't been asked, so tier B can't have answered.
+        makeGuest("held", { tier: "B", stdResponse: "YES" }),
+      ],
+    });
+
+    expect(saveTheDateCounts(snapshot)).toEqual({
+      asked: 4,
+      yes: 2,
+      no: 1,
+      awaiting: 1,
+    });
+  });
+
+  it("leaves the per-event answers alone", () => {
+    const snapshot = makeSnapshot({
+      guests: [makeGuest("g1", { stdResponse: "YES" })],
+      invitations: [makeInvitation("g1", "event-shaadi", "PENDING")],
+    });
+
+    // Hoping to come is not a seat at a table.
+    expect(saveTheDateCounts(snapshot).yes).toBe(1);
+    expect(computeGuestCounts(snapshot).confirmed).toBe(0);
+    expect(computeGuestCounts(snapshot).pending).toBe(1);
   });
 });

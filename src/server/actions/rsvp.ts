@@ -72,10 +72,11 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
     where: { rsvpToken: data.token },
     select: {
       id: true,
+      name: true,
       weddingId: true,
       guests: {
         where: { archivedAt: null, rsvpToken: null },
-        select: { id: true, tier: true },
+        select: { id: true, tier: true, firstName: true, lastName: true },
       },
       wedding: { select: { rsvpEnabled: true, invitationStage: true } },
     },
@@ -90,10 +91,11 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
         household: {
           select: {
             id: true,
+            name: true,
             weddingId: true,
             guests: {
               where: { archivedAt: null },
-              select: { id: true, tier: true },
+              select: { id: true, tier: true, firstName: true, lastName: true },
             },
             wedding: { select: { rsvpEnabled: true, invitationStage: true } },
           },
@@ -229,19 +231,52 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
       },
     });
 
+    // Who answered, by name.
+    //
+    // "1 of 1 hoping to come" is true and useless: the whole point of a reply
+    // landing in the feed is knowing whose it was without opening anything.
+    const nameOf = new Map(
+      household.guests.map((guest) => [
+        guest.id,
+        `${guest.firstName} ${guest.lastName}`.trim(),
+      ]),
+    );
+    const named = (list: typeof people) =>
+      list.map((person) => nameOf.get(person.guestId) ?? "A guest");
+    const yesNames = named(people.filter((person) => person.coming === "YES"));
+    const noNames = named(people.filter((person) => person.coming === "NO"));
+    const sentence = (names: string[], one: string, many: string) =>
+      names.length === 0
+        ? null
+        : `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`} ${names.length === 1 ? one : many}`;
+
+    const summary = isSaveTheDate
+      ? [
+          sentence(yesNames, "is hoping to come", "are hoping to come"),
+          sentence(noNames, "can't make it", "can't make it"),
+        ]
+          .filter(Boolean)
+          .join("; ") + "."
+      : [
+          sentence(yesNames, "is coming", "are coming"),
+          sentence(noNames, "can't make it", "can't make it"),
+        ]
+          .filter(Boolean)
+          .join("; ") + ".";
+
     await tx.activityLog.create({
       data: {
         weddingId: household.weddingId,
         source: "RSVP",
-        entityType: "household",
-        entityId: household.id,
-        entityLabel: null,
+        // A personal link speaks for one person, so the entry points at them;
+        // a household link points at the household it answered for.
+        entityType: personalGuestId ? "guest" : "household",
+        entityId: personalGuestId ?? household.id,
+        entityLabel: personalGuestId
+          ? (nameOf.get(personalGuestId) ?? household.name)
+          : household.name,
         action: isSaveTheDate ? "std_replied" : "rsvp_updated",
-        summary: isSaveTheDate
-          ? `Answered the save-the-date: ${comingCount} of ${people.length} hoping to come.`
-          : comingCount > 0
-            ? `${comingCount} of ${people.length} replied yes.`
-            : `Replied no.`,
+        summary,
       },
     });
   });

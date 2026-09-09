@@ -80,6 +80,9 @@ export interface WeddingCore {
   cities: string[];
   hasPlanner: boolean;
   rsvpEnabled: boolean;
+  /// Which mailing is out: the save-the-date, or the invitation proper. The
+  /// two ask different questions and are answered in different columns.
+  invitationStage: "SAVE_THE_DATE" | "INVITATION";
   /// One answer per guest, not one per function.
   singleRsvp: boolean;
   traditions: string[];
@@ -146,6 +149,9 @@ export interface HouseholdNode {
   tier: GuestTier;
   rsvpRepliedAt: Date | null;
   rsvpSubmittedAt: Date | null;
+  /// Set once everybody in the household on the current wave has answered the
+  /// save-the-date. Kept apart from the RSVP proper.
+  stdRepliedAt: Date | null;
   giftReceived: boolean;
   notes: string | null;
 }
@@ -175,6 +181,9 @@ export interface GuestNode {
   invitationSentAt: Date | null;
   /// Which list they're on: A goes out first, B waits for room, C isn't invited.
   tier: GuestTier;
+  /// Their answer to the save-the-date — a year-out intention, deliberately
+  /// not an acceptance, and never mixed into the per-event invitations.
+  stdResponse: "YES" | "NO" | null;
   /// How likely they are to come, 1–5, from the original guest list.
   attendanceScore: number | null;
   needsTransport: boolean;
