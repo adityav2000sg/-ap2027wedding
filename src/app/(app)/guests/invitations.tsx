@@ -302,9 +302,9 @@ export function Invitations({
         <Figure value={`${displayStats.stdSent}/${displayStats.households}`} label="Save-the-dates sent" />
         {savingTheDate ? (
           <>
-            <Figure value={displayStats.stdYes} label="Hoping to come" tone="positive" />
-            <Figure value={displayStats.stdNo} label="Can't make it" />
-            <Figure value={displayStats.stdAwaiting} label="Yet to answer" tone="attention" />
+            <Figure value={displayStats.stdYes} label="Said yes" tone="positive" />
+            <Figure value={displayStats.stdNo} label="Said no" />
+            <Figure value={displayStats.stdAwaiting} label="Not yet answered" tone="attention" />
             <Figure
               value={`${displayStats.stdHouseholdsReplied}/${displayStats.households}`}
               label="Households answered"
@@ -325,9 +325,9 @@ export function Invitations({
         segments={
           savingTheDate
             ? [
-                { value: displayStats.stdYes, tone: "olive", label: "Hoping to come" },
-                { value: displayStats.stdNo, tone: "slate", label: "Can't make it" },
-                { value: displayStats.stdAwaiting, tone: "amber", label: "Yet to answer" },
+                { value: displayStats.stdYes, tone: "olive", label: "Said yes" },
+                { value: displayStats.stdNo, tone: "slate", label: "Said no" },
+                { value: displayStats.stdAwaiting, tone: "amber", label: "Not yet" },
               ]
             : [
                 { value: displayStats.yes, tone: "olive", label: "Yes" },
@@ -339,8 +339,8 @@ export function Invitations({
       <p className="mb-6 text-[12px] text-ink-muted">
         {savingTheDate ? (
           <>
-            {displayStats.stdYes} hoping to come · {displayStats.stdAwaiting} still to
-            answer · {displayStats.stdNo} can&rsquo;t make it
+            {displayStats.stdYes} said yes · {displayStats.stdAwaiting} still to answer ·{" "}
+            {displayStats.stdNo} said no
           </>
         ) : (
           <>
@@ -620,7 +620,7 @@ function PersonRow({
           variant={person.stdResponse === "YES" ? "positive" : "neutral"}
           className="shrink-0"
         >
-          {person.stdResponse === "YES" ? "Hoping to come" : "Can't make it"}
+          {person.stdResponse === "YES" ? "Said yes" : "Said no"}
         </Badge>
       ) : null}
 
@@ -843,7 +843,7 @@ function StdReplyBadge({
   if (reply === "PARTIAL") {
     return (
       <Badge size="xs" variant="attention">
-        {yes > 0 ? `${yes} of ${headcount} coming` : `Part answered`}
+        {yes > 0 ? `${yes} of ${headcount} said yes` : "Part answered"}
       </Badge>
     );
   }
@@ -851,9 +851,9 @@ function StdReplyBadge({
     <Badge size="xs" variant={reply === "YES" ? "positive" : "neutral"}>
       {reply === "YES"
         ? headcount > 1
-          ? `${yes} of ${headcount} coming`
-          : "Hoping to come"
-        : "Can't make it"}
+          ? `${yes} of ${headcount} said yes`
+          : "Said yes"
+        : "Said no"}
     </Badge>
   );
 }

@@ -87,28 +87,40 @@ export function RsvpForm({
     setPending(true);
     setError(null);
 
-    const result = await submitRsvp({
-      token,
-      phone: contact.phone || undefined,
-      email: contact.email || undefined,
-      message: message || undefined,
-      people: people.map((person) => ({
-        guestId: person.guestId,
-        coming: person.coming,
-        dietary: person.dietary,
-        allergies: person.allergies ?? "",
-        accessibilityNeeds: person.accessibilityNeeds ?? "",
-        needsAccommodation: person.needsAccommodation,
-        needsTransport: person.needsTransport,
-      })),
-    });
+    try {
+      const result = await Promise.race([
+        submitRsvp({
+          token,
+          phone: contact.phone || undefined,
+          email: contact.email || undefined,
+          message: message || undefined,
+          people: people.map((person) => ({
+            guestId: person.guestId,
+            coming: person.coming,
+            dietary: person.dietary,
+            allergies: person.allergies ?? "",
+            accessibilityNeeds: person.accessibilityNeeds ?? "",
+            needsAccommodation: person.needsAccommodation,
+            needsTransport: person.needsTransport,
+          })),
+        }),
+        // Never strand somebody on "Sending…": a reply that hangs leaves them
+        // unable to tell whether they have answered. Sending again is safe.
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timed out")), 25_000),
+        ),
+      ]);
 
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setDone({ coming: result.coming, total: result.total });
+    } catch {
+      setError("That didn't send. Check your connection and try again.");
+    } finally {
+      setPending(false);
     }
-    setDone({ coming: result.coming, total: result.total });
   }
 
   if (done) {

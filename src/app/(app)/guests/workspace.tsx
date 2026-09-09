@@ -97,11 +97,17 @@ function overallStatus(guest: Guest): string {
   return "NOT_INVITED";
 }
 
-/** The save-the-date has two answers and a silence, and nothing else. */
+/**
+ * The save-the-date has two answers and a silence, and nothing else.
+ *
+ * Plainly yes and no. The column already says what was asked, so dressing the
+ * answers up as "hoping to come" only made you read twice to find out whether
+ * somebody had said yes.
+ */
 const STD_CHOICES: { value: string; label: string }[] = [
   { value: "", label: "Not yet" },
-  { value: "YES", label: "Hoping to come" },
-  { value: "NO", label: "Can't make it" },
+  { value: "YES", label: "Yes" },
+  { value: "NO", label: "No" },
 ];
 
 const ATTENDANCE_CHOICES: { value: string; label: string }[] = [
@@ -408,9 +414,9 @@ export function GuestsWorkspace({
         {showSaveTheDate ? (
           <>
             <Figure value={saveTheDate.asked} label="On the list" />
-            <Figure value={saveTheDate.yes} label="Hoping to come" tone="positive" />
-            <Figure value={saveTheDate.awaiting} label="Yet to answer" tone="attention" />
-            <Figure value={saveTheDate.no} label="Can't make it" />
+            <Figure value={saveTheDate.yes} label="Said yes" tone="positive" />
+            <Figure value={saveTheDate.awaiting} label="Not yet answered" tone="attention" />
+            <Figure value={saveTheDate.no} label="Said no" />
           </>
         ) : (
           <>
@@ -428,9 +434,9 @@ export function GuestsWorkspace({
         segments={
           showSaveTheDate
             ? [
-                { value: saveTheDate.yes, tone: "olive", label: "Hoping to come" },
-                { value: saveTheDate.awaiting, tone: "amber", label: "Yet to answer" },
-                { value: saveTheDate.no, tone: "slate", label: "Can't make it" },
+                { value: saveTheDate.yes, tone: "olive", label: "Said yes" },
+                { value: saveTheDate.awaiting, tone: "amber", label: "Not yet" },
+                { value: saveTheDate.no, tone: "slate", label: "Said no" },
               ]
             : [
                 { value: stats.confirmed, tone: "olive", label: "Coming" },
@@ -445,9 +451,9 @@ export function GuestsWorkspace({
       <div className="pill-row mb-4 items-center">
         {[
           { key: "all", label: "Everyone" },
-          { key: "confirmed", label: showSaveTheDate ? "Hoping to come" : "Coming" },
-          { key: "pending", label: showSaveTheDate ? "Yet to answer" : "Awaiting" },
-          { key: "declined", label: showSaveTheDate ? "Can't make it" : "Not coming" },
+          { key: "confirmed", label: showSaveTheDate ? "Said yes" : "Coming" },
+          { key: "pending", label: showSaveTheDate ? "Not yet" : "Awaiting" },
+          { key: "declined", label: showSaveTheDate ? "Said no" : "Not coming" },
           ...(showSaveTheDate ? [] : [{ key: "not-contacted", label: "Not invited yet" }]),
           { key: "accommodation", label: "Need a room" },
           { key: "vip", label: "VIP" },

@@ -25,6 +25,26 @@ import { cn } from "@/lib/cn";
 import { CheckIcon } from "@/components/ui/icons";
 import { submitRsvp } from "@/server/actions/rsvp";
 
+/**
+ * Never leave somebody looking at "Sending…" forever.
+ *
+ * A reply that hangs is worse than one that fails: the guest has no idea
+ * whether they have answered, and the button that would tell them is disabled.
+ * If nothing comes back in twenty-five seconds we treat it as failed and hand
+ * the form back. The request may still land — a reply overwrites, so a
+ * duplicate costs nothing.
+ */
+const SEND_TIMEOUT_MS = 25_000;
+
+function withTimeout<T>(work: Promise<T>): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("timed out")), SEND_TIMEOUT_MS),
+    ),
+  ]);
+}
+
 export interface StdPerson {
   guestId: string;
   name: string;
@@ -143,23 +163,33 @@ export function SaveTheDate({
     setPending(true);
     setError(null);
 
-    const result = await submitRsvp({
-      token,
-      message: message || undefined,
-      people: people.map((person) => ({
-        guestId: person.guestId,
-        coming: person.response,
-        phone: person.phone.trim() || undefined,
-        email: person.email.trim() || undefined,
-      })),
-    });
+    try {
+      const result = await withTimeout(
+        submitRsvp({
+          token,
+          message: message || undefined,
+          people: people.map((person) => ({
+            guestId: person.guestId,
+            coming: person.response,
+            phone: person.phone.trim() || undefined,
+            email: person.email.trim() || undefined,
+          })),
+        }),
+      );
 
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setDone({ coming: result.coming, total: result.total });
+    } catch {
+      // A dropped connection, a phone that slept mid-send, a server that never
+      // answered. Whatever it was, the guest gets told and gets the button
+      // back — sending twice is harmless, because a reply overwrites.
+      setError("That didn't send. Check your connection and try again.");
+    } finally {
+      setPending(false);
     }
-    setDone({ coming: result.coming, total: result.total });
   }
 
   return (

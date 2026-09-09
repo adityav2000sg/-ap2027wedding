@@ -839,10 +839,10 @@ export async function setGuestStdResponse(
       action: "std_replied",
       summary:
         response === "YES"
-          ? `${viewer.name} noted that ${name} is hoping to come.`
+          ? `${viewer.name} noted that ${name} said yes to the save-the-date.`
           : response === "NO"
-            ? `${viewer.name} noted that ${name} can't make it.`
-            : `${viewer.name} put ${name} back to awaiting an answer.`,
+            ? `${viewer.name} noted that ${name} said no to the save-the-date.`
+            : `${viewer.name} put ${name} back to not having answered.`,
       undoable: true,
     });
 

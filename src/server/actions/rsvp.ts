@@ -252,11 +252,11 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
 
     const summary = isSaveTheDate
       ? [
-          sentence(yesNames, "is hoping to come", "are hoping to come"),
-          sentence(noNames, "can't make it", "can't make it"),
+          sentence(yesNames, "said yes", "said yes"),
+          sentence(noNames, "said no", "said no"),
         ]
           .filter(Boolean)
-          .join("; ") + "."
+          .join("; ") + " to the save-the-date."
       : [
           sentence(yesNames, "is coming", "are coming"),
           sentence(noNames, "can't make it", "can't make it"),
