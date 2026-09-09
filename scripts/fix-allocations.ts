@@ -12,7 +12,8 @@
  *    reception is Indian, so they become Indo-western and bandhgala.
  *
  * 3. Aditya Vaidya has an account and is in the wedding party, but was never
- *    added to the wardrobe, so he had no tab of his own.
+ *    added to the wardrobe, so he had no tab of his own — and once added, no
+ *    looks against any of the five functions.
  *
  * Idempotent and safe to re-run: each change checks the current value first and
  * does nothing if it has already been made, or if somebody has since changed it
@@ -150,6 +151,59 @@ async function main() {
           sortOrder: (last._max.sortOrder ?? 0) + 1,
         },
       });
+    }
+  }
+
+  // ── 4. A look for every function, for anyone who has none ───────────────
+  //
+  // The same five the other men are carrying — kurta through to the reception.
+  // Left as ideas rather than decisions: this is a row to fill in, not a claim
+  // that anything has been chosen.
+  const MENS_LOOKS: { event: string; outfitType: string }[] = [
+    { event: "Haldi", outfitType: "Kurta" },
+    { event: "Mehendi", outfitType: "Kurta set" },
+    { event: "Sangeet", outfitType: "Bandhgala" },
+    { event: "Shaadi", outfitType: "Sherwani" },
+    { event: "Reception", outfitType: "Bandhgala" },
+  ];
+
+  for (const name of MISSING_PEOPLE) {
+    const person = await db.wardrobePerson.findFirst({
+      where: { name },
+      select: { id: true, weddingId: true },
+    });
+    if (!person) continue;
+
+    for (const look of MENS_LOOKS) {
+      const event = await db.event.findFirst({
+        where: { weddingId: person.weddingId, name: look.event, archivedAt: null },
+        select: { id: true },
+      });
+      if (!event) {
+        skipped.push(`No "${look.event}" function, so no look was added for ${name}.`);
+        continue;
+      }
+
+      const existing = await db.outfit.findFirst({
+        where: { personId: person.id, eventId: event.id, archivedAt: null },
+      });
+      if (existing) continue;
+
+      planned.push(`Add ${name} a ${look.outfitType.toLowerCase()} for the ${look.event}.`);
+      if (apply) {
+        await db.outfit.create({
+          data: {
+            weddingId: person.weddingId,
+            personId: person.id,
+            eventId: event.id,
+            outfitType: look.outfitType,
+            // Matching what everyone else carries, so the wardrobe totals and
+            // the "nothing ordered yet" counts stay consistent.
+            status: "IDEA",
+            currency: "GBP",
+          },
+        });
+      }
     }
   }
 

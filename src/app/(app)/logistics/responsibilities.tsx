@@ -62,19 +62,42 @@ export function Responsibilities({
   const [composing, setComposing] = React.useState(false);
   const [confirmingDelete, setConfirmingDelete] = React.useState<string | null>(null);
 
-  // Unowned first — the list exists to be emptied of them.
-  const sorted = React.useMemo(
-    () =>
-      rows
-        .slice()
-        .sort(
-          (a, b) =>
-            Number(Boolean(a.ownerId)) - Number(Boolean(b.ownerId)) ||
-            b.importance - a.importance ||
-            a.area.localeCompare(b.area),
-        ),
-    [rows],
-  );
+  /**
+   * Unowned first — the list exists to be emptied of them — but the order is
+   * fixed when the page loads and doesn't move again.
+   *
+   * Re-sorting on every change meant assigning somebody made the row leap to
+   * the bottom of a thirty-item list the instant you picked a name. It looked
+   * like the job had been deleted, and you lost your place. The new order
+   * applies next time the page is opened.
+   */
+  const initialOrder = React.useRef<string[] | null>(null);
+
+  const sorted = React.useMemo(() => {
+    const ranked = rows
+      .slice()
+      .sort(
+        (a, b) =>
+          Number(Boolean(a.ownerId)) - Number(Boolean(b.ownerId)) ||
+          b.importance - a.importance ||
+          a.area.localeCompare(b.area),
+      );
+
+    if (initialOrder.current === null) {
+      initialOrder.current = ranked.map((row) => row.id);
+      return ranked;
+    }
+
+    const position = new Map(initialOrder.current.map((id, index) => [id, index]));
+    return rows
+      .slice()
+      .sort(
+        (a, b) =>
+          // Anything added since load goes to the end rather than nowhere.
+          (position.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (position.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+      );
+  }, [rows]);
 
   const unowned = sorted.filter((row) => !row.ownerId).length;
 
