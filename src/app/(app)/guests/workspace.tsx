@@ -16,7 +16,7 @@ import { cn, toneClasses } from "@/lib/cn";
 import { Avatar, Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
 import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
-import { CheckIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
+import { BedIcon, CheckIcon, ChevronRightIcon, RouteIcon, SearchIcon } from "@/components/ui/icons";
 import {
   archiveGuest,
   setGuestAttendance,
@@ -236,6 +236,22 @@ export function GuestsWorkspace({
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered]);
+
+  /**
+   * A bed against all 231 names is not information.
+   *
+   * Everybody on this list needs a room, so the icon marked no one out — it
+   * was a column of identical pictograms. Needs are shown only where they
+   * distinguish somebody from the rest of the list on screen; the headline
+   * figure above still carries the total.
+   */
+  const uniform = React.useMemo(
+    () => ({
+      room: filtered.length > 0 && filtered.every((guest) => guest.needsAccommodation),
+      transport: filtered.length > 0 && filtered.every((guest) => guest.needsTransport),
+    }),
+    [filtered],
+  );
 
   const active = guests.find((g) => g.id === openGuest) ?? null;
 
@@ -539,11 +555,11 @@ export function GuestsWorkspace({
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-1">
-                        {guest.needsAccommodation ? (
-                          <span className="text-[11px] text-ink-muted">🛏</span>
+                        {guest.needsAccommodation && !uniform.room ? (
+                          <span className="text-ink-muted"><BedIcon size={13} /></span>
                         ) : null}
-                        {guest.needsTransport ? (
-                          <span className="text-[11px] text-ink-muted">🚐</span>
+                        {guest.needsTransport && !uniform.transport ? (
+                          <span className="text-ink-muted"><RouteIcon size={13} /></span>
                         ) : null}
                         <ChevronRightIcon size={13} className="ml-0.5 text-ink-faint" />
                       </span>
@@ -631,7 +647,14 @@ export function GuestsWorkspace({
           ))}
         </div>
 
-        <div className="hidden overflow-x-auto sm:block">
+        {/* A panel of its own.
+            The sticky name column has to paint a background or rows would
+            scroll under it — and painting flat cream over the page's gradient
+            wash split every row in two down the middle, one tint on the left
+            and another on the right. On its own surface there is nothing to
+            mismatch. */}
+        <div className="hidden overflow-hidden rounded-2xl border border-line bg-surface sm:block">
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] border-collapse">
             <thead>
               <tr className="border-b border-line">
@@ -639,7 +662,10 @@ export function GuestsWorkspace({
                     table handed it all to whatever came last, which left the
                     answer sitting in the middle of an empty acre and the needs
                     column out at the window. */}
-                <th className="sticky left-0 z-10 w-full bg-canvas py-2 pr-3 text-left text-[11.5px] font-medium text-ink-muted">
+                {/* Content-width, so the answer sits beside the name instead
+                    of an acre away at the far edge of a wide screen. The slack
+                    goes to the last column, where icons can drift. */}
+                <th className="sticky left-0 z-10 bg-surface px-4 py-2.5 text-left text-[11.5px] font-medium text-ink-muted">
                   Guest
                 </th>
                 {singleRsvp ? (
@@ -661,9 +687,13 @@ export function GuestsWorkspace({
                     </th>
                   ))
                 )}
-                <th className="w-px whitespace-nowrap px-2 py-2 text-right text-[11.5px] font-medium text-ink-muted">
+                <th className="whitespace-nowrap px-4 py-2.5 text-right text-[11.5px] font-medium text-ink-muted">
                   Needs
                 </th>
+                {/* The slack lives here, at the end, so name, answer and needs
+                    stay together instead of being flung to opposite edges of a
+                    wide screen. */}
+                <th className="w-full" />
               </tr>
             </thead>
             <tbody>
@@ -671,8 +701,8 @@ export function GuestsWorkspace({
                 <React.Fragment key={householdName}>
                   <tr>
                     <td
-                      colSpan={(singleRsvp ? 1 : events.length) + 2}
-                      className="sticky left-0 bg-canvas pb-1 pt-4 text-[12px] font-medium text-ink-soft"
+                      colSpan={(singleRsvp ? 1 : events.length) + 3}
+                      className="sticky left-0 bg-surface px-4 pb-1 pt-4 text-[12px] font-medium text-ink-soft"
                     >
                       {householdName}
                       <span className="tabular ml-2 font-normal text-ink-faint">
@@ -682,7 +712,7 @@ export function GuestsWorkspace({
                   </tr>
                   {householdGuests.map((guest) => (
                     <tr key={guest.id} className="group border-b border-line-soft">
-                      <td className="sticky left-0 z-10 bg-canvas py-1.5 pr-3 group-hover:bg-surface-sunken">
+                      <td className="sticky left-0 z-10 bg-surface py-1.5 pl-4 pr-3 group-hover:bg-surface-sunken">
                         <button
                           type="button"
                           onClick={() => setOpenGuest(guest.id)}
@@ -806,13 +836,17 @@ export function GuestsWorkspace({
                       })
                       )}
 
-                      <td className="w-px whitespace-nowrap px-2 py-1.5 text-right">
+                      <td className="whitespace-nowrap px-4 py-1.5 text-right">
                         <span className="inline-flex gap-1">
-                          {guest.needsAccommodation ? (
-                            <Tooltip content="Needs a room"><span className="text-[11px] text-ink-muted">🛏</span></Tooltip>
+                          {guest.needsAccommodation && !uniform.room ? (
+                            <Tooltip content="Needs a room">
+                              <span className="text-ink-muted"><BedIcon size={13} /></span>
+                            </Tooltip>
                           ) : null}
-                          {guest.needsTransport ? (
-                            <Tooltip content="Needs transport"><span className="text-[11px] text-ink-muted">🚐</span></Tooltip>
+                          {guest.needsTransport && !uniform.transport ? (
+                            <Tooltip content="Needs transport">
+                              <span className="text-ink-muted"><RouteIcon size={13} /></span>
+                            </Tooltip>
                           ) : null}
                           {guest.dietary === "JAIN" || guest.dietary === "VEGAN" ? (
                             <Tooltip content={DIET_LABEL[guest.dietary]}>
@@ -833,12 +867,14 @@ export function GuestsWorkspace({
                           ) : null}
                         </span>
                       </td>
+                      <td className="w-full" />
                     </tr>
                   ))}
                 </React.Fragment>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
         </>
       )}

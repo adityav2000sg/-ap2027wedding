@@ -196,6 +196,11 @@ export function SaveTheDate({
     <main className="min-h-dvh bg-[#f6f1e9] text-[#282a25]">
       {music ? <Music src={music} /> : null}
 
+      {/* Petals fall over the whole page, so they are mounted here rather than
+          inside the thank-you card: a transformed ancestor turns `fixed` into
+          `absolute`, and the celebration would be trapped in a box. */}
+      {done && done.coming > 0 ? <Celebration /> : null}
+
       <header className="relative flex h-[72svh] min-h-[520px] max-h-[720px] items-center justify-center overflow-hidden sm:min-h-[560px] lg:h-[58svh]">
         {photo ? (
           <Image
@@ -461,6 +466,87 @@ function ReplyBy({ date, days }: { date: string; days: number }) {
   );
 }
 
+/**
+ * Petals, for a yes.
+ *
+ * Somebody has just said they will fly to Bali for you. The screen should do
+ * something about that — but a wedding is not a video game, so this is petals
+ * on a breeze rather than confetti cannons: the palette of the invitation
+ * itself, drifting past once and clearing off after seven seconds.
+ *
+ * Nothing at all for a no, and nothing for anybody whose system asks for less
+ * motion. A celebration you can't turn off is just noise.
+ */
+const PETAL_COLOURS = ["#e0a084", "#cf8f73", "#d9b89c", "#294436", "#7f9b86", "#f2e2d3"];
+
+function Celebration() {
+  const reduce = useReducedMotion();
+  const [spent, setSpent] = React.useState(false);
+
+  // Fixed at mount: re-rolling these on every render would make the petals
+  // jump rather than fall.
+  const petals = React.useMemo(
+    () =>
+      Array.from({ length: 44 }, (_, index) => ({
+        id: index,
+        left: Math.random() * 100,
+        size: 9 + Math.random() * 13,
+        drift: (Math.random() - 0.5) * 220,
+        spin: 180 + Math.random() * 540,
+        duration: 4.2 + Math.random() * 3.4,
+        delay: Math.random() * 2.6,
+        colour: PETAL_COLOURS[index % PETAL_COLOURS.length],
+      })),
+    [],
+  );
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setSpent(true), 8000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (reduce || spent) return null;
+
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-40 overflow-hidden">
+      {petals.map((petal) => (
+        <motion.span
+          key={petal.id}
+          initial={{ y: "-14vh", x: 0, opacity: 0, rotate: 0 }}
+          animate={{
+            y: "114vh",
+            x: petal.drift,
+            opacity: [0, 1, 1, 0.9, 0],
+            rotate: petal.spin,
+          }}
+          transition={{
+            duration: petal.duration,
+            delay: petal.delay,
+            ease: "linear",
+            // Only the fade has keyframes; `times` belongs with it rather than
+            // at the root, where it has nothing to line up against.
+            opacity: {
+              duration: petal.duration,
+              delay: petal.delay,
+              ease: "linear",
+              times: [0, 0.08, 0.6, 0.9, 1],
+            },
+          }}
+          style={{
+            left: `${petal.left}%`,
+            width: petal.size,
+            height: petal.size * 0.64,
+            background: petal.colour,
+            // An off-round blob reads as a petal where a circle reads as a dot.
+            borderRadius: "60% 40% 55% 45% / 58% 62% 38% 42%",
+          }}
+          className="absolute top-0 block"
+        />
+      ))}
+    </div>
+  );
+}
+
 /** A small piece of stationery furniture — a rule with a diamond in it. */
 function Ornament() {
   return (
@@ -589,18 +675,23 @@ function Thanks({
   onChange(): void;
 }) {
   const reduce = useReducedMotion();
+  const celebrating = coming > 0;
+
   return (
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 22 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[28px] border border-[#d8d4cb] bg-white/78 px-6 py-10 text-center shadow-[0_30px_80px_-48px_rgba(43,45,39,0.5)] sm:px-10 sm:py-14"
+      className="relative rounded-[28px] border border-[#d8d4cb] bg-white/78 px-6 py-10 text-center shadow-[0_30px_80px_-48px_rgba(43,45,39,0.5)] sm:px-10 sm:py-14"
     >
       <motion.span
         initial={reduce ? false : { scale: 0.6, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.15 }}
-        className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#294436] text-white"
+        className={cn(
+          "mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full text-white",
+          celebrating ? "bg-[#294436]" : "bg-[#8b7160]",
+        )}
       >
         <CheckIcon size={24} />
       </motion.span>
@@ -608,17 +699,17 @@ function Thanks({
       <Ornament />
 
       <h2 className="font-script text-[42px] leading-[1.05] text-[#2d332d] sm:text-[52px]">
-        {coming > 0 ? "We can't wait" : "Thank you for telling us"}
+        {celebrating ? "We can't wait" : "We'll miss you"}
       </h2>
 
       <p className="mx-auto mt-4 max-w-[25rem] text-[15px] leading-relaxed text-[#716f68] sm:text-[14.5px]">
-        {coming > 0
+        {celebrating
           ? total === 1
             ? "We’re so happy you’ll be there. We’ll be in touch with everything you need for Bali."
             : coming === total
               ? "We’re so happy you can all be there. We’ll be in touch with everything you need for Bali."
               : `${coming} of you are joining us. We’ll be in touch with everything you need for Bali.`
-          : "We're so sorry you can't be with us — you'll be missed more than you know."}
+          : "We’re so sorry you can’t be with us — you’ll be missed more than you know. If anything changes, this link still works."}
       </p>
 
       <motion.p
