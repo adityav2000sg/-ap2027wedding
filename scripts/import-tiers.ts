@@ -1,8 +1,15 @@
 /**
  * Bring the tier and attendance score across from the original guest list.
  *
- *   npm run import:tiers -- --file "/path/to/Avantika & Prateek Wedding Plan.xlsx"
- *   npm run import:tiers -- --file "..." --apply
+ *   npm run import:tiers            # dry run
+ *   npm run import:tiers -- --apply
+ *
+ * Reads prisma/data/wedding-import.json, which is committed and therefore
+ * present wherever the app runs — the spreadsheet it came from only exists on
+ * one laptop, which is no use on a deploy. Both fields were in that file the
+ * whole time; the seed simply never read them.
+ *
+ * Pass --file "…/Wedding Plan.xlsx" to re-read a newer spreadsheet instead.
  *
  * The guest list was imported without either, so every one of the 267 people
  * ended up on tier A with no likelihood attached — which is why the app reports
@@ -30,6 +37,34 @@ interface SheetRow {
   name: string;
   tier: "A" | "B" | "C";
   score: number | null;
+}
+
+/** The committed import — the same data, minus the dependency on a local file. */
+function readImportFile(): SheetRow[] {
+  const path = new URL("../prisma/data/wedding-import.json", import.meta.url);
+  const data = JSON.parse(readFileSync(path, "utf8")) as {
+    guests?: {
+      tier?: string;
+      firstName?: string;
+      lastName?: string;
+      probabilityScore?: number | null;
+    }[];
+  };
+
+  const rows: SheetRow[] = [];
+  for (const guest of data.guests ?? []) {
+    const tier = String(guest.tier ?? "").trim().toUpperCase();
+    const name = `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim();
+    if (!name || !["A", "B", "C"].includes(tier)) continue;
+
+    const score = Number(guest.probabilityScore);
+    rows.push({
+      name,
+      tier: tier as "A" | "B" | "C",
+      score: Number.isFinite(score) && score > 0 ? Math.round(score) : null,
+    });
+  }
+  return rows;
 }
 
 async function readSheet(file: string): Promise<SheetRow[]> {
@@ -75,13 +110,17 @@ async function readSheet(file: string): Promise<SheetRow[]> {
 async function main() {
   const apply = process.argv.includes("--apply");
   const fileIndex = process.argv.indexOf("--file");
-  if (fileIndex === -1 || !process.argv[fileIndex + 1]) {
-    console.error("\n✗ Pass the spreadsheet: --file \"…/Wedding Plan.xlsx\"\n");
-    process.exitCode = 1;
-    return;
-  }
+  const explicitFile = fileIndex === -1 ? null : process.argv[fileIndex + 1];
 
-  const sheetRows = await readSheet(process.argv[fileIndex + 1]);
+  const sheetRows = explicitFile
+    ? await readSheet(explicitFile)
+    : readImportFile();
+
+  console.log(
+    explicitFile
+      ? `\nReading ${explicitFile}`
+      : "\nReading prisma/data/wedding-import.json",
+  );
   const guests = await db.guest.findMany({
     where: { archivedAt: null },
     select: { id: true, firstName: true, lastName: true, tier: true, attendanceScore: true },
