@@ -102,6 +102,7 @@ export default async function GuestsPage({
           householdName: household?.name ?? null,
           tier: guest.tier,
           stdResponse: guest.stdResponse,
+          saveTheDateSent: guest.saveTheDateSentAt !== null,
           city: guest.city,
           country: guest.country,
           phone: guest.phone,

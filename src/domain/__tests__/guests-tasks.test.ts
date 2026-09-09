@@ -309,6 +309,8 @@ describe("save-the-date replies", () => {
 
     expect(saveTheDateCounts(snapshot)).toEqual({
       asked: 4,
+      // Nothing has been sent in the fixture; the count is of real sends.
+      sent: 0,
       yes: 2,
       no: 1,
       awaiting: 1,

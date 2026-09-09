@@ -23,6 +23,46 @@
   font-display: swap;
 }
 
+/*
+  The invitation's own faces.
+  
+  Halimun for the couple's names and Quicksand for everything around them —
+  the two used on the printed save-the-date — so the page a guest opens and the
+  card they were sent are unmistakably the same piece of stationery. Served
+  from our own origin as OpenType; every current browser takes OTF directly.
+*/
+@font-face {
+  font-family: "Halimun";
+  src: url("/fonts/halimun.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quicksand Invite";
+  src: url("/fonts/quicksand-light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quicksand Invite";
+  src: url("/fonts/quicksand-book.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quicksand Invite";
+  src: url("/fonts/quicksand-bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "Golden Hour";
   src: url("/fonts/golden-hour.woff2") format("woff2");
@@ -320,6 +360,16 @@
 }
 
 @layer components {
+  /* The stationery faces, for the pages a guest sees. */
+  .font-invite-script {
+    font-family: "Halimun", "Edwardian Script", cursive;
+  }
+
+  .font-invite {
+    font-family: "Quicksand Invite", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: 0.01em;
+  }
+
   .surface {
     background: linear-gradient(
       160deg,

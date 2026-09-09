@@ -193,7 +193,7 @@ export function SaveTheDate({
   }
 
   return (
-    <main className="min-h-dvh bg-[#f6f1e9] text-[#282a25]">
+    <main className="font-invite min-h-dvh bg-[#eef3ef] text-[#33413a]">
       {music ? <Music src={music} /> : null}
 
       {/* Petals fall over the whole page, so they are mounted here rather than
@@ -220,13 +220,13 @@ export function SaveTheDate({
 
         <div className="relative mx-auto w-full max-w-[1120px] px-5 py-20 text-center text-white">
           <div className="mb-5 flex items-center justify-center gap-3">
-            <span aria-hidden className="h-px w-8 bg-[#d99778]" />
+            <span aria-hidden className="h-px w-8 bg-[#cf8a68]" />
             <p className="text-[15px] font-medium uppercase tracking-[0.18em] text-white/78">
               You are invited to the wedding of
             </p>
-            <span aria-hidden className="h-px w-8 bg-[#d99778]" />
+            <span aria-hidden className="h-px w-8 bg-[#cf8a68]" />
           </div>
-          <h1 className="whitespace-nowrap font-script text-[clamp(35px,10.7vw,46px)] leading-none text-white drop-shadow-[0_3px_22px_rgba(0,0,0,0.38)] sm:text-[64px] md:text-[82px] lg:text-[104px]">
+          <h1 className="whitespace-nowrap font-invite-script text-[clamp(30px,9vw,40px)] leading-[1.12] text-white drop-shadow-[0_3px_22px_rgba(0,0,0,0.38)] sm:text-[56px] md:text-[70px] lg:text-[84px]">
             {partnerA}
             <span className="mx-1.5 text-[#e0a084] sm:mx-3 lg:mx-5">&</span>
             {partnerB}
@@ -275,13 +275,13 @@ export function SaveTheDate({
                 exit={reduce ? undefined : { opacity: 0, y: -12 }}
               >
                 <header className="mx-auto mb-9 max-w-[620px] text-center sm:mb-11">
-                  <p className="text-[13.5px] font-medium uppercase tracking-[0.18em] text-[#8b7465]">
+                  <p className="text-[13.5px] font-medium uppercase tracking-[0.18em] text-[#6d8f7f]">
                     Your reply
                   </p>
-                  <h2 className="mt-2 font-script text-[44px] leading-none text-[#2d332d] sm:text-[54px]">
+                  <h2 className="mt-2.5 font-invite-script text-[34px] leading-[1.18] text-[#cf8a68] sm:text-[46px]">
                     Will you join us in Bali?
                   </h2>
-                  <p className="mt-3.5 text-[15px] leading-relaxed text-[#716f68] sm:text-[14.5px]">
+                  <p className="mt-3.5 text-[15px] leading-relaxed text-[#5d7a6c] sm:text-[14.5px]">
                     {onePerson
                       ? "We would love to celebrate with you. Please let us know if you can join us."
                       : "We would love to celebrate with you. Please reply for each person listed below."}
@@ -291,7 +291,7 @@ export function SaveTheDate({
                 <ReplyBy date={rsvpBy} days={rsvpByDays} />
 
                 {alreadyReplied ? (
-                  <p className="mb-5 rounded-2xl border border-[#ccd8ce] bg-[#edf3ed] px-5 py-3 text-center text-[14px] text-[#4d6654]">
+                  <p className="mb-5 rounded-2xl border border-[#bcd3c6] bg-[#e9f2ec] px-5 py-3 text-center text-[14px] text-[#4a7060]">
                     You’ve replied already. Change anything below and send it again.
                   </p>
                 ) : null}
@@ -303,13 +303,13 @@ export function SaveTheDate({
                       className={cn(
                         "grid gap-4 rounded-[22px] border px-5 py-5 shadow-[0_18px_50px_-42px_rgba(43,45,39,0.45)] transition-colors sm:grid-cols-[minmax(190px,1fr)_minmax(330px,auto)] sm:items-center sm:px-6",
                         person.response === "YES"
-                          ? "border-[#b9cbbd] bg-[#f4f8f3]"
+                          ? "border-[#bcd3c6] bg-[#f2f8f4]"
                           : person.response === "NO"
-                            ? "border-[#dccfc4] bg-[#faf5f0]"
-                            : "border-[#ddd8cf] bg-white/88",
+                            ? "border-[#d8cec2] bg-[#faf6f2]"
+                            : "border-[#cfe0d5] bg-white/88",
                       )}
                     >
-                      <p className="font-display text-[18.5px] leading-tight text-[#2d332d]">
+                      <p className="font-display text-[18.5px] leading-tight text-[#33493f]">
                         {person.name}
                       </p>
                       <div className="grid grid-cols-2 gap-2.5">
@@ -343,8 +343,8 @@ export function SaveTheDate({
                             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                             className="overflow-hidden sm:col-span-2"
                           >
-                            <div className="border-t border-[#cbdccf] pt-4 sm:mt-1">
-                              <p className="mb-3 text-[14px] text-[#5c7666]">
+                            <div className="border-t border-[#cfe0d5] pt-4 sm:mt-1">
+                              <p className="mb-3 text-[14px] text-[#5f8577]">
                                 {onePerson
                                   ? "Wonderful. Where can we reach you?"
                                   : `Wonderful. Where can we reach ${person.name.split(" ")[0]}?`}
@@ -373,7 +373,7 @@ export function SaveTheDate({
                   ))}
                 </div>
 
-                <div className="mt-6 rounded-[26px] border border-[#ddd8cf] bg-white/72 p-5 shadow-[0_24px_70px_-54px_rgba(43,45,39,0.55)] sm:p-7">
+                <div className="mt-6 rounded-[26px] border border-[#cfe0d5] bg-white/72 p-5 shadow-[0_24px_70px_-54px_rgba(43,45,39,0.55)] sm:p-7">
                   <Field
                     label={`A note for ${partnerA} & ${partnerB}`}
                     value={message}
@@ -404,7 +404,7 @@ export function SaveTheDate({
                 >
                   {submitLabel}
                 </motion.button>
-                <p className="mt-4 text-center text-[13.5px] text-[#8b877f]">
+                <p className="mt-4 text-center text-[13.5px] text-[#7d9689]">
                   Replies close on {rsvpBy}
                 </p>
               </motion.div>
@@ -414,8 +414,8 @@ export function SaveTheDate({
       </section>
 
       <footer className="border-t border-[#ded8cf] px-5 py-8 text-center">
-        <p className="font-script text-[31px] text-[#455e4c]">
-          {partnerA} <span className="text-[#cf8f73]">&</span> {partnerB}
+        <p className="font-invite-script text-[31px] text-[#cf8a68]">
+          {partnerA} <span className="text-[#cf8a68]">&</span> {partnerB}
         </p>
       </footer>
     </main>
@@ -437,14 +437,14 @@ function ReplyBy({ date, days }: { date: string; days: number }) {
       initial={reduce ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto mb-8 max-w-[560px] rounded-[24px] border border-[#e2cbb5] bg-[#fbefe3] px-6 py-5 text-center shadow-[0_24px_60px_-46px_rgba(122,82,56,0.75)] sm:mb-10 sm:px-9 sm:py-6"
+      className="mx-auto mb-8 max-w-[560px] rounded-[24px] border border-[#bcd3c6] bg-[#e9f2ec] px-6 py-5 text-center shadow-[0_24px_60px_-46px_rgba(122,82,56,0.75)] sm:mb-10 sm:px-9 sm:py-6"
     >
       <div className="flex items-center justify-center gap-3">
-        <span aria-hidden className="h-px w-8 bg-[#d9b89c]" />
-        <p className="text-[12.5px] font-semibold uppercase tracking-[0.26em] text-[#a06c4a]">
+        <span aria-hidden className="h-px w-8 bg-[#a9c6b6]" />
+        <p className="text-[12.5px] font-semibold uppercase tracking-[0.26em] text-[#5f8577]">
           Please reply by
         </p>
-        <span aria-hidden className="h-px w-8 bg-[#d9b89c]" />
+        <span aria-hidden className="h-px w-8 bg-[#a9c6b6]" />
       </div>
 
       <p className="mt-2.5 font-display text-[30px] leading-[1.05] text-[#24372d] sm:text-[36px]">
@@ -452,13 +452,13 @@ function ReplyBy({ date, days }: { date: string; days: number }) {
       </p>
 
       {days > 0 ? (
-        <p className="mt-2 text-[13.5px] text-[#8d6a52]">
+        <p className="mt-2 text-[13.5px] text-[#6d8f7f]">
           {days === 1 ? "One day left to let us know" : `${days} days left to let us know`}
         </p>
       ) : days === 0 ? (
         <p className="mt-2 text-[13.5px] font-medium text-[#a4503f]">Today is the last day</p>
       ) : (
-        <p className="mt-2 text-[13.5px] text-[#8d6a52]">
+        <p className="mt-2 text-[13.5px] text-[#6d8f7f]">
           We’re past the date — do still tell us, as soon as you can.
         </p>
       )}
@@ -477,7 +477,7 @@ function ReplyBy({ date, days }: { date: string; days: number }) {
  * Nothing at all for a no, and nothing for anybody whose system asks for less
  * motion. A celebration you can't turn off is just noise.
  */
-const PETAL_COLOURS = ["#e0a084", "#cf8f73", "#d9b89c", "#294436", "#7f9b86", "#f2e2d3"];
+const PETAL_COLOURS = ["#e0a084", "#cf8a68", "#a9c6b6", "#294436", "#7f9b86", "#f2e2d3"];
 
 function Celebration() {
   const reduce = useReducedMotion();
@@ -551,9 +551,9 @@ function Celebration() {
 function Ornament() {
   return (
     <div aria-hidden className="mx-auto mb-6 flex w-24 items-center gap-2">
-      <span className="h-px flex-1 bg-gradient-to-r from-transparent to-[#b9cdbe]" />
-      <span className="h-1.5 w-1.5 rotate-45 bg-[#b9cdbe]" />
-      <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[#b9cdbe]" />
+      <span className="h-px flex-1 bg-gradient-to-r from-transparent to-[#bcd3c6]" />
+      <span className="h-1.5 w-1.5 rotate-45 bg-[#bcd3c6]" />
+      <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[#bcd3c6]" />
     </div>
   );
 }
@@ -585,7 +585,7 @@ function Answer({
         selected && tone === "no" &&
           "border-[#735748] bg-[#735748] text-white shadow-[0_10px_24px_-14px_rgba(115,87,72,0.75)]",
         !selected &&
-          "border-[#d9d4cc] bg-[#fbfaf7] text-[#69675f] hover:border-[#a9a49a] hover:bg-white",
+          "border-[#cfe0d5] bg-[#f8fbf9] text-[#5d7a6c] hover:border-[#a9c6b6] hover:bg-white",
       )}
     >
       <ChoiceIcon tone={tone} />
@@ -633,13 +633,13 @@ function Field({
   placeholder?: string;
 }) {
   const shared =
-    "min-h-[48px] w-full rounded-2xl border border-[#d9d4cb] bg-[#fbfaf7] px-4 py-2.5 text-[16px] text-[#2d332d] sm:min-h-[44px] sm:text-[14px] " +
-    "placeholder:text-[#aaa59b] outline-none transition-all duration-300 " +
-    "focus:border-[#6d8373] focus:bg-white focus:shadow-[0_0_0_3px_rgba(109,131,115,0.13)]";
+    "min-h-[48px] w-full rounded-2xl border border-[#cfe0d5] bg-[#f8fbf9] px-4 py-2.5 text-[16px] text-[#33493f] sm:min-h-[44px] sm:text-[14px] " +
+    "placeholder:text-[#9db3a7] outline-none transition-all duration-300 " +
+    "focus:border-[#5f8577] focus:bg-white focus:shadow-[0_0_0_3px_rgba(109,131,115,0.13)]";
 
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[13.5px] font-medium text-[#66645d]">{label}</span>
+      <span className="mb-1.5 block text-[13.5px] font-medium text-[#5d7a6c]">{label}</span>
       {multiline ? (
         <textarea
           rows={3}
@@ -682,7 +682,7 @@ function Thanks({
       initial={reduce ? false : { opacity: 0, y: 22 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
-      className="relative rounded-[28px] border border-[#d8d4cb] bg-white/78 px-6 py-10 text-center shadow-[0_30px_80px_-48px_rgba(43,45,39,0.5)] sm:px-10 sm:py-14"
+      className="relative rounded-[28px] border border-[#cfe0d5] bg-white/78 px-6 py-10 text-center shadow-[0_30px_80px_-48px_rgba(43,45,39,0.5)] sm:px-10 sm:py-14"
     >
       <motion.span
         initial={reduce ? false : { scale: 0.6, opacity: 0 }}
@@ -698,11 +698,11 @@ function Thanks({
 
       <Ornament />
 
-      <h2 className="font-script text-[42px] leading-[1.05] text-[#2d332d] sm:text-[52px]">
+      <h2 className="font-invite-script text-[34px] leading-[1.18] text-[#cf8a68] sm:text-[44px]">
         {celebrating ? "We can't wait" : "We'll miss you"}
       </h2>
 
-      <p className="mx-auto mt-4 max-w-[25rem] text-[15px] leading-relaxed text-[#716f68] sm:text-[14.5px]">
+      <p className="mx-auto mt-4 max-w-[25rem] text-[15px] leading-relaxed text-[#5d7a6c] sm:text-[14.5px]">
         {celebrating
           ? total === 1
             ? "We’re so happy you’ll be there. We’ll be in touch with everything you need for Bali."
@@ -716,15 +716,15 @@ function Thanks({
         initial={reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1.4, delay: 0.6 }}
-        className="mt-8 font-script text-[28px] text-[#455e4c]"
+        className="mt-8 font-invite-script text-[28px] text-[#cf8a68]"
       >
-        {partnerA} <span className="text-[#c98d72]">&</span> {partnerB}
+        {partnerA} <span className="text-[#cf8a68]">&</span> {partnerB}
       </motion.p>
 
       <button
         type="button"
         onClick={onChange}
-        className="mt-8 text-[13.5px] text-[#817d75] underline-offset-4 transition-colors hover:text-[#2d332d] hover:underline"
+        className="mt-8 text-[13.5px] text-[#7d9689] underline-offset-4 transition-colors hover:text-[#33493f] hover:underline"
       >
         Change something
       </button>

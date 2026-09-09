@@ -20,6 +20,7 @@ import { BedIcon, CheckIcon, ChevronRightIcon, RouteIcon, SearchIcon } from "@/c
 import {
   archiveGuest,
   setGuestAttendance,
+  setGuestSend,
   setGuestStdResponse,
   setGuestTier,
   updateGuest,
@@ -46,6 +47,8 @@ interface Guest {
   tier: string;
   /** Their answer to the save-the-date, which is the only reply that exists yet. */
   stdResponse: "YES" | "NO" | null;
+  /** Whether the save-the-date has actually gone to them. */
+  saveTheDateSent: boolean;
   rsvp: Record<string, string>;
 }
 
@@ -148,7 +151,7 @@ export function GuestsWorkspace({
   singleRsvp: boolean;
   /** Which mailing is out — it decides which answer this page is about. */
   invitationStage: "SAVE_THE_DATE" | "INVITATION";
-  saveTheDate: { asked: number; yes: number; no: number; awaiting: number };
+  saveTheDate: { asked: number; sent: number; yes: number; no: number; awaiting: number };
   invitations: InvitationRow[];
   invitationStats: InvitationStats;
   invitationTiers: TierStat[];
@@ -259,6 +262,14 @@ export function GuestsWorkspace({
     if (!canEdit) return;
     setSavingCell(`${guestId}:tier`);
     await setGuestTier(guestId, tier as "A");
+    setSavingCell(null);
+    router.refresh();
+  }
+
+  async function setSent(guestId: string, sent: boolean) {
+    if (!canEdit) return;
+    setSavingCell(`${guestId}:sent`);
+    await setGuestSend(guestId, "saveTheDate", sent);
     setSavingCell(null);
     router.refresh();
   }
@@ -426,10 +437,17 @@ export function GuestsWorkspace({
           the per-event RSVPs cannot move until the invitation goes out. Showing
           those instead meant this row read 0 coming, 231 awaiting, no matter
           how many people had replied. */}
-      <div className="stat-row mb-6 border-y border-line py-5" style={{ ["--stat-cols" as string]: 5 }}>
+      <div
+        className="stat-row mb-6 border-y border-line py-5"
+        style={{ ["--stat-cols" as string]: showSaveTheDate ? 6 : 5 }}
+      >
         {showSaveTheDate ? (
           <>
             <Figure value={saveTheDate.asked} label="On the list" />
+            <Figure
+              value={`${saveTheDate.sent}/${saveTheDate.asked}`}
+              label="Save-the-dates sent"
+            />
             <Figure value={saveTheDate.yes} label="Said yes" tone="positive" />
             <Figure value={saveTheDate.awaiting} label="Not yet answered" tone="attention" />
             <Figure value={saveTheDate.no} label="Said no" />
@@ -669,12 +687,21 @@ export function GuestsWorkspace({
                   Guest
                 </th>
                 {singleRsvp ? (
-                  // Tier lives in the guest's own panel now. Every row on this
-                  // list is already the wave named at the top of the page, so a
-                  // three-way toggle against 231 identical answers was noise.
-                  <th className="w-px whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
-                    {showSaveTheDate ? "Save-the-date" : "Coming?"}
-                  </th>
+                  // The working row: has it gone to them, what did they say,
+                  // and can we reach them. Tier lives in the guest's own panel
+                  // now — a three-way toggle against 231 identical answers was
+                  // noise — and this is what the empty half of the row was for.
+                  <>
+                    <th className="w-px whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
+                      Save-the-date
+                    </th>
+                    <th className="w-px whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
+                      {showSaveTheDate ? "Replied" : "Coming?"}
+                    </th>
+                    <th className="w-full whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
+                      Contact
+                    </th>
+                  </>
                 ) : (
                   events.map((event) => (
                     <th key={event.id} className="px-2 py-2 text-center">
@@ -690,10 +717,6 @@ export function GuestsWorkspace({
                 <th className="whitespace-nowrap px-4 py-2.5 text-right text-[11.5px] font-medium text-ink-muted">
                   Needs
                 </th>
-                {/* The slack lives here, at the end, so name, answer and needs
-                    stay together instead of being flung to opposite edges of a
-                    wide screen. */}
-                <th className="w-full" />
               </tr>
             </thead>
             <tbody>
@@ -701,7 +724,7 @@ export function GuestsWorkspace({
                 <React.Fragment key={householdName}>
                   <tr>
                     <td
-                      colSpan={(singleRsvp ? 1 : events.length) + 3}
+                      colSpan={(singleRsvp ? 3 : events.length) + 2}
                       className="sticky left-0 bg-surface px-4 pb-1 pt-4 text-[12px] font-medium text-ink-soft"
                     >
                       {householdName}
@@ -744,6 +767,15 @@ export function GuestsWorkspace({
                       </td>
 
                       {singleRsvp ? (
+                        <>
+                        <td className="w-px whitespace-nowrap px-2 py-1.5">
+                          <SentChip
+                            sent={guest.saveTheDateSent}
+                            canEdit={canEdit}
+                            busy={savingCell === `${guest.id}:sent`}
+                            onClick={() => setSent(guest.id, !guest.saveTheDateSent)}
+                          />
+                        </td>
                         <td className="w-px whitespace-nowrap px-2 py-1.5">
                           <Select
                             value={
@@ -773,6 +805,16 @@ export function GuestsWorkspace({
                             )}
                           </Select>
                         </td>
+                        <td className="w-full px-2 py-1.5">
+                          {guest.phone || guest.email ? (
+                            <span className="block max-w-[240px] truncate text-[12px] text-ink-soft">
+                              {guest.phone ?? guest.email}
+                            </span>
+                          ) : (
+                            <span className="text-[12px] text-ink-faint">—</span>
+                          )}
+                        </td>
+                        </>
                       ) : (
                       events.map((event) => {
                         const status = guest.rsvp[event.id] ?? "NOT_INVITED";
@@ -867,7 +909,6 @@ export function GuestsWorkspace({
                           ) : null}
                         </span>
                       </td>
-                      <td className="w-full" />
                     </tr>
                   ))}
                 </React.Fragment>
@@ -942,6 +983,45 @@ function RsvpDot({ status }: { status: string }) {
       className="block h-2.5 w-2.5 rounded-full border-[1.5px] border-attention bg-transparent"
       aria-hidden
     />
+  );
+}
+
+/**
+ * Whether the save-the-date has actually gone to somebody.
+ *
+ * Clickable, because the sending happens on a phone in another app and this is
+ * the list you are looking at when you finish — the same toggle the invitation
+ * board has, on the page you are already on.
+ */
+function SentChip({
+  sent,
+  canEdit,
+  busy,
+  onClick,
+}: {
+  sent: boolean;
+  canEdit: boolean;
+  busy: boolean;
+  onClick(): void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={!canEdit || busy}
+      onClick={onClick}
+      aria-pressed={sent}
+      className={cn(
+        "inline-flex min-h-[26px] items-center gap-1.5 rounded-lg border px-2 text-[11.5px] transition-colors",
+        sent
+          ? "border-positive/40 bg-positive-soft text-positive"
+          : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
+        busy && "opacity-40",
+        !canEdit && "cursor-default",
+      )}
+    >
+      {sent ? <CheckIcon size={10} /> : null}
+      {sent ? "Sent" : "Not sent"}
+    </button>
   );
 }
 

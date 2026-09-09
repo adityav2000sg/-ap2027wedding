@@ -243,6 +243,8 @@ export function householdCountFor(
 export interface SaveTheDateCounts {
   /** People asked — the current wave, not the whole list. */
   asked: number;
+  /** People the save-the-date has actually been sent to. */
+  sent: number;
   yes: number;
   no: number;
   awaiting: number;
@@ -264,7 +266,13 @@ export function saveTheDateCounts(
   const asked = snapshot.guests.filter((guest) => guest.tier === tier);
   const yes = asked.filter((guest) => guest.stdResponse === "YES").length;
   const no = asked.filter((guest) => guest.stdResponse === "NO").length;
-  return { asked: asked.length, yes, no, awaiting: asked.length - yes - no };
+  return {
+    asked: asked.length,
+    sent: asked.filter((guest) => guest.saveTheDateSentAt !== null).length,
+    yes,
+    no,
+    awaiting: asked.length - yes - no,
+  };
 }
 
 export function roomsRequired(snapshot: WeddingSnapshot): number {
