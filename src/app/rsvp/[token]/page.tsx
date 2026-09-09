@@ -113,9 +113,12 @@ export default async function RsvpPage({
   // different deadlines, so they're different pages rather than one page with
   // half its fields hidden.
   if (wedding.invitationStage === "SAVE_THE_DATE") {
-    const artwork = ["/brand/save-the-date.jpg", "/brand/save-the-date.png"].find((file) =>
-      existsSync(path.join(process.cwd(), "public", file)),
-    );
+    const artwork = [
+      "/brand/save-the-date.jpg",
+      "/brand/save-the-date.jpeg",
+      "/brand/save-the-date.png",
+      "/brand/save-the-date.webp",
+    ].find((file) => existsSync(path.join(process.cwd(), "public", file)));
     const music = ["/audio/invitation.mp3", "/audio/invitation.m4a"].find((file) =>
       existsSync(path.join(process.cwd(), "public", file)),
     );
@@ -138,6 +141,8 @@ export default async function RsvpPage({
         message={household.rsvpMessage ?? ""}
         alreadyReplied={household.stdRepliedAt !== null}
         rsvpBy="1st October 2026"
+        partnerA={wedding.partnerAName}
+        partnerB={wedding.partnerBName}
       />
     );
   }

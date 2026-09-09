@@ -37,8 +37,7 @@ const DIETS = [
 
 const personSchema = z.object({
   guestId: z.string().min(1),
-  // MAYBE only means anything at save-the-date stage.
-  coming: z.enum(["YES", "NO", "MAYBE"]),
+  coming: z.enum(["YES", "NO"]),
   dietary: z.enum(DIETS).optional(),
   allergies: z.string().trim().max(280).optional(),
   accessibilityNeeds: z.string().trim().max(280).optional(),

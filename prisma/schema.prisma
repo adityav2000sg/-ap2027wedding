@@ -1439,13 +1439,14 @@ enum InvitationStage {
 
 /// What somebody said to the save-the-date.
 ///
-/// "Not sure yet" is a real answer at this stage and worth keeping: a year out,
-/// a maybe from someone flying in is more honest than a yes, and it's better
-/// information than the guess on the original list.
+/// Yes or no, and nothing in between. A maybe reads as kindness but plans
+/// nothing: it can't be catered for, roomed or costed, and it leaves the guest
+/// with the question still open. A year out, "roughly, do you think you'll
+/// come" is answerable — and they can change it any time by opening the link
+/// again.
 enum SaveTheDateResponse {
   YES
   NO
-  MAYBE
 }
 
 enum ActivitySource {
