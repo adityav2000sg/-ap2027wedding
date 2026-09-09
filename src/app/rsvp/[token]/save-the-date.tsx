@@ -314,7 +314,7 @@ export function SaveTheDate({
                             : "border-[#cfe0d5] bg-white/88",
                       )}
                     >
-                      <p className="font-display text-[18.5px] leading-tight text-[#33493f]">
+                      <p className="font-invite text-[17px] font-bold leading-tight tracking-[-0.02em] text-[#33493f]">
                         {person.name}
                       </p>
                       <div className="grid grid-cols-2 gap-2.5">
@@ -419,7 +419,7 @@ export function SaveTheDate({
       </section>
 
       <footer className="border-t border-[#ded8cf] px-5 py-8 text-center">
-        <p className="font-invite-script text-[31px] text-[#cf8a68]">
+        <p className="font-invite text-[20px] font-bold tracking-[-0.02em] text-[#cf8a68]">
           {partnerA} <span className="text-[#cf8a68]">&</span> {partnerB}
         </p>
       </footer>
@@ -452,7 +452,7 @@ function ReplyBy({ date, days }: { date: string; days: number }) {
         <span aria-hidden className="h-px w-8 bg-[#a9c6b6]" />
       </div>
 
-      <p className="mt-2.5 font-display text-[30px] leading-[1.05] text-[#24372d] sm:text-[36px]">
+      <p className="mt-2.5 font-invite text-[27px] font-bold leading-[1.08] tracking-[-0.03em] text-[#24372d] sm:text-[33px]">
         {date}
       </p>
 
@@ -583,8 +583,10 @@ function Answer({
       whileTap={reduce ? undefined : { scale: 0.96 }}
       transition={{ type: "spring", stiffness: 480, damping: 26 }}
       className={cn(
-        "flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4",
-        "text-[14px] font-medium leading-tight transition-all duration-300",
+        "flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3",
+        // "Can't make it" wrapped onto two lines once the buttons moved to
+        // Quicksand, which sets wider than the face before it.
+        "whitespace-nowrap text-[13.5px] font-medium leading-tight transition-all duration-300",
         selected && tone === "yes" &&
           "border-[#294436] bg-[#294436] text-white shadow-[0_10px_24px_-14px_rgba(41,68,54,0.9)]",
         selected && tone === "no" &&
@@ -703,7 +705,7 @@ function Thanks({
 
       <Ornament />
 
-      <h2 className="font-invite-script text-[34px] leading-[1.18] text-[#cf8a68] sm:text-[44px]">
+      <h2 className="font-invite text-[28px] font-bold leading-[1.08] tracking-[-0.035em] text-[#cf8a68] sm:text-[42px]">
         {celebrating ? "We can't wait" : "We'll miss you"}
       </h2>
 
@@ -721,7 +723,7 @@ function Thanks({
         initial={reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1.4, delay: 0.6 }}
-        className="mt-8 font-invite-script text-[28px] text-[#cf8a68]"
+        className="mt-8 font-invite text-[19px] font-bold tracking-[-0.02em] text-[#cf8a68]"
       >
         {partnerA} <span className="text-[#cf8a68]">&</span> {partnerB}
       </motion.p>
