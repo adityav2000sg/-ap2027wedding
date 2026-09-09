@@ -108,10 +108,10 @@ async function main() {
   }
 
   // ── 3. Anyone in the wedding party with no wardrobe tab ─────────────────
-  const MISSING_PEOPLE = [{ name: "Aditya Vaidya", role: "Bride's Brother-in-law" }];
+  const MISSING_PEOPLE = ["Aditya Vaidya"];
 
-  for (const person of MISSING_PEOPLE) {
-    const existing = await db.wardrobePerson.findFirst({ where: { name: person.name } });
+  for (const name of MISSING_PEOPLE) {
+    const existing = await db.wardrobePerson.findFirst({ where: { name } });
     if (existing) continue;
 
     const wedding = await db.wedding.findFirst({ select: { id: true } });
@@ -119,6 +119,19 @@ async function main() {
       skipped.push("No wedding found, so no wardrobe person was added.");
       break;
     }
+
+    // Take how they're described from their membership rather than restating
+    // it here. Guessing produced "Bride's Brother-in-law" for someone who isn't
+    // married into the family yet.
+    const member = await db.weddingMember.findFirst({
+      where: { user: { name } },
+      select: { relation: true },
+    });
+    if (!member) {
+      skipped.push(`${name} has no membership to take a relation from.`);
+      continue;
+    }
+    const person = { name, role: member.relation };
 
     planned.push(`Add ${person.name} to the wardrobe as ${person.role}.`);
     if (apply) {
