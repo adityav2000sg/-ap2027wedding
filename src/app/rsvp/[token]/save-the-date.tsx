@@ -3,22 +3,19 @@
 /**
  * The save-the-date.
  *
- * The card is the page. It holds the whole first screen, unhurried and
- * uninterrupted, and stays behind everything afterwards — as you scroll it
- * settles back out of focus and the reply rises over it, so the artwork never
- * leaves and the form never competes with it.
+ * The opening follows the original photographic invitation the couple chose,
+ * with the save-the-date reply treated as a quieter piece of stationery below.
  *
  * One question, two answers. A year out, "roughly, can you come" is the only
  * thing worth asking; dietary requirements and room preferences belong on the
  * invitation proper at the end of the year.
  *
- * Everything here is switched off for anyone whose system asks for less motion
- * — the page reads perfectly well entirely still.
+ * Motion is restrained and switched off for anyone whose system asks for less.
  */
 
 import * as React from "react";
 import Image from "next/image";
-import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/cn";
 import { CheckIcon } from "@/components/ui/icons";
@@ -32,9 +29,8 @@ export interface StdPerson {
 
 export function SaveTheDate({
   token,
-  artwork,
+  photo,
   music,
-  householdName,
   people: initialPeople,
   phone,
   email,
@@ -43,11 +39,13 @@ export function SaveTheDate({
   rsvpBy,
   partnerA,
   partnerB,
+  date,
+  location,
+  days,
 }: {
   token: string;
-  artwork: string | null;
+  photo: string | null;
   music: string | null;
-  householdName: string;
   people: StdPerson[];
   phone: string;
   email: string;
@@ -56,6 +54,9 @@ export function SaveTheDate({
   rsvpBy: string;
   partnerA: string;
   partnerB: string;
+  date: string;
+  location: string;
+  days: number;
 }) {
   const reduce = useReducedMotion();
   const [people, setPeople] = React.useState(initialPeople);
@@ -65,18 +66,22 @@ export function SaveTheDate({
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<{ coming: number; total: number } | null>(null);
 
-  // The card recedes as the reply comes forward: it blurs, dims and drifts up a
-  // little, so scrolling feels like stepping through the gate rather than past
-  // a picture of one.
-  const { scrollYProgress } = useScroll();
-  const blur = useTransform(scrollYProgress, [0, 0.28], [0, 16]);
-  const artOpacity = useTransform(scrollYProgress, [0, 0.32], [1, 0.42]);
-  const artScale = useTransform(scrollYProgress, [0, 0.5], [1, 1.1]);
-  const artY = useTransform(scrollYProgress, [0, 0.5], [0, -40]);
-  const filter = useTransform(blur, (value) => `blur(${value}px)`);
-
   const unanswered = people.filter((person) => person.response === null).length;
   const yesCount = people.filter((person) => person.response === "YES").length;
+  const onePerson = people.length === 1;
+  const submitLabel = pending
+    ? "Sending…"
+    : alreadyReplied
+      ? onePerson
+        ? "Update my reply"
+        : "Update our reply"
+      : yesCount > 0
+        ? onePerson
+          ? "Count me in"
+          : "Count us in"
+        : onePerson
+          ? "Send my reply"
+          : "Send our reply";
 
   function answer(guestId: string, response: "YES" | "NO") {
     setPeople((current) =>
@@ -120,83 +125,62 @@ export function SaveTheDate({
   }
 
   return (
-    <main className="relative min-h-dvh bg-[#dfeae6] bg-gradient-to-b from-[#dfeae6] via-[#eaf1ec] to-[#f3f7f3]">
+    <main className="min-h-dvh bg-[#f6f1e9] text-[#282a25]">
       {music ? <Music src={music} /> : null}
 
-      {/* The card, fixed behind everything. */}
-      <motion.div
-        aria-hidden={false}
-        style={
-          reduce
-            ? undefined
-            : { filter, opacity: artOpacity, scale: artScale, y: artY }
-        }
-        className="pointer-events-none fixed inset-0 flex items-start justify-center overflow-hidden"
-      >
-        {artwork ? (
-          <motion.div
-            initial={reduce ? false : { opacity: 0, scale: 1.08 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 2.2, ease: [0.22, 1, 0.36, 1] }}
-            className="relative h-full w-full"
-          >
-            {/* The card is a portrait; a screen rarely is. Rather than crop it
-                or letterbox it against a flat colour, a heavily blurred copy
-                fills whatever is left over, so the edges dissolve into the
-                card's own washes instead of meeting a seam. */}
-            <Image
-              src={artwork}
-              alt=""
-              aria-hidden
-              fill
-              priority
-              sizes="100vw"
-              className="scale-125 object-cover blur-3xl saturate-[0.85]"
-            />
-            <div className="absolute inset-0 mx-auto w-full max-w-[560px]">
-              <Image
-                src={artwork}
-                alt={`Save the date for the wedding of ${partnerA} and ${partnerB}`}
-                fill
-                priority
-                sizes="(min-width: 640px) 560px, 100vw"
-                className="object-contain object-top drop-shadow-[0_18px_50px_rgba(31,58,45,0.18)]"
-              />
-            </div>
-          </motion.div>
-        ) : (
-          <Placeholder partnerA={partnerA} partnerB={partnerB} />
-        )}
-      </motion.div>
-
-      {/* One full screen of nothing but the card. */}
-      <section className="relative h-dvh">
-        {!done ? (
-          <motion.div
-            initial={reduce ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1.2, delay: reduce ? 0 : 2 }}
-            className="pointer-events-none absolute inset-x-0 bottom-8 flex flex-col items-center gap-2"
-          >
-            <span className="text-[15px] uppercase tracking-[0.18em] text-[#4a6553]">
-              Scroll to reply
-            </span>
-            <motion.span
-              animate={reduce ? undefined : { y: [0, 7, 0] }}
-              transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-              className="text-[#4a6553]"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3v10M4 9.5l4 4 4-4" />
-              </svg>
-            </motion.span>
-          </motion.div>
+      <header className="relative flex h-[72svh] min-h-[520px] max-h-[720px] items-center justify-center overflow-hidden sm:min-h-[560px] lg:h-[58svh]">
+        {photo ? (
+          <Image
+            src={photo}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-[62%_center]"
+          />
         ) : null}
-      </section>
+        <div aria-hidden className="absolute inset-0 bg-[#1b1713]/42" />
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-b from-[#15110e]/48 via-[#1b1713]/18 to-[#15110e]/72"
+        />
 
-      {/* The reply, over the top. */}
-      <section className="relative px-4 pb-20">
-        <div className="mx-auto max-w-[560px]">
+        <div className="relative mx-auto w-full max-w-[1120px] px-5 py-20 text-center text-white">
+          <div className="mb-5 flex items-center justify-center gap-3">
+            <span aria-hidden className="h-px w-8 bg-[#d99778]" />
+            <p className="text-[15px] font-medium uppercase tracking-[0.18em] text-white/78">
+              You are invited to the wedding of
+            </p>
+            <span aria-hidden className="h-px w-8 bg-[#d99778]" />
+          </div>
+          <h1 className="whitespace-nowrap font-script text-[clamp(35px,10.7vw,46px)] leading-none text-white drop-shadow-[0_3px_22px_rgba(0,0,0,0.38)] sm:text-[64px] md:text-[82px] lg:text-[104px]">
+            {partnerA}
+            <span className="mx-1.5 text-[#e0a084] sm:mx-3 lg:mx-5">&</span>
+            {partnerB}
+          </h1>
+          <p className="mt-8 text-[16px] tracking-[0.02em] text-white/90 sm:text-[17px]">
+            {date}
+            <span className="mx-3 text-white/45">·</span>
+            {location}
+          </p>
+          {days > 0 ? (
+            <p className="mt-2 text-[15px] text-white/68">{days} days to go</p>
+          ) : null}
+        </div>
+
+        <a
+          href="#reply"
+          className="absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5 text-[15px] text-white/70 transition-colors hover:text-white"
+        >
+          Reply below
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path d="M8 3v9M4.5 8.7 8 12.2l3.5-3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
+      </header>
+
+      <section id="reply" className="scroll-mt-4 px-4 py-14 sm:px-6 sm:py-20 lg:py-24">
+        <div className="mx-auto max-w-[880px]">
           <AnimatePresence mode="wait">
             {done ? (
               <Thanks
@@ -210,109 +194,92 @@ export function SaveTheDate({
             ) : (
               <motion.div
                 key="form"
-                initial={reduce ? false : { opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-80px" }}
-                transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-                exit={reduce ? undefined : { opacity: 0, y: -16 }}
-                className="rounded-[28px] border border-[#c5d7c9] bg-[#fbfcfa]/92 p-6 shadow-[0_30px_80px_-40px_rgba(31,58,45,0.55)] backdrop-blur-xl sm:p-9"
+                initial={false}
+                exit={reduce ? undefined : { opacity: 0, y: -12 }}
               >
-                <Ornament />
-
-                <div className="text-center">
-                  <p className="text-[15px] uppercase tracking-[0.18em] text-[#7d9585]">
-                    {householdName}
+                <header className="mx-auto mb-9 max-w-[620px] text-center sm:mb-11">
+                  <p className="text-[15px] font-medium uppercase tracking-[0.18em] text-[#8b7465]">
+                    Your reply
                   </p>
-                  <h2 className="mt-3 font-script text-[42px] leading-[1.05] text-[#243a2d] sm:text-[52px]">
-                    Will you join us?
+                  <h2 className="mt-2 font-script text-[50px] leading-none text-[#2d332d] sm:text-[66px]">
+                    Will you join us in Bali?
                   </h2>
-                  <p className="mx-auto mt-3 max-w-[21rem] text-[15px] leading-relaxed text-[#5d7d68]">
-                    Nothing binding — we're only getting a sense of numbers. The
-                    invitation follows later this year.
+                  <p className="mt-4 text-[16px] leading-relaxed text-[#716f68]">
+                    {onePerson
+                      ? "We would love to celebrate with you. Please let us know if you can join us."
+                      : "We would love to celebrate with you. Please reply for each person listed below."}
                   </p>
-                </div>
+                </header>
 
                 {alreadyReplied ? (
-                  <p className="mt-6 rounded-2xl bg-[#e4ede6] px-4 py-2.5 text-center text-[15px] text-[#4a6553]">
-                    You've answered already. Change anything and send it again.
+                  <p className="mb-5 rounded-2xl border border-[#ccd8ce] bg-[#edf3ed] px-5 py-3.5 text-center text-[15px] text-[#4d6654]">
+                    You’ve replied already. Change anything below and send it again.
                   </p>
                 ) : null}
 
-                <div className="mt-7 space-y-2.5">
-                  {people.map((person, index) => (
-                    <motion.div
+                <div className="space-y-3">
+                  {people.map((person) => (
+                    <div
                       key={person.guestId}
-                      initial={reduce ? false : { opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{
-                        duration: 0.7,
-                        ease: [0.22, 1, 0.36, 1],
-                        delay: reduce ? 0 : 0.12 + index * 0.06,
-                      }}
                       className={cn(
-                        "rounded-2xl border px-4 py-4 transition-colors duration-500",
+                        "grid gap-4 rounded-[22px] border px-5 py-5 shadow-[0_18px_50px_-42px_rgba(43,45,39,0.45)] transition-colors sm:grid-cols-[minmax(190px,1fr)_minmax(330px,auto)] sm:items-center sm:px-6",
                         person.response === "YES"
-                          ? "border-[#bcd2c1] bg-[#f2f7f2]"
+                          ? "border-[#b9cbbd] bg-[#f4f8f3]"
                           : person.response === "NO"
-                            ? "border-[#e2dbd4] bg-[#faf7f4]"
-                            : "border-[#dce7de] bg-white/70",
+                            ? "border-[#dccfc4] bg-[#faf5f0]"
+                            : "border-[#ddd8cf] bg-white/88",
                       )}
                     >
-                      {/* Their name set like a place card — centred, with a
-                          hairline under it — so answering feels like being
-                          seated rather than filling in a row of a table. */}
-                      <p className="text-center font-display text-[17px] tracking-[0.01em] text-[#243a2d]">
+                      <p className="font-display text-[21px] leading-tight text-[#2d332d]">
                         {person.name}
                       </p>
-                      <span
-                        aria-hidden
-                        className="mx-auto mt-2 mb-3 block h-px w-10 bg-[#cfdfd3]"
-                      />
                       <div className="grid grid-cols-2 gap-2.5">
                         <Answer
                           selected={person.response === "YES"}
                           tone="yes"
                           onClick={() => answer(person.guestId, "YES")}
                         >
-                          Yes, with joy
+                          Coming
                         </Answer>
                         <Answer
                           selected={person.response === "NO"}
                           tone="no"
                           onClick={() => answer(person.guestId, "NO")}
                         >
-                          No, with regret
+                          Can’t make it
                         </Answer>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
 
-                <div className="mt-6 space-y-3 border-t border-[#dce7de] pt-5">
-                  <p className="text-center text-[15px] text-[#7d9585]">
-                    So the invitation reaches the right place
-                  </p>
-                  <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="mt-6 rounded-[26px] border border-[#ddd8cf] bg-white/72 p-5 shadow-[0_24px_70px_-54px_rgba(43,45,39,0.55)] sm:p-7">
+                  <div className="mb-5">
+                    <h3 className="font-display text-[21px] text-[#2d332d]">Contact details</h3>
+                    <p className="mt-1 text-[15px] text-[#7c7972]">So we can keep you updated.</p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <Field
-                      label="Phone"
+                      label="Best number to reach you"
                       value={contact.phone}
-                      onChange={(v) => setContact((c) => ({ ...c, phone: v }))}
+                      onChange={(value) => setContact((current) => ({ ...current, phone: value }))}
                       inputMode="tel"
                     />
                     <Field
                       label="Email"
                       value={contact.email}
-                      onChange={(v) => setContact((c) => ({ ...c, email: v }))}
+                      onChange={(value) => setContact((current) => ({ ...current, email: value }))}
                       inputMode="email"
                     />
                   </div>
-                  <Field
-                    label="A note for the couple"
-                    value={message}
-                    onChange={setMessage}
-                    multiline
-                  />
+                  <div className="mt-4">
+                    <Field
+                      label={`A note for ${partnerA} & ${partnerB}`}
+                      value={message}
+                      onChange={setMessage}
+                      multiline
+                    />
+                  </div>
                 </div>
 
                 {error ? (
@@ -321,7 +288,7 @@ export function SaveTheDate({
                     initial={reduce ? false : { opacity: 0, x: -5 }}
                     animate={reduce ? { opacity: 1 } : { opacity: 1, x: [-5, 4, -2, 0] }}
                     transition={{ duration: 0.4 }}
-                    className="mt-4 rounded-xl bg-[#f6e5e2] px-4 py-2.5 text-center text-[15px] text-[#9b4a3a]"
+                    className="mt-5 rounded-2xl bg-[#f3dfdc] px-5 py-3 text-center text-[15px] text-[#914b40]"
                   >
                     {error}
                   </motion.p>
@@ -331,32 +298,26 @@ export function SaveTheDate({
                   type="button"
                   onClick={submit}
                   disabled={pending}
-                  whileTap={reduce ? undefined : { scale: 0.985 }}
+                  whileTap={reduce ? undefined : { scale: 0.99 }}
                   transition={{ type: "spring", stiffness: 460, damping: 30 }}
-                  className={cn(
-                    "mt-6 w-full rounded-2xl bg-[#2f5340] py-4 text-[15px] tracking-[0.02em] text-[#f4f8f4]",
-                    "transition-colors duration-300 hover:bg-[#24402f] disabled:opacity-60",
-                  )}
+                  className="mt-6 min-h-14 w-full rounded-2xl bg-[#24372d] px-7 text-[16px] font-medium tracking-[0.02em] text-white shadow-[0_18px_38px_-20px_rgba(36,55,45,0.8)] transition-colors hover:bg-[#18271f] disabled:opacity-60"
                 >
-                  {pending
-                    ? "Sending…"
-                    : yesCount > 0
-                      ? "Save our places"
-                      : alreadyReplied
-                        ? "Send the changes"
-                        : "Send our reply"}
+                  {submitLabel}
                 </motion.button>
-
-                <p className="mt-5 text-center text-[15px] leading-relaxed text-[#8fa697]">
+                <p className="mt-4 text-center text-[15px] text-[#8b877f]">
                   Kindly reply by {rsvpBy}
-                  <br />
-                  This link is just for {householdName}
                 </p>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </section>
+
+      <footer className="border-t border-[#ded8cf] px-5 py-8 text-center">
+        <p className="font-script text-[31px] text-[#455e4c]">
+          {partnerA} <span className="text-[#cf8f73]">&</span> {partnerB}
+        </p>
+      </footer>
     </main>
   );
 }
@@ -392,71 +353,42 @@ function Answer({
       whileTap={reduce ? undefined : { scale: 0.96 }}
       transition={{ type: "spring", stiffness: 480, damping: 26 }}
       className={cn(
-        "relative flex min-h-[46px] items-center justify-center gap-1.5 overflow-hidden rounded-xl border px-3",
-        "text-[15px] leading-tight transition-colors duration-500",
+        "flex min-h-12 items-center justify-center gap-2 rounded-xl border px-4",
+        "text-[15px] font-medium leading-tight transition-all duration-300",
         selected && tone === "yes" &&
-          "border-[#2f5340] bg-[#2f5340] text-[#f4f8f4] shadow-[0_6px_18px_-8px_rgba(47,83,64,0.8)]",
+          "border-[#294436] bg-[#294436] text-white shadow-[0_10px_24px_-14px_rgba(41,68,54,0.9)]",
         selected && tone === "no" &&
-          "border-[#cbb6a6] bg-[#efe4da] text-[#7a5b48]",
+          "border-[#735748] bg-[#735748] text-white shadow-[0_10px_24px_-14px_rgba(115,87,72,0.75)]",
         !selected &&
-          "border-[#dbe6dd] bg-white/85 text-[#5d7d68] hover:border-[#b3c9b8] hover:bg-white",
+          "border-[#d9d4cc] bg-[#fbfaf7] text-[#69675f] hover:border-[#a9a49a] hover:bg-white",
       )}
     >
-      {/* A soft bloom of colour on the chosen one, so the tap lands with a
-          little warmth rather than a hard state flip. */}
-      {selected ? (
-        <motion.span
-          aria-hidden
-          initial={reduce ? false : { scale: 0, opacity: 0.55 }}
-          animate={{ scale: 2.4, opacity: 0 }}
-          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-          className={cn(
-            "absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full",
-            tone === "yes" ? "bg-[#7fa189]" : "bg-[#cbb6a6]",
-          )}
-        />
-      ) : null}
-
-      <span className="relative flex items-center gap-1.5">
-        <Sprig lit={selected} tone={tone} />
-        {children}
-      </span>
+      <ChoiceIcon tone={tone} />
+      {children}
     </motion.button>
   );
 }
 
-/**
- * The little mark beside each answer: a sprig for yes, and for no the same
- * sprig with its leaves fallen off. Drawn rather than an emoji so it takes the
- * button's own colour and matches the card's line weight.
- */
-function Sprig({ lit, tone }: { lit: boolean; tone: "yes" | "no" }) {
-  const reduce = useReducedMotion();
+function ChoiceIcon({ tone }: { tone: "yes" | "no" }) {
   return (
-    <motion.svg
+    <svg
       aria-hidden
-      width="11"
-      height="11"
-      viewBox="0 0 12 12"
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1"
+      strokeWidth="1.5"
       strokeLinecap="round"
-      className="shrink-0 opacity-80"
-      initial={false}
-      animate={reduce || !lit ? { rotate: 0 } : { rotate: [0, -12, 6, 0] }}
-      transition={{ duration: 0.7, ease: "easeOut" }}
+      strokeLinejoin="round"
+      className="shrink-0 opacity-75"
     >
-      <path d="M6 11V2" />
       {tone === "yes" ? (
-        <>
-          <path d="M6 5.4C6 3.9 7.2 2.7 8.9 2.5 8.9 4.2 7.7 5.4 6 5.4Z" />
-          <path d="M6 8.1C6 6.7 4.8 5.6 3.1 5.4 3.1 7 4.3 8.1 6 8.1Z" />
-        </>
+        <path d="m3.2 8.2 3 3.1 6.7-7" />
       ) : (
-        <path d="M3.4 3.6 8.6 3.6" />
+        <path d="m4.2 4.2 7.6 7.6m0-7.6-7.6 7.6" />
       )}
-    </motion.svg>
+    </svg>
   );
 }
 
@@ -474,20 +406,20 @@ function Field({
   multiline?: boolean;
 }) {
   const shared =
-    "w-full rounded-xl border border-[#dce7de] bg-white/70 px-3.5 py-2.5 text-[15px] text-[#243a2d] " +
-    "placeholder:text-[#a9bdae] outline-none transition-all duration-300 " +
-    "focus:border-[#7fa189] focus:bg-white focus:shadow-[0_0_0_3px_rgba(127,161,137,0.16)]";
+    "min-h-[52px] w-full rounded-2xl border border-[#d9d4cb] bg-[#fbfaf7] px-4 py-3 text-[15px] text-[#2d332d] " +
+    "placeholder:text-[#aaa59b] outline-none transition-all duration-300 " +
+    "focus:border-[#6d8373] focus:bg-white focus:shadow-[0_0_0_3px_rgba(109,131,115,0.13)]";
 
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[15px] text-[#7d9585]">{label}</span>
+      <span className="mb-2 block text-[15px] font-medium text-[#66645d]">{label}</span>
       {multiline ? (
         <textarea
-          rows={2}
+          rows={3}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={`${shared} resize-none`}
-          placeholder="Optional, and very much read"
+          placeholder="Optional"
         />
       ) : (
         <input
@@ -520,28 +452,30 @@ function Thanks({
       initial={reduce ? false : { opacity: 0, y: 22 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-[28px] border border-[#c5d7c9] bg-[#fbfcfa]/92 px-6 py-12 text-center shadow-[0_30px_80px_-40px_rgba(31,58,45,0.55)] backdrop-blur-xl sm:px-10"
+      className="rounded-[28px] border border-[#d8d4cb] bg-white/78 px-6 py-12 text-center shadow-[0_30px_80px_-48px_rgba(43,45,39,0.5)] sm:px-10 sm:py-16"
     >
       <motion.span
         initial={reduce ? false : { scale: 0.6, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.15 }}
-        className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#2f5340] text-[#f4f8f4]"
+        className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#294436] text-white"
       >
         <CheckIcon size={24} />
       </motion.span>
 
       <Ornament />
 
-      <h2 className="font-script text-[46px] leading-[1.05] text-[#243a2d] sm:text-[58px]">
+      <h2 className="font-script text-[50px] leading-[1.05] text-[#2d332d] sm:text-[64px]">
         {coming > 0 ? "We can't wait" : "Thank you for telling us"}
       </h2>
 
-      <p className="mx-auto mt-4 max-w-[21rem] text-[15px] leading-relaxed text-[#5d7d68]">
+      <p className="mx-auto mt-4 max-w-[25rem] text-[16px] leading-relaxed text-[#716f68]">
         {coming > 0
-          ? coming === total
-            ? "You're all pencilled in. The invitation, with everything about the week, follows later this year."
-            : `${coming} of you are pencilled in. The invitation follows later this year.`
+          ? total === 1
+            ? "We’re so happy you’ll be there. We’ll be in touch with everything you need for Bali."
+            : coming === total
+              ? "We’re so happy you can all be there. We’ll be in touch with everything you need for Bali."
+              : `${coming} of you are joining us. We’ll be in touch with everything you need for Bali.`
           : "We're so sorry you can't be with us — you'll be missed more than you know."}
       </p>
 
@@ -549,7 +483,7 @@ function Thanks({
         initial={reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1.4, delay: 0.6 }}
-        className="mt-8 font-script text-[30px] text-[#3f6b4f]"
+        className="mt-8 font-script text-[32px] text-[#455e4c]"
       >
         {partnerA} <span className="text-[#c98d72]">&</span> {partnerB}
       </motion.p>
@@ -557,28 +491,11 @@ function Thanks({
       <button
         type="button"
         onClick={onChange}
-        className="mt-8 text-[15px] text-[#8fa697] underline-offset-4 transition-colors hover:text-[#243a2d] hover:underline"
+        className="mt-8 text-[15px] text-[#817d75] underline-offset-4 transition-colors hover:text-[#2d332d] hover:underline"
       >
         Change something
       </button>
     </motion.div>
-  );
-}
-
-/** Shown when the artwork file hasn't been added, so the page still stands up. */
-function Placeholder({ partnerA, partnerB }: { partnerA: string; partnerB: string }) {
-  return (
-    <div className="flex h-full w-full max-w-[560px] flex-col items-center justify-center px-8 text-center">
-      <p className="text-[15px] uppercase tracking-[0.18em] text-[#7d9585]">
-        Save the date for the wedding of
-      </p>
-      <p className="mt-4 font-script text-[52px] leading-tight text-[#3f6b4f]">
-        {partnerA} <span className="text-[#c98d72]">&</span> {partnerB}
-      </p>
-      <p className="mt-4 text-[15px] uppercase tracking-[0.14em] text-[#5d7d68]">
-        Bali, Indonesia · 16–19 June 2027
-      </p>
-    </div>
   );
 }
 
@@ -601,6 +518,7 @@ function Music({ src }: { src: string }) {
       const fade = setInterval(() => {
         if (audio.volume > 0.06) audio.volume -= 0.06;
         else {
+          audio.volume = 0;
           audio.pause();
           clearInterval(fade);
         }
@@ -618,7 +536,7 @@ function Music({ src }: { src: string }) {
     }
     setPlaying(true);
     const fade = setInterval(() => {
-      if (audio.volume < 0.32) audio.volume += 0.035;
+      if (audio.volume < 0.32) audio.volume = Math.min(0.32, audio.volume + 0.035);
       else clearInterval(fade);
     }, 90);
   }
@@ -629,30 +547,36 @@ function Music({ src }: { src: string }) {
       <button
         type="button"
         onClick={toggle}
+        aria-pressed={playing}
         aria-label={playing ? "Turn the music off" : "Play music"}
-        className="fixed right-4 top-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-[#c5d7c9] bg-white/85 text-[#3f6b4f] shadow-sm backdrop-blur-md transition-colors hover:bg-white"
+        className="fixed right-4 top-4 z-40 flex min-h-12 items-center gap-2.5 rounded-full border border-white/25 bg-[#191b18]/68 px-4 text-[15px] font-medium text-white shadow-[0_12px_35px_-18px_rgba(0,0,0,0.8)] backdrop-blur-xl transition-colors hover:bg-[#191b18]/82 sm:right-6 sm:top-6"
       >
-        {playing ? (
-          <span className="flex items-end gap-[2px]" aria-hidden>
-            {[0, 1, 2].map((bar) => (
-              <motion.span
-                key={bar}
-                animate={{ height: [5, 13, 7, 11, 5] }}
-                transition={{
-                  duration: 1.4,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: bar * 0.18,
-                }}
-                className="w-[2.5px] rounded-full bg-current"
-              />
-            ))}
-          </span>
-        ) : (
-          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-            <path d="M6 3.4v9.2l6-4.6z" fill="currentColor" />
-          </svg>
-        )}
+        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/25 bg-white/10">
+          {playing ? (
+            <span className="flex items-end gap-[2px]" aria-hidden>
+              {[0, 1, 2].map((bar) => (
+                <motion.span
+                  key={bar}
+                  animate={{ height: [5, 12, 7, 10, 5] }}
+                  transition={{
+                    duration: 1.4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: bar * 0.18,
+                  }}
+                  className="w-[2px] rounded-full bg-current"
+                />
+              ))}
+            </span>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M6.2 11.6V4.8l6-1.4v6.4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="4.4" cy="11.8" r="1.8" fill="currentColor" />
+              <circle cx="10.4" cy="10" r="1.8" fill="currentColor" />
+            </svg>
+          )}
+        </span>
+        <span>{playing ? "Music on" : "Play music"}</span>
       </button>
     </>
   );

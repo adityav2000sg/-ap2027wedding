@@ -113,12 +113,6 @@ export default async function RsvpPage({
   // different deadlines, so they're different pages rather than one page with
   // half its fields hidden.
   if (wedding.invitationStage === "SAVE_THE_DATE") {
-    const artwork = [
-      "/brand/save-the-date.jpg",
-      "/brand/save-the-date.jpeg",
-      "/brand/save-the-date.png",
-      "/brand/save-the-date.webp",
-    ].find((file) => existsSync(path.join(process.cwd(), "public", file)));
     const music = ["/audio/invitation.mp3", "/audio/invitation.m4a"].find((file) =>
       existsSync(path.join(process.cwd(), "public", file)),
     );
@@ -132,9 +126,8 @@ export default async function RsvpPage({
     return (
       <SaveTheDate
         token={token}
-        artwork={artwork ?? null}
+        photo={photo ?? null}
         music={music ?? null}
-        householdName={household.name}
         people={stdPeople}
         phone={contact?.phone ?? ""}
         email={contact?.email ?? ""}
@@ -143,6 +136,9 @@ export default async function RsvpPage({
         rsvpBy="1st October 2026"
         partnerA={wedding.partnerAName}
         partnerB={wedding.partnerBName}
+        date={formatDateRange(wedding.startDate, wedding.endDate)}
+        location={wedding.cities.join(" or ") || "Bali, Indonesia"}
+        days={days}
       />
     );
   }
@@ -210,7 +206,7 @@ export default async function RsvpPage({
           <>
             <div className="mb-8 text-center">
               <h2 className="font-display text-[24px] text-ink">
-                {household.name}
+                Will you join us in Bali?
               </h2>
               <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed text-ink-muted">
                 It would mean a great deal to have you there for the whole week.
@@ -233,9 +229,6 @@ export default async function RsvpPage({
           </p>
         )}
 
-        <p className="mt-10 text-center text-[11.5px] text-ink-faint">
-          This link is just for {household.name}. Do keep it to yourselves.
-        </p>
       </div>
     </main>
   );
