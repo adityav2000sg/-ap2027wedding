@@ -84,7 +84,7 @@ export function Sheet({
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
 
           {footer ? (
-            <div className="border-t border-line bg-surface-soft px-5 py-3">{footer}</div>
+            <div className="sticky bottom-0 border-t border-line bg-surface-soft/95 px-5 py-3.5 backdrop-blur-sm shadow-[0_-4px_16px_-8px_rgba(26,23,20,0.12)]">{footer}</div>
           ) : null}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

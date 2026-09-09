@@ -171,6 +171,10 @@ export interface GuestNode {
   needsAccommodation: boolean;
   saveTheDateSentAt: Date | null;
   invitationSentAt: Date | null;
+  /// Which list they're on: A goes out first, B waits for room, C isn't invited.
+  tier: GuestTier;
+  /// How likely they are to come, 1–5, from the original guest list.
+  attendanceScore: number | null;
   needsTransport: boolean;
   notes: string | null;
 }

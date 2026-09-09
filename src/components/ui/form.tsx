@@ -13,17 +13,28 @@ import * as SwitchPrimitive from "@radix-ui/react-switch";
 
 import { cn } from "@/lib/cn";
 
+/**
+ * Fields are wells you write into, not outlines you tick.
+ *
+ * The old version was a hairline rectangle on the page background, which read
+ * as disposable — a sticky note rather than a record. These sit slightly
+ * recessed, take a real focus ring, and lift onto the surface colour when you're
+ * in them, so typing into one feels like committing something.
+ */
 const FIELD_BASE =
-  "w-full rounded-lg border border-line bg-surface px-3 text-[13.5px] text-ink " +
-  "placeholder:text-ink-faint transition-colors duration-300 transition-natural " +
-  "hover:border-line-strong focus:border-saffron focus:outline-none " +
-  "focus:ring-2 focus:ring-saffron/20 disabled:opacity-50 disabled:bg-surface-sunken";
+  "w-full rounded-xl border border-line bg-surface-sunken/60 px-3.5 text-[14px] text-ink " +
+  "shadow-[inset_0_1px_2px_rgba(26,23,20,0.04)] " +
+  "placeholder:text-ink-faint transition-all duration-300 transition-natural " +
+  "hover:border-line-strong hover:bg-surface-sunken " +
+  "focus:border-saffron focus:bg-surface focus:outline-none " +
+  "focus:shadow-[0_0_0_3px_var(--color-saffron-soft),inset_0_1px_2px_rgba(26,23,20,0.03)] " +
+  "disabled:opacity-50 disabled:bg-surface-sunken disabled:shadow-none";
 
 export const Input = React.forwardRef<
   HTMLInputElement,
   React.InputHTMLAttributes<HTMLInputElement>
 >(({ className, ...props }, ref) => (
-  <input ref={ref} className={cn(FIELD_BASE, "h-9", className)} {...props} />
+  <input ref={ref} className={cn(FIELD_BASE, "h-10", className)} {...props} />
 ));
 Input.displayName = "Input";
 
@@ -33,7 +44,7 @@ export const Textarea = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <textarea
     ref={ref}
-    className={cn(FIELD_BASE, "min-h-[76px] resize-y py-2 leading-relaxed", className)}
+    className={cn(FIELD_BASE, "min-h-[84px] resize-y py-2.5 leading-relaxed", className)}
     {...props}
   />
 ));
@@ -80,10 +91,12 @@ export function FormField({
   htmlFor?: string;
 }) {
   return (
-    <div className={cn("space-y-1.5", className)}>
+    // The label tracks focus, so the field you're in is unmistakable even in a
+    // long form.
+    <div className={cn("group space-y-1.5", className)}>
       <label
         htmlFor={htmlFor}
-        className="flex items-baseline gap-1 text-[12.5px] font-medium text-ink-soft"
+        className="flex items-baseline gap-1 text-[12.5px] font-medium text-ink-soft transition-colors duration-300 group-focus-within:text-saffron"
       >
         {label}
         {required ? <span className="text-critical">*</span> : null}

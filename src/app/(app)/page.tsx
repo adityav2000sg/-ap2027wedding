@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { buildBudgetView } from "@/domain/budget";
 import { computeEventReadiness, computeWeddingReadiness } from "@/domain/readiness";
+import { attendanceForecast } from "@/domain/guests";
 import { computeAlerts } from "@/domain/risk";
 import { analyseTasks, dueWithin, nextBestActions } from "@/domain/tasks";
 import { evaluateMilestones, nextMilestone } from "@/domain/milestones";
@@ -83,6 +84,7 @@ export default async function HomePage() {
 
   const actions = nextBestActions(tasks, 5).map((t) => toTaskRow(t, lookup));
   const milestone = nextMilestone({ snapshot, tasks, budget });
+  const attendance = attendanceForecast(snapshot);
   const allMilestones = evaluateMilestones({ snapshot, tasks, budget });
   const achieved = allMilestones.filter((m) => m.isMet);
 
@@ -329,9 +331,20 @@ export default async function HomePage() {
                   : []),
                 {
                   key: "guests",
-                  value: counts.invited || snapshot.wedding.estimatedGuests,
+                  // Tier A, weighted. Not the invited count — sizing catering
+                  // from "everyone we asked" is how you cook for forty people
+                  // who were never coming. And not A+B either: tier B only goes
+                  // out if tier A leaves room, so counting them now would be
+                  // planning for a decision nobody has made.
+                  value: attendance.expectedTierA,
                   label: "Expected guests",
-                  detail: `${counts.confirmed} confirmed, ${counts.pending} awaiting a reply`,
+                  detail:
+                    attendance.confirmed > 0
+                      ? `${attendance.confirmed} confirmed · ${attendance.tierA} on the first-wave list`
+                      : `${attendance.tierA} on the first-wave list, weighted by how likely each is to come` +
+                        (attendance.invited > attendance.tierA
+                          ? ` · ${attendance.invited - attendance.tierA} more held on tier B`
+                          : ""),
                   href: "/guests",
                 },
                 {

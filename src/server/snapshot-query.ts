@@ -207,6 +207,8 @@ export async function fetchSnapshot(
         needsAccommodation: g.needsAccommodation,
         saveTheDateSentAt: g.saveTheDateSentAt,
         invitationSentAt: g.invitationSentAt,
+        tier: g.tier,
+        attendanceScore: g.attendanceScore,
         needsTransport: g.needsTransport,
         notes: g.notes,
       })),

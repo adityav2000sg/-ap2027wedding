@@ -339,6 +339,14 @@ model Guest {
   /// household roll-up — most invitations here go to a phone, not a letterbox.
   saveTheDateSentAt  DateTime?
   invitationSentAt   DateTime?
+  /// Which list this person is on. Held per guest rather than per household
+  /// because four households genuinely span two tiers — an aunt on the core
+  /// list, her adult children considered and not invited.
+  tier               GuestTier @default(A)
+  /// How likely they are to actually come, 1–5, as scored on the original
+  /// guest list. Drives expected attendance, which is the number catering and
+  /// the room block should be sized from — not the number invited.
+  attendanceScore    Int?
   notes              String?
   archivedAt         DateTime?
   createdAt          DateTime          @default(now())

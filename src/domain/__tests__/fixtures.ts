@@ -50,6 +50,8 @@ export function makeGuest(id: string, overrides: Partial<GuestNode> = {}): Guest
     relationship: null,
     saveTheDateSentAt: null,
     invitationSentAt: null,
+    tier: "A" as const,
+    attendanceScore: 5,
     phone: null,
     email: null,
     city: "New Delhi",

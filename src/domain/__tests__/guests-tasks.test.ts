@@ -4,6 +4,7 @@ import {
   computeEventGuestCounts,
   computeGuestCounts,
   roomsRequired,
+  attendanceForecast,
 } from "../guests";
 import { analyseTasks, wouldCreateCycle } from "../tasks";
 import {
@@ -211,5 +212,77 @@ describe("prioritisation", () => {
     const blocked = analyseTasks(blockedSnapshot).find((t) => t.id === "b")!;
 
     expect(blocked.leverage).toBeLessThan(unblocked.leverage);
+  });
+});
+
+describe("attendance forecast", () => {
+  it("weights by how likely each guest is, rather than counting invitations", () => {
+    const snapshot = makeSnapshot({
+      guests: [
+        makeGuest("g1", { tier: "A", attendanceScore: 5 }), // certain
+        makeGuest("g2", { tier: "A", attendanceScore: 3 }), // 0.75
+        makeGuest("g3", { tier: "A", attendanceScore: 2 }), // 0.25
+      ],
+    });
+
+    const forecast = attendanceForecast(snapshot);
+    expect(forecast.invited).toBe(3);
+    expect(forecast.expected).toBe(2); // 1 + 0.75 + 0.25
+  });
+
+  it("leaves tier C out — they were considered and not invited", () => {
+    const snapshot = makeSnapshot({
+      guests: [
+        makeGuest("g1", { tier: "A", attendanceScore: 5 }),
+        makeGuest("g2", { tier: "C", attendanceScore: 5 }),
+      ],
+    });
+
+    const forecast = attendanceForecast(snapshot);
+    expect(forecast.invited).toBe(1);
+    expect(forecast.expected).toBe(1);
+  });
+
+  it("counts tier A separately, for deciding whether to send tier B at all", () => {
+    const snapshot = makeSnapshot({
+      guests: [
+        makeGuest("g1", { tier: "A", attendanceScore: 5 }),
+        makeGuest("g2", { tier: "B", attendanceScore: 5 }),
+      ],
+    });
+
+    const forecast = attendanceForecast(snapshot);
+    expect(forecast.tierA).toBe(1);
+    expect(forecast.expectedTierA).toBe(1);
+    expect(forecast.expected).toBe(2);
+  });
+
+  it("lets a real answer override the estimate", () => {
+    const base = makeSnapshot({
+      guests: [
+        makeGuest("g1", { tier: "A", attendanceScore: 2 }), // 0.25 estimated
+        makeGuest("g2", { tier: "A", attendanceScore: 5 }), // certain
+      ],
+    });
+    const snapshot = {
+      ...base,
+      invitations: [
+        // The unlikely one has said yes; the certain one has declined.
+        { id: "i1", guestId: "g1", eventId: "e1", status: "CONFIRMED" as const, respondedAt: null },
+        { id: "i2", guestId: "g2", eventId: "e1", status: "DECLINED" as const, respondedAt: null },
+      ],
+    };
+
+    const forecast = attendanceForecast(snapshot);
+    expect(forecast.expected).toBe(1);
+    expect(forecast.confirmed).toBe(1);
+    expect(forecast.stillEstimated).toBe(0);
+  });
+
+  it("treats an unscored guest as certain, erring high rather than low", () => {
+    const snapshot = makeSnapshot({
+      guests: [makeGuest("g1", { tier: "A", attendanceScore: null })],
+    });
+    expect(attendanceForecast(snapshot).expected).toBe(1);
   });
 });

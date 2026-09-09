@@ -352,3 +352,75 @@ export function roomsNeedingReview(snapshot: WeddingSnapshot): RoomShare[] {
     .filter((room) => room.overCapacity || room.mixedHouseholds)
     .sort((a, b) => Number(a.roomNumber) - Number(b.roomNumber) || a.roomNumber.localeCompare(b.roomNumber));
 }
+
+/**
+ * How many people will actually turn up.
+ *
+ * The invited count and the expected count are different numbers, and it is the
+ * second one that catering, the room block and every per-guest cost should be
+ * sized from. The original guest list scored each person 1–5 for how likely they
+ * were to come; this is the sum of those probabilities.
+ *
+ * Anybody without a score counts as certain. That errs high, which is the safe
+ * direction — cooking for people who don't arrive is a smaller problem than the
+ * reverse.
+ */
+const ATTENDANCE_PROBABILITY: Record<number, number> = {
+  1: 0.1,
+  2: 0.25,
+  3: 0.75,
+  4: 0.95,
+  5: 1,
+};
+
+export interface AttendanceForecast {
+  /** On tier A or B — the people who will be asked. */
+  invited: number;
+  /** Tier A alone: the first wave. */
+  tierA: number;
+  /** Weighted by how likely each of them is to come. */
+  expected: number;
+  /** Tier A only, weighted — what to plan for if B is never sent. */
+  expectedTierA: number;
+  /** Confirmed yes so far, which overrides the estimate as replies arrive. */
+  confirmed: number;
+  /** How much of the estimate is still guesswork rather than an answer. */
+  stillEstimated: number;
+}
+
+export function attendanceForecast(snapshot: WeddingSnapshot): AttendanceForecast {
+  const probability = (guest: { attendanceScore: number | null }) =>
+    ATTENDANCE_PROBABILITY[guest.attendanceScore ?? 5] ?? 1;
+
+  // The snapshot only carries active guests, so no filtering is needed here.
+  const active = snapshot.guests;
+  const invited = active.filter((g) => g.tier === "A" || g.tier === "B");
+  const tierA = active.filter((g) => g.tier === "A");
+
+  // A reply beats an estimate. Once somebody has said yes or no, their
+  // probability is 1 or 0 and no longer a guess.
+  const answered = new Map<string, boolean>();
+  for (const invitation of snapshot.invitations) {
+    if (invitation.status === "CONFIRMED") answered.set(invitation.guestId, true);
+    else if (invitation.status === "DECLINED") answered.set(invitation.guestId, false);
+  }
+
+  const weigh = (list: typeof active) =>
+    list.reduce((sum, guest) => {
+      const reply = answered.get(guest.id);
+      if (reply === true) return sum + 1;
+      if (reply === false) return sum;
+      return sum + probability(guest);
+    }, 0);
+
+  const confirmed = invited.filter((g) => answered.get(g.id) === true).length;
+
+  return {
+    invited: invited.length,
+    tierA: tierA.length,
+    expected: Math.round(weigh(invited)),
+    expectedTierA: Math.round(weigh(tierA)),
+    confirmed,
+    stillEstimated: invited.filter((g) => !answered.has(g.id)).length,
+  };
+}
