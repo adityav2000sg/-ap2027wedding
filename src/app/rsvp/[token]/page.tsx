@@ -21,6 +21,7 @@ import type { Metadata } from "next";
 import { formatDateRange, daysBetween } from "@/lib/dates";
 import { db } from "@/server/db";
 import { RsvpForm, type RsvpPerson } from "./rsvp-form";
+import { SaveTheDate, type StdPerson } from "./save-the-date";
 
 // The reply must reflect what was just submitted, never a cached copy.
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ async function loadHousehold(token: string) {
       name: true,
       rsvpMessage: true,
       rsvpSubmittedAt: true,
+      stdRepliedAt: true,
       guests: {
         where: { archivedAt: null },
         orderBy: { createdAt: "asc" },
@@ -52,6 +54,7 @@ async function loadHousehold(token: string) {
           accessibilityNeeds: true,
           needsAccommodation: true,
           needsTransport: true,
+          stdResponse: true,
           invitations: { select: { status: true }, take: 1 },
         },
       },
@@ -64,6 +67,7 @@ async function loadHousehold(token: string) {
           weddingType: true,
           cities: true,
           rsvpEnabled: true,
+          invitationStage: true,
         },
       },
     },
@@ -104,6 +108,39 @@ export default async function RsvpPage({
   });
 
   const contact = household.guests.find((g) => g.phone || g.email);
+
+  // Whichever mailing is currently out. They ask different questions to
+  // different deadlines, so they're different pages rather than one page with
+  // half its fields hidden.
+  if (wedding.invitationStage === "SAVE_THE_DATE") {
+    const artwork = ["/brand/save-the-date.jpg", "/brand/save-the-date.png"].find((file) =>
+      existsSync(path.join(process.cwd(), "public", file)),
+    );
+    const music = ["/audio/invitation.mp3", "/audio/invitation.m4a"].find((file) =>
+      existsSync(path.join(process.cwd(), "public", file)),
+    );
+
+    const stdPeople: StdPerson[] = household.guests.map((guest) => ({
+      guestId: guest.id,
+      name: `${guest.firstName} ${guest.lastName}`.trim(),
+      response: guest.stdResponse,
+    }));
+
+    return (
+      <SaveTheDate
+        token={token}
+        artwork={artwork ?? null}
+        music={music ?? null}
+        householdName={household.name}
+        people={stdPeople}
+        phone={contact?.phone ?? ""}
+        email={contact?.email ?? ""}
+        message={household.rsvpMessage ?? ""}
+        alreadyReplied={household.stdRepliedAt !== null}
+        rsvpBy="1st October 2026"
+      />
+    );
+  }
 
   return (
     <main className="min-h-dvh bg-canvas">

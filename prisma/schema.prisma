@@ -103,6 +103,8 @@ model Wedding {
   /// invitations still exist underneath — catering and capacity are computed
   /// from them — they just all move together.
   singleRsvp      Boolean   @default(true)
+  /// Which mailing the public link is currently serving.
+  invitationStage InvitationStage @default(SAVE_THE_DATE)
   /// Ritual/tradition keys the family actually observes — drives task relevance.
   traditions      String[]  @default([])
   guestsPerRoom   Int       @default(2)
@@ -298,6 +300,8 @@ model Household {
   rsvpSentAt            DateTime?
   rsvpReply             RsvpReply        @default(AWAITING)
   rsvpRepliedAt         DateTime?
+  /// When they answered the save-the-date, as distinct from the invitation.
+  stdRepliedAt          DateTime?
   tier                  GuestTier        @default(A)
   giftReceived          Boolean          @default(false)
   giftNote              String?
@@ -343,6 +347,9 @@ model Guest {
   /// because four households genuinely span two tiers — an aunt on the core
   /// list, her adult children considered and not invited.
   tier               GuestTier @default(A)
+  /// Their answer to the save-the-date, kept apart from the RSVP proper so a
+  /// year-out maybe is never mistaken for a confirmed seat.
+  stdResponse        SaveTheDateResponse?
   /// How likely they are to actually come, 1–5, as scored on the original
   /// guest list. Drives expected attendance, which is the number catering and
   /// the room block should be sized from — not the number invited.
@@ -1416,6 +1423,29 @@ model Responsibility {
 
   @@index([weddingId])
   @@map("responsibilities")
+}
+
+/// Which of the two mailings is currently out.
+///
+/// A save-the-date asks one question — can you come, roughly — and goes out a
+/// year ahead. The invitation proper follows at the end of the year with the
+/// artwork for each function and the detail a caterer needs. They are different
+/// documents to different deadlines, so the app says which one is live rather
+/// than making one page pretend to be both.
+enum InvitationStage {
+  SAVE_THE_DATE
+  INVITATION
+}
+
+/// What somebody said to the save-the-date.
+///
+/// "Not sure yet" is a real answer at this stage and worth keeping: a year out,
+/// a maybe from someone flying in is more honest than a yes, and it's better
+/// information than the guess on the original list.
+enum SaveTheDateResponse {
+  YES
+  NO
+  MAYBE
 }
 
 enum ActivitySource {

@@ -37,7 +37,8 @@ const DIETS = [
 
 const personSchema = z.object({
   guestId: z.string().min(1),
-  coming: z.enum(["YES", "NO"]),
+  // MAYBE only means anything at save-the-date stage.
+  coming: z.enum(["YES", "NO", "MAYBE"]),
   dietary: z.enum(DIETS).optional(),
   allergies: z.string().trim().max(280).optional(),
   accessibilityNeeds: z.string().trim().max(280).optional(),
@@ -70,7 +71,7 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
       id: true,
       weddingId: true,
       guests: { where: { archivedAt: null }, select: { id: true } },
-      wedding: { select: { rsvpEnabled: true } },
+      wedding: { select: { rsvpEnabled: true, invitationStage: true } },
     },
   });
 
@@ -95,6 +96,7 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
 
   const now = new Date();
   const comingCount = people.filter((p) => p.coming === "YES").length;
+  const isSaveTheDate = household.wedding.invitationStage === "SAVE_THE_DATE";
 
   await db.$transaction(async (tx) => {
     for (const person of people) {
@@ -116,6 +118,17 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
             : {}),
         },
       });
+
+      if (isSaveTheDate) {
+        // A save-the-date is an intention, not an acceptance. It's recorded on
+        // the guest and deliberately does not touch the per-event invitations,
+        // which stay pending until the real invitation goes out.
+        await tx.guest.update({
+          where: { id: person.guestId },
+          data: { stdResponse: person.coming },
+        });
+        continue;
+      }
 
       // One answer covers the week — this is a resort wedding, and asking seven
       // times on a form somebody's grandmother is filling in is unkind.
@@ -144,11 +157,18 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
     await tx.household.update({
       where: { id: household.id },
       data: {
-        // Anybody coming makes it a yes for the household; a household is only
-        // a no when nobody from it is coming.
-        rsvpReply: comingCount > 0 ? "YES" : "NO",
-        rsvpRepliedAt: now,
-        rsvpSubmittedAt: now,
+        ...(isSaveTheDate
+          ? // The household's RSVP stays untouched — nobody has been formally
+            // invited yet, and marking them "coming" a year out would inflate
+            // every headcount in the app.
+            { stdRepliedAt: now }
+          : {
+              // Anybody coming makes it a yes for the household; a household is
+              // only a no when nobody from it is coming.
+              rsvpReply: comingCount > 0 ? "YES" : "NO",
+              rsvpRepliedAt: now,
+              rsvpSubmittedAt: now,
+            }),
         rsvpMessage: data.message || null,
       },
     });
@@ -160,9 +180,10 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
         entityType: "household",
         entityId: household.id,
         entityLabel: null,
-        action: "rsvp_updated",
-        summary:
-          comingCount > 0
+        action: isSaveTheDate ? "std_replied" : "rsvp_updated",
+        summary: isSaveTheDate
+          ? `Answered the save-the-date: ${comingCount} of ${people.length} hoping to come.`
+          : comingCount > 0
             ? `${comingCount} of ${people.length} replied yes.`
             : `Replied no.`,
       },
