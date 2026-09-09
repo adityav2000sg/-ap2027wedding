@@ -226,7 +226,11 @@ export function SaveTheDate({
             </p>
             <span aria-hidden className="h-px w-8 bg-[#cf8a68]" />
           </div>
-          <h1 className="whitespace-nowrap font-invite-script text-[clamp(30px,9vw,40px)] leading-[1.12] text-white drop-shadow-[0_3px_22px_rgba(0,0,0,0.38)] sm:text-[56px] md:text-[70px] lg:text-[84px]">
+          {/* Halimun draws this name at 14.5em wide, so a fixed size that fits a
+              laptop runs off a desktop — which is exactly what it did. One fluid
+              size, capped where the line still fits the 1120px column, and free
+              to wrap onto two lines on a phone rather than overflow. */}
+          <h1 className="font-invite-script text-[clamp(34px,5.9vw,68px)] leading-[1.12] text-white drop-shadow-[0_3px_22px_rgba(0,0,0,0.38)] sm:whitespace-nowrap">
             {partnerA}
             <span className="mx-1.5 text-[#e0a084] sm:mx-3 lg:mx-5">&</span>
             {partnerB}

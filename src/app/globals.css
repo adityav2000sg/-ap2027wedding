@@ -367,7 +367,9 @@
 
   .font-invite {
     font-family: "Quicksand Invite", ui-sans-serif, system-ui, sans-serif;
-    letter-spacing: 0.01em;
+    /* Quicksand is drawn wide and open; at the sizes this page uses it reads
+       loose. Pulled in a hair so the form sets tightly. */
+    letter-spacing: -0.012em;
   }
 
   .surface {
