@@ -282,7 +282,7 @@ export function SaveTheDate({
                   <p className="text-[13.5px] font-medium uppercase tracking-[0.18em] text-[#6d8f7f]">
                     Your reply
                   </p>
-                  <h2 className="mt-3 font-invite text-[28px] font-bold leading-[1.08] tracking-[-0.035em] text-[#cf8a68] sm:text-[42px]">
+                  <h2 className="mt-3 font-invite text-[28px] font-bold leading-[1.08] tracking-[-0.03em] text-[#cf8a68] sm:text-[42px]">
                     <span className="block sm:inline">Will you join us</span>{" "}
                     <span className="block sm:inline">in Bali?</span>
                   </h2>
@@ -583,10 +583,8 @@ function Answer({
       whileTap={reduce ? undefined : { scale: 0.96 }}
       transition={{ type: "spring", stiffness: 480, damping: 26 }}
       className={cn(
-        "flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3",
-        // "Can't make it" wrapped onto two lines once the buttons moved to
-        // Quicksand, which sets wider than the face before it.
-        "whitespace-nowrap text-[13.5px] font-medium leading-tight transition-all duration-300",
+        "flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4",
+        "whitespace-nowrap text-[14px] font-medium leading-tight transition-all duration-300",
         selected && tone === "yes" &&
           "border-[#294436] bg-[#294436] text-white shadow-[0_10px_24px_-14px_rgba(41,68,54,0.9)]",
         selected && tone === "no" &&
@@ -705,7 +703,7 @@ function Thanks({
 
       <Ornament />
 
-      <h2 className="font-invite text-[28px] font-bold leading-[1.08] tracking-[-0.035em] text-[#cf8a68] sm:text-[42px]">
+      <h2 className="font-invite text-[28px] font-bold leading-[1.08] tracking-[-0.03em] text-[#cf8a68] sm:text-[42px]">
         {celebrating ? "We can't wait" : "We'll miss you"}
       </h2>
 
