@@ -169,6 +169,8 @@ export interface GuestNode {
   allergies: string | null;
   accessibilityNeeds: string | null;
   needsAccommodation: boolean;
+  /// Private invitation link for guests who reply separately from their group.
+  rsvpToken: string | null;
   saveTheDateSentAt: Date | null;
   invitationSentAt: Date | null;
   /// Which list they're on: A goes out first, B waits for room, C isn't invited.

@@ -320,7 +320,7 @@ export function VendorComposer({
                   "min-h-[36px] rounded-full border px-3 text-[12.5px] transition-colors",
                   on
                     ? "border-saffron/40 bg-saffron-soft text-saffron"
-                    : "border-line text-ink-muted hover:border-line-strong hover:text-ink",
+                    : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
                 )}
               >
                 {event.name}

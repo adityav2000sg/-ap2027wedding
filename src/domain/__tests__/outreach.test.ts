@@ -132,6 +132,24 @@ describe("outreach", () => {
     expect(b.stdSent).toBe(0);
   });
 
+  it("counts a mixed household's people under their own wave", () => {
+    const snapshot = snapshotWith([{ tier: "A" }, { tier: "A" }]);
+    // Bo is held back, in a family that is going out in the first wave.
+    snapshot.guests[1] = { ...snapshot.guests[1], tier: "B" };
+
+    const tiers = outreachByTier(snapshot);
+    const a = tiers.find((t) => t.tier === "A")!;
+    const b = tiers.find((t) => t.tier === "B")!;
+
+    // Two people are actually being sent to, not three.
+    expect(a.people).toBe(2);
+    expect(b.people).toBe(1);
+    // The envelope still goes out with the first wave — you don't post half of
+    // one — so the household is counted there and nowhere else.
+    expect(a.households).toBe(2);
+    expect(b.households).toBe(0);
+  });
+
   it("reports empty tiers as absent rather than as zeroes", () => {
     const tiers = outreachByTier(snapshotWith([{ tier: "A" }, { tier: "A" }]));
     expect(tiers.map((t) => t.tier)).toEqual(["A"]);

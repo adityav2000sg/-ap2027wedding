@@ -228,7 +228,7 @@ export function Responsibilities({
                       type="button"
                       onClick={() => setConfirmingDelete(row.id)}
                       aria-label={`Remove ${row.title}`}
-                      className="shrink-0 rounded-lg p-1.5 text-ink-faint transition-colors hover:bg-surface-sunken hover:text-critical"
+                      className="shrink-0 rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-surface-sunken hover:text-critical"
                     >
                       <TrashIcon size={13} />
                     </button>

@@ -226,7 +226,7 @@ function FilterLink({
         "rounded-lg border px-2.5 py-1 text-[12.5px] transition-colors",
         active
           ? "border-saffron/30 bg-saffron-soft text-saffron"
-          : "border-line text-ink-muted hover:border-line-strong hover:text-ink",
+          : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
       )}
     >
       {children}

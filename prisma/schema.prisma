@@ -339,6 +339,13 @@ model Guest {
   accessibilityNeeds String?
   needsAccommodation Boolean           @default(false)
   needsTransport     Boolean           @default(false)
+  /// Present only when this person must receive a private link rather than the
+  /// link shared by their household/accommodation group.
+  rsvpToken          String?           @unique
+  /// Personal-link replies keep their note and timestamp on the guest so one
+  /// partner never overwrites the other's response.
+  rsvpMessage        String?
+  rsvpSubmittedAt    DateTime?
   /// Set when this person specifically was sent one, independent of the
   /// household roll-up — most invitations here go to a phone, not a letterbox.
   saveTheDateSentAt  DateTime?

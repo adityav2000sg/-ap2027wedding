@@ -5,13 +5,13 @@ import {
   roomsContracted,
   roomsRequired,
 } from "@/domain/guests";
-import { formatDateTime, formatMediumDate } from "@/lib/dates";
 import { cn } from "@/lib/cn";
-import { Badge, EmptyState } from "@/components/ui/primitives";
 import { BedIcon, PlaneIcon, RouteIcon } from "@/components/ui/icons";
 import { ExportMenu } from "@/components/wedding/export-menu";
 import { Responsibilities } from "./responsibilities";
 import { RoomBoard } from "./room-board";
+import { TransportBoard } from "./transport-board";
+import { TravelBoard } from "./travel-board";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import { LogisticsTabs } from "./tabs";
@@ -88,19 +88,6 @@ export default async function LogisticsPage({
 
   const unownedResponsibilities = snapshot.responsibilities.filter((r) => !r.ownerId);
 
-  // Group stays by room number so the rooming list reads like a rooming list.
-  const byRoom = new Map<string, { guests: string[]; hotel: string }>();
-  for (const stay of snapshot.stays) {
-    const key = stay.roomNumber ?? stay.id;
-    const hotel = snapshot.hotels.find((h) => h.id === stay.hotelId)?.name ?? "";
-    const entry = byRoom.get(key) ?? { guests: [], hotel };
-    entry.guests.push(guestById.get(stay.guestId) ?? "Unknown");
-    byRoom.set(key, entry);
-  }
-  const rooms = [...byRoom.entries()].sort(
-    (a, b) => Number(a[0]) - Number(b[0]) || a[0].localeCompare(b[0]),
-  );
-
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-8 sm:py-8">
       <header className="mb-7">
@@ -172,93 +159,65 @@ export default async function LogisticsPage({
           />
         }
         travel={
-          snapshot.travel.length === 0 ? (
-            <EmptyState
-              title="No travel details yet"
-              description="Collect flight and arrival details from out-of-town guests, then assign airport pickups. Eleven guests have already flagged date conflicts — see their notes on the Guests page."
-            />
-          ) : (
-            <ul>
-              {snapshot.travel
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
-                )
-                .map((record) => (
-                  <li
-                    key={record.id}
-                    className="flex items-center gap-4 border-b border-line py-2.5"
-                  >
-                    <span className="w-[70px] shrink-0 text-[11.5px] text-ink-muted">
-                      {record.direction === "ARRIVAL" ? "Arriving" : "Leaving"}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] text-ink">
-                        {guestById.get(record.guestId) ?? "Unknown guest"}
-                      </span>
-                      <span className="block text-[11.5px] text-ink-muted">
-                        {[record.carrier, record.serviceNumber, record.hub]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </span>
-                    <span className="tabular shrink-0 text-[12px] text-ink-soft">
-                      {formatDateTime(new Date(record.scheduledAt))}
-                    </span>
-                    {record.pickupRequired ? (
-                      <Badge
-                        size="xs"
-                        variant={record.journeyId ? "positive" : "attention"}
-                        className="shrink-0"
-                      >
-                        {record.journeyId ? "Pickup set" : "Needs pickup"}
-                      </Badge>
-                    ) : null}
-                  </li>
-                ))}
-            </ul>
-          )
+          <TravelBoard
+            canEdit={viewer.permissions.has("logistics.edit")}
+            rows={snapshot.travel.map((record) => ({
+              id: record.id,
+              guestId: record.guestId,
+              guestName: guestById.get(record.guestId) ?? "Unknown guest",
+              direction: record.direction,
+              mode: record.mode,
+              carrier: record.carrier,
+              serviceNumber: record.serviceNumber,
+              hub: record.hub,
+              scheduledAt: new Date(record.scheduledAt).toISOString(),
+              pickupRequired: record.pickupRequired,
+              journeyId: record.journeyId,
+            }))}
+            guests={snapshot.guests
+              .map((guest) => ({
+                id: guest.id,
+                name: `${guest.firstName} ${guest.lastName}`.trim(),
+              }))
+              .sort((a, b) => a.name.localeCompare(b.name))}
+            journeys={snapshot.journeys.map((journey) => ({
+              id: journey.id,
+              purpose: journey.purpose,
+              date: new Date(journey.date).toISOString(),
+            }))}
+          />
         }
         transport={
-          snapshot.journeys.length === 0 ? (
-            <EmptyState
-              title="No transport scheduled"
-              description="Airport transfers, shuttles between the hotel and the venue, and the cars for the couple all live here."
-            />
-          ) : (
-            <ul>
-              {snapshot.journeys.map((journey) => {
-                const vehicle = snapshot.vehicles.find((v) => v.id === journey.vehicleId);
-                return (
-                  <li
-                    key={journey.id}
-                    className="flex items-center gap-4 border-b border-line py-3"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13.5px] text-ink">{journey.purpose}</span>
-                      <span className="block text-[11.5px] text-ink-muted">
-                        {formatMediumDate(new Date(journey.date))}
-                        {journey.fromLocation
-                          ? ` · ${journey.fromLocation} → ${journey.toLocation ?? ""}`
-                          : ""}
-                      </span>
-                    </span>
-                    {vehicle ? (
-                      <span className="shrink-0 text-right">
-                        <span className="block text-[12.5px] text-ink">{vehicle.label}</span>
-                        <span className="tabular block text-[11px] text-ink-muted">
-                          {journey.passengerIds.length}/{vehicle.capacity} seats
-                        </span>
-                      </span>
-                    ) : (
-                      <Badge size="xs" variant="attention">No vehicle</Badge>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )
+          <TransportBoard
+            canEdit={viewer.permissions.has("logistics.edit")}
+            journeys={snapshot.journeys.map((journey) => ({
+              id: journey.id,
+              purpose: journey.purpose,
+              date: new Date(journey.date).toISOString(),
+              startMinute: journey.startMinute,
+              endMinute: journey.endMinute,
+              fromLocation: journey.fromLocation,
+              toLocation: journey.toLocation,
+              vehicleId: journey.vehicleId,
+              eventId: journey.eventId,
+              passengerIds: journey.passengerIds,
+            }))}
+            vehicles={snapshot.vehicles.map((vehicle) => ({
+              id: vehicle.id,
+              label: vehicle.label,
+              vehicleType: vehicle.vehicleType,
+              capacity: vehicle.capacity,
+              driverName: vehicle.driverName,
+            }))}
+            guests={snapshot.guests
+              .map((guest) => ({
+                id: guest.id,
+                name: `${guest.firstName} ${guest.lastName}`.trim(),
+              }))
+              .sort((a, b) => a.name.localeCompare(b.name))}
+            events={snapshot.events.map((event) => ({ id: event.id, name: event.name }))}
+            pickupsWaiting={unassignedPickups.length}
+          />
         }
         responsibilities={
           <Responsibilities

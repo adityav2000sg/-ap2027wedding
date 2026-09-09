@@ -80,7 +80,7 @@ export function NotificationBell({
           whileTap={reduce ? undefined : { scale: 0.94 }}
           transition={{ type: "spring", stiffness: 500, damping: 28 }}
           className={cn(
-            "relative flex h-9 w-9 items-center justify-center rounded-xl text-ink-faint transition-colors hover:bg-surface-sunken hover:text-ink-soft",
+            "relative flex h-9 w-9 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink",
             className,
           )}
         >

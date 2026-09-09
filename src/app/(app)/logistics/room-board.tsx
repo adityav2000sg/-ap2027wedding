@@ -268,7 +268,7 @@ export function RoomBoard({
                             <button
                               type="button"
                               onClick={() => setMoving(person.guestId)}
-                              className="shrink-0 rounded-lg px-2 py-1 text-[11.5px] text-ink-faint transition-colors hover:bg-surface-sunken hover:text-ink"
+                              className="shrink-0 rounded-lg border border-line-strong px-2 py-1 text-[11.5px] text-ink-soft transition-colors hover:border-ink-faint hover:bg-surface-sunken hover:text-ink"
                             >
                               Move
                             </button>
@@ -319,6 +319,28 @@ function RoomPicker({
     [rooms],
   );
 
+  /**
+   * Who is already in each room.
+   *
+   * "Room 12 — 2 of 2" tells you there's no space; it doesn't tell you whether
+   * the person you're placing should be in there anyway. Putting somebody with
+   * their own family, or beside the relative they're travelling with, is the
+   * whole job — so the names come with the number.
+   */
+  const occupantNames = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const room of rooms) {
+      const names = room.occupants.map((person) => person.name);
+      map.set(
+        room.number,
+        names.length <= 2
+          ? names.join(", ")
+          : `${names.slice(0, 2).join(", ")} +${names.length - 2}`,
+      );
+    }
+    return map;
+  }, [rooms]);
+
   return (
     <span className="flex shrink-0 items-center gap-1">
       <Select
@@ -332,15 +354,18 @@ function RoomPicker({
         }}
         className="h-8 w-auto min-w-[150px] text-[12px]"
       >
-        <option value="">{current ? `Room ${current}` : "Choose a room…"}</option>
+        <option value="">
+          {current ? `Room ${current} — stay put` : "Choose a room…"}
+        </option>
         {roomNumbers
           .filter((number) => number !== current)
           .map((number) => {
             const taken = occupancy.get(number) ?? 0;
+            const names = occupantNames.get(number);
             return (
               <option key={number} value={number}>
-                Room {number} — {taken === 0 ? "empty" : `${taken} of ${perRoom}`}
-                {taken >= perRoom ? " (full)" : ""}
+                Room {number} — {taken === 0 ? "empty" : names}
+                {taken > 0 ? ` · ${taken} of ${perRoom}${taken >= perRoom ? ", full" : ""}` : ""}
               </option>
             );
           })}

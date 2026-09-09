@@ -17,6 +17,7 @@ import { z } from "zod";
 import { logViewerActivity } from "@/server/activity";
 import { db } from "@/server/db";
 import {
+  civilDate,
   optionalCivilDate,
   optionalId,
   optionalString,
@@ -331,5 +332,292 @@ export async function deleteTravel(id: string) {
     await db.travelRecord.delete({ where: { id } });
     revalidateWedding();
     return { id };
+  });
+}
+
+// ────────────────────────────────────────────────────────────── Transport
+
+/**
+ * Vehicles and journeys.
+ *
+ * The transport tab could show a plan and not make one: journeys came in from
+ * the spreadsheet, and an unassigned airport pickup could be seen but never
+ * acted on. These are the writes for it — a coach, a run, and who is on it.
+ */
+
+const VEHICLE_TYPES = ["Sedan", "SUV", "Van", "Minibus", "Coach", "Boat"] as const;
+
+const vehicleSchema = z.object({
+  label: z.string().trim().min(1, "Give the vehicle a name.").max(120),
+  vehicleType: z.enum(VEHICLE_TYPES).default("Van"),
+  capacity: z.coerce.number().int().min(1, "How many does it seat?").max(200),
+  driverName: optionalString.optional(),
+  driverPhone: optionalString.optional(),
+  notes: optionalString.optional(),
+});
+
+export async function createVehicle(input: unknown) {
+  return withAction("logistics.edit", async (viewer) => {
+    const data = vehicleSchema.parse(input);
+
+    const vehicle = await db.transportVehicle.create({
+      data: {
+        weddingId: viewer.weddingId,
+        label: data.label,
+        vehicleType: data.vehicleType,
+        capacity: data.capacity,
+        driverName: data.driverName ?? null,
+        driverPhone: data.driverPhone ?? null,
+        notes: data.notes ?? null,
+      },
+      select: { id: true, label: true },
+    });
+
+    await logViewerActivity(viewer, {
+      entityType: "vehicle",
+      entityId: vehicle.id,
+      entityLabel: vehicle.label,
+      action: "created",
+      summary: `${viewer.name} added ${vehicle.label} (${data.capacity} seats) to the transport plan.`,
+    });
+
+    revalidateWedding();
+    return { id: vehicle.id };
+  });
+}
+
+export async function updateVehicle(input: unknown) {
+  return withAction("logistics.edit", async (viewer) => {
+    const { id, ...patch } = vehicleSchema
+      .partial()
+      .extend({ id: z.string().min(1) })
+      .parse(input);
+
+    const existing = await db.transportVehicle.findFirst({
+      where: { id, weddingId: viewer.weddingId },
+      select: { id: true, label: true },
+    });
+    if (!existing) throw new Error("That vehicle no longer exists.");
+
+    await db.transportVehicle.update({ where: { id }, data: patch });
+
+    await logViewerActivity(viewer, {
+      entityType: "vehicle",
+      entityId: id,
+      entityLabel: patch.label ?? existing.label,
+      action: "updated",
+      summary: `${viewer.name} updated ${patch.label ?? existing.label}.`,
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id };
+  });
+}
+
+export async function archiveVehicle(id: string) {
+  return withAction("logistics.edit", async (viewer) => {
+    const existing = await db.transportVehicle.findFirst({
+      where: { id, weddingId: viewer.weddingId, archivedAt: null },
+      select: { id: true, label: true },
+    });
+    if (!existing) throw new Error("That vehicle no longer exists.");
+
+    // Journeys keep their history; the vehicle simply comes off the fleet.
+    await db.transportVehicle.update({
+      where: { id },
+      data: { archivedAt: new Date() },
+    });
+
+    await logViewerActivity(viewer, {
+      entityType: "vehicle",
+      entityId: id,
+      entityLabel: existing.label,
+      action: "archived",
+      summary: `${viewer.name} took ${existing.label} off the transport plan.`,
+    });
+
+    revalidateWedding();
+    return { id };
+  });
+}
+
+const journeySchema = z.object({
+  purpose: z.string().trim().min(1, "What is this run for?").max(160),
+  date: civilDate,
+  startMinute: z.coerce.number().int().min(0).max(2879),
+  endMinute: z.coerce.number().int().min(0).max(2879),
+  vehicleId: optionalId.optional(),
+  eventId: optionalId.optional(),
+  fromLocation: optionalString.optional(),
+  toLocation: optionalString.optional(),
+  notes: optionalString.optional(),
+  /** Who is on it. Replaces the list outright rather than merging. */
+  passengerIds: z.array(z.string().min(1)).max(200).default([]),
+});
+
+/** Only this wedding's guests may be put on one of its journeys. */
+async function ownPassengers(weddingId: string, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const guests = await db.guest.findMany({
+    where: { id: { in: ids }, weddingId, archivedAt: null },
+    select: { id: true },
+  });
+  return guests.map((guest) => guest.id);
+}
+
+export async function createJourney(input: unknown) {
+  return withAction("logistics.edit", async (viewer) => {
+    const data = journeySchema.parse(input);
+    const passengers = await ownPassengers(viewer.weddingId, data.passengerIds);
+
+    const journey = await db.transportJourney.create({
+      data: {
+        weddingId: viewer.weddingId,
+        purpose: data.purpose,
+        date: data.date,
+        startMinute: data.startMinute,
+        endMinute: data.endMinute,
+        vehicleId: data.vehicleId ?? null,
+        eventId: data.eventId ?? null,
+        fromLocation: data.fromLocation ?? null,
+        toLocation: data.toLocation ?? null,
+        notes: data.notes ?? null,
+        passengers: { create: passengers.map((guestId) => ({ guestId })) },
+      },
+      select: { id: true, purpose: true },
+    });
+
+    await logViewerActivity(viewer, {
+      entityType: "journey",
+      entityId: journey.id,
+      entityLabel: journey.purpose,
+      action: "created",
+      summary: `${viewer.name} planned “${journey.purpose}”${
+        passengers.length > 0 ? ` for ${passengers.length} people` : ""
+      }.`,
+    });
+
+    revalidateWedding();
+    return { id: journey.id };
+  });
+}
+
+export async function updateJourney(input: unknown) {
+  return withAction("logistics.edit", async (viewer) => {
+    const { id, passengerIds, ...patch } = journeySchema
+      .partial()
+      .extend({ id: z.string().min(1) })
+      .parse(input);
+
+    const existing = await db.transportJourney.findFirst({
+      where: { id, weddingId: viewer.weddingId },
+      select: { id: true, purpose: true },
+    });
+    if (!existing) throw new Error("That journey no longer exists.");
+
+    await db.$transaction(async (tx) => {
+      await tx.transportJourney.update({
+        where: { id },
+        data: {
+          ...patch,
+          ...(patch.vehicleId !== undefined ? { vehicleId: patch.vehicleId ?? null } : {}),
+          ...(patch.eventId !== undefined ? { eventId: patch.eventId ?? null } : {}),
+        },
+      });
+
+      // Absent means "leave the passengers alone"; an empty array means "empty
+      // it". They are different requests and must not collapse into one.
+      if (passengerIds !== undefined) {
+        const passengers = await ownPassengers(viewer.weddingId, passengerIds);
+        await tx.journeyPassenger.deleteMany({ where: { journeyId: id } });
+        if (passengers.length > 0) {
+          await tx.journeyPassenger.createMany({
+            data: passengers.map((guestId) => ({ journeyId: id, guestId })),
+          });
+        }
+      }
+    });
+
+    await logViewerActivity(viewer, {
+      entityType: "journey",
+      entityId: id,
+      entityLabel: patch.purpose ?? existing.purpose,
+      action: "updated",
+      summary: `${viewer.name} updated “${patch.purpose ?? existing.purpose}”.`,
+      undoable: true,
+    });
+
+    revalidateWedding();
+    return { id };
+  });
+}
+
+export async function deleteJourney(id: string) {
+  return withAction("logistics.edit", async (viewer) => {
+    const existing = await db.transportJourney.findFirst({
+      where: { id, weddingId: viewer.weddingId },
+      select: { id: true, purpose: true },
+    });
+    if (!existing) throw new Error("That journey no longer exists.");
+
+    // Anybody whose pickup was on this run goes back to needing one, rather
+    // than silently keeping a link to something that no longer exists.
+    await db.$transaction(async (tx) => {
+      await tx.travelRecord.updateMany({
+        where: { journeyId: id },
+        data: { journeyId: null },
+      });
+      await tx.transportJourney.delete({ where: { id } });
+    });
+
+    await logViewerActivity(viewer, {
+      entityType: "journey",
+      entityId: id,
+      entityLabel: existing.purpose,
+      action: "deleted",
+      summary: `${viewer.name} removed the journey “${existing.purpose}”.`,
+    });
+
+    revalidateWedding();
+    return { id };
+  });
+}
+
+/** Put somebody's arrival on a run, or take it off one. */
+export async function setTravelJourney(travelId: string, journeyId: string | null) {
+  return withAction("logistics.edit", async (viewer) => {
+    const record = await db.travelRecord.findFirst({
+      where: { id: travelId, weddingId: viewer.weddingId },
+      select: { id: true, guest: { select: { firstName: true, lastName: true } } },
+    });
+    if (!record) throw new Error("That arrival no longer exists.");
+
+    if (journeyId) {
+      const journey = await db.transportJourney.findFirst({
+        where: { id: journeyId, weddingId: viewer.weddingId },
+        select: { id: true },
+      });
+      if (!journey) throw new Error("That journey no longer exists.");
+    }
+
+    await db.travelRecord.update({
+      where: { id: travelId },
+      data: { journeyId },
+    });
+
+    const name = `${record.guest.firstName} ${record.guest.lastName}`.trim();
+    await logViewerActivity(viewer, {
+      entityType: "travel",
+      entityId: travelId,
+      entityLabel: name,
+      action: "updated",
+      summary: journeyId
+        ? `${viewer.name} put ${name}'s pickup on a journey.`
+        : `${viewer.name} took ${name}'s pickup off its journey.`,
+    });
+
+    revalidateWedding();
+    return { id: travelId };
   });
 }

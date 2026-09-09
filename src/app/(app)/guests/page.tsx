@@ -2,9 +2,53 @@ import { redirect } from "next/navigation";
 
 import { computeGuestCounts, roomsRequired } from "@/domain/guests";
 import { outreachByTier, outreachRows, outreachStats } from "@/domain/outreach";
+import type { GuestTier, WeddingSnapshot } from "@/domain/types";
 import { getViewer } from "@/server/auth";
 import { loadSnapshot } from "@/server/snapshot";
 import { GuestsWorkspace } from "./workspace";
+
+/**
+ * The same snapshot, narrowed to one wave.
+ *
+ * The guest list is read wave by wave — tier A is the list being worked from,
+ * B and C are held back — so every figure on the page has to be the figure for
+ * the wave on screen. Rather than a second set of counting rules, the snapshot
+ * itself is narrowed and the existing engine run over it, which keeps one
+ * definition of "coming", "awaiting" and "rooms".
+ */
+function sliceByTier(snapshot: WeddingSnapshot, tier: GuestTier): WeddingSnapshot {
+  const guests = snapshot.guests.filter((guest) => guest.tier === tier);
+  const guestIds = new Set(guests.map((guest) => guest.id));
+  const householdIds = new Set(
+    guests.map((guest) => guest.householdId).filter((id): id is string => Boolean(id)),
+  );
+  return {
+    ...snapshot,
+    guests,
+    // A household counts towards a wave if anybody in it is on that wave.
+    households: snapshot.households.filter((household) => householdIds.has(household.id)),
+    invitations: snapshot.invitations.filter((i) => guestIds.has(i.guestId)),
+  };
+}
+
+function tierStats(snapshot: WeddingSnapshot, tier: GuestTier) {
+  const slice = sliceByTier(snapshot, tier);
+  const counts = computeGuestCounts(slice);
+  return {
+    total: counts.total,
+    households: counts.households,
+    invited: counts.invited,
+    confirmed: counts.confirmed,
+    declined: counts.declined,
+    pending: counts.pending,
+    notContacted: counts.notContacted,
+    needAccommodation: counts.needAccommodation,
+    rooms: roomsRequired(slice),
+    children: counts.children,
+    vegetarian: counts.dietary.vegetarian,
+    jain: counts.dietary.jain,
+  };
+}
 
 export default async function GuestsPage({
   searchParams,
@@ -16,7 +60,6 @@ export default async function GuestsPage({
 
   const params = await searchParams;
   const snapshot = await loadSnapshot(viewer.weddingId);
-  const counts = computeGuestCounts(snapshot);
 
   const householdById = new Map(snapshot.households.map((h) => [h.id, h]));
   const invitationsByGuest = new Map<string, Record<string, string>>();
@@ -82,19 +125,10 @@ export default async function GuestsPage({
         rsvpToken: h.rsvpToken,
         side: h.side,
       }))}
-      stats={{
-        total: counts.total,
-        households: counts.households,
-        invited: counts.invited,
-        confirmed: counts.confirmed,
-        declined: counts.declined,
-        pending: counts.pending,
-        notContacted: counts.notContacted,
-        needAccommodation: counts.needAccommodation,
-        rooms: roomsRequired(snapshot),
-        children: counts.children,
-        vegetarian: counts.dietary.vegetarian,
-        jain: counts.dietary.jain,
+      statsByTier={{
+        A: tierStats(snapshot, "A"),
+        B: tierStats(snapshot, "B"),
+        C: tierStats(snapshot, "C"),
       }}
       invitations={outreachRows(snapshot).map((row) => ({
         householdId: row.householdId,

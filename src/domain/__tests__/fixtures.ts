@@ -64,6 +64,7 @@ export function makeGuest(id: string, overrides: Partial<GuestNode> = {}): Guest
     allergies: null,
     accessibilityNeeds: null,
     needsAccommodation: false,
+    rsvpToken: null,
     needsTransport: false,
     notes: null,
     ...overrides,

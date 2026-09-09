@@ -22,6 +22,8 @@ export const TIER_LABEL: Record<GuestTier, string> = {
 
 export interface OutreachPerson {
   guestId: string;
+  /// Present when this person receives a private link instead of the group's.
+  rsvpToken: string | null;
   /// Their own tier — households can span two of them.
   tier: GuestTier;
   name: string;
@@ -93,6 +95,7 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
     const list = members.get(guest.householdId) ?? [];
     list.push({
       guestId: guest.id,
+      rsvpToken: guest.rsvpToken,
       tier: guest.tier,
       name: `${guest.firstName} ${guest.lastName}`.trim(),
       phone: guest.phone ?? null,
@@ -210,12 +213,22 @@ export function outreachByTier(snapshot: WeddingSnapshot): TierStats[] {
     return {
       tier,
       households: inTier.length,
-      people: inTier.reduce((sum, row) => sum + row.headcount, 0),
+      // People are counted by their OWN wave, not by their household's. Four
+      // households span two tiers, and rolling their whole headcount into the
+      // household's wave put ten tier-B relatives inside the tier-A total —
+      // which is why this screen said 241 where the guest list said 231.
+      people: rows.reduce(
+        (sum, row) => sum + row.people.filter((person) => person.tier === tier).length,
+        0,
+      ),
       stdSent: inTier.filter((row) => row.saveTheDateSent).length,
       rsvpSent: inTier.filter((row) => row.invitationSent).length,
       yes: inTier.filter((row) => row.reply === "YES").length,
       no: inTier.filter((row) => row.reply === "NO").length,
       awaiting: inTier.filter((row) => row.reply === "AWAITING").length,
     };
-  }).filter((tier) => tier.households > 0);
+    // A wave with nobody in it isn't a wave. It can still have people without
+    // having households of its own — a cousin held back inside a family that
+    // is going out in the first wave.
+  }).filter((tier) => tier.households > 0 || tier.people > 0);
 }

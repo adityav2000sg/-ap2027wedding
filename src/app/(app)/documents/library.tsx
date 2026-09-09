@@ -204,7 +204,7 @@ export function DocumentsLibrary({
                         href={item.url}
                         download={item.filename}
                         aria-label={`Download ${item.filename}`}
-                        className="shrink-0 rounded-md p-1.5 text-ink-faint transition-colors hover:bg-surface-sunken hover:text-saffron"
+                        className="shrink-0 rounded-md p-1.5 text-ink-muted transition-colors hover:bg-surface-sunken hover:text-saffron"
                       >
                         <DownloadIcon size={14} />
                       </a>

@@ -10,6 +10,10 @@
  * thing worth asking; dietary requirements and room preferences belong on the
  * invitation proper at the end of the year.
  *
+ * The one thing we do need from anybody saying yes is a way to reach them, so
+ * that appears as a second step inside their own row the moment they answer —
+ * not a page later, and never asked of somebody who can't come.
+ *
  * Motion is restrained and switched off for anyone whose system asks for less.
  */
 
@@ -25,6 +29,9 @@ export interface StdPerson {
   guestId: string;
   name: string;
   response: "YES" | "NO" | null;
+  /** Their own details — everyone coming answers for themselves. */
+  phone: string;
+  email: string;
 }
 
 export function SaveTheDate({
@@ -32,11 +39,10 @@ export function SaveTheDate({
   photo,
   music,
   people: initialPeople,
-  phone,
-  email,
   message: initialMessage,
   alreadyReplied,
   rsvpBy,
+  rsvpByDays,
   partnerA,
   partnerB,
   date,
@@ -47,11 +53,11 @@ export function SaveTheDate({
   photo: string | null;
   music: string | null;
   people: StdPerson[];
-  phone: string;
-  email: string;
   message: string;
   alreadyReplied: boolean;
   rsvpBy: string;
+  /** Days left to answer. Nothing concentrates the mind like a number. */
+  rsvpByDays: number;
   partnerA: string;
   partnerB: string;
   date: string;
@@ -60,7 +66,6 @@ export function SaveTheDate({
 }) {
   const reduce = useReducedMotion();
   const [people, setPeople] = React.useState(initialPeople);
-  const [contact, setContact] = React.useState({ phone, email });
   const [message, setMessage] = React.useState(initialMessage);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -83,13 +88,17 @@ export function SaveTheDate({
           ? "Send my reply"
           : "Send our reply";
 
-  function answer(guestId: string, response: "YES" | "NO") {
+  function update(guestId: string, patch: Partial<StdPerson>) {
     setPeople((current) =>
       current.map((person) =>
-        person.guestId === guestId ? { ...person, response } : person,
+        person.guestId === guestId ? { ...person, ...patch } : person,
       ),
     );
     setError(null);
+  }
+
+  function answer(guestId: string, response: "YES" | "NO") {
+    update(guestId, { response });
   }
 
   async function submit() {
@@ -102,17 +111,46 @@ export function SaveTheDate({
       return;
     }
 
+    // A number is the only thing we ask of anybody coming — everything else
+    // about the week gets sent to it.
+    const missingNumber = people.find(
+      (person) => person.response === "YES" && person.phone.trim().length < 5,
+    );
+    if (missingNumber) {
+      setError(
+        onePerson
+          ? "We just need a number to reach you on."
+          : `We need a number for ${missingNumber.name}.`,
+      );
+      return;
+    }
+
+    const badEmail = people.find(
+      (person) =>
+        person.response === "YES" &&
+        person.email.trim() !== "" &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email.trim()),
+    );
+    if (badEmail) {
+      setError(
+        onePerson
+          ? "That email address doesn't look right — or leave it blank."
+          : `${badEmail.name}'s email address doesn't look right — or leave it blank.`,
+      );
+      return;
+    }
+
     setPending(true);
     setError(null);
 
     const result = await submitRsvp({
       token,
-      phone: contact.phone || undefined,
-      email: contact.email || undefined,
       message: message || undefined,
       people: people.map((person) => ({
         guestId: person.guestId,
         coming: person.response,
+        phone: person.phone.trim() || undefined,
+        email: person.email.trim() || undefined,
       })),
     });
 
@@ -172,7 +210,7 @@ export function SaveTheDate({
           href="#reply"
           className="absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5 text-[15px] text-white/70 transition-colors hover:text-white"
         >
-          Reply below
+          Kindly reply by {rsvpBy}
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
             <path d="M8 3v9M4.5 8.7 8 12.2l3.5-3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -210,6 +248,8 @@ export function SaveTheDate({
                       : "We would love to celebrate with you. Please reply for each person listed below."}
                   </p>
                 </header>
+
+                <ReplyBy date={rsvpBy} days={rsvpByDays} />
 
                 {alreadyReplied ? (
                   <p className="mb-5 rounded-2xl border border-[#ccd8ce] bg-[#edf3ed] px-5 py-3.5 text-center text-[15px] text-[#4d6654]">
@@ -249,37 +289,58 @@ export function SaveTheDate({
                           Can’t make it
                         </Answer>
                       </div>
+
+                      {/* Step two, on the same row: asked only of the people
+                          who are actually coming, and only once they've said
+                          so. Everyone answers for themselves, so a couple
+                          sharing a room still gives us two numbers. */}
+                      <AnimatePresence initial={false}>
+                        {person.response === "YES" ? (
+                          <motion.div
+                            key="details"
+                            initial={reduce ? false : { opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={reduce ? undefined : { opacity: 0, height: 0 }}
+                            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                            className="overflow-hidden sm:col-span-2"
+                          >
+                            <div className="border-t border-[#cbdccf] pt-4 sm:mt-1">
+                              <p className="mb-3 text-[15px] text-[#5c7666]">
+                                {onePerson
+                                  ? "Wonderful. Where can we reach you?"
+                                  : `Wonderful. Where can we reach ${person.name.split(" ")[0]}?`}
+                              </p>
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                <Field
+                                  label="Mobile number"
+                                  value={person.phone}
+                                  onChange={(value) => update(person.guestId, { phone: value })}
+                                  inputMode="tel"
+                                  placeholder="Including the country code"
+                                />
+                                <Field
+                                  label="Email — optional"
+                                  value={person.email}
+                                  onChange={(value) => update(person.guestId, { email: value })}
+                                  inputMode="email"
+                                  placeholder="Optional"
+                                />
+                              </div>
+                            </div>
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
                     </div>
                   ))}
                 </div>
 
                 <div className="mt-6 rounded-[26px] border border-[#ddd8cf] bg-white/72 p-5 shadow-[0_24px_70px_-54px_rgba(43,45,39,0.55)] sm:p-7">
-                  <div className="mb-5">
-                    <h3 className="font-display text-[21px] text-[#2d332d]">Contact details</h3>
-                    <p className="mt-1 text-[15px] text-[#7c7972]">So we can keep you updated.</p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field
-                      label="Best number to reach you"
-                      value={contact.phone}
-                      onChange={(value) => setContact((current) => ({ ...current, phone: value }))}
-                      inputMode="tel"
-                    />
-                    <Field
-                      label="Email"
-                      value={contact.email}
-                      onChange={(value) => setContact((current) => ({ ...current, email: value }))}
-                      inputMode="email"
-                    />
-                  </div>
-                  <div className="mt-4">
-                    <Field
-                      label={`A note for ${partnerA} & ${partnerB}`}
-                      value={message}
-                      onChange={setMessage}
-                      multiline
-                    />
-                  </div>
+                  <Field
+                    label={`A note for ${partnerA} & ${partnerB}`}
+                    value={message}
+                    onChange={setMessage}
+                    multiline
+                  />
                 </div>
 
                 {error ? (
@@ -305,7 +366,7 @@ export function SaveTheDate({
                   {submitLabel}
                 </motion.button>
                 <p className="mt-4 text-center text-[15px] text-[#8b877f]">
-                  Kindly reply by {rsvpBy}
+                  Replies close on {rsvpBy}
                 </p>
               </motion.div>
             )}
@@ -319,6 +380,50 @@ export function SaveTheDate({
         </p>
       </footer>
     </main>
+  );
+}
+
+/**
+ * The date the couple need an answer by.
+ *
+ * It used to sit in small grey type under the button, where it was read after
+ * the decision it was meant to inform — if at all. It belongs at the head of
+ * the reply, set like the date on a piece of stationery: ruled either side,
+ * the day itself large enough to be the thing you remember.
+ */
+function ReplyBy({ date, days }: { date: string; days: number }) {
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+      className="mx-auto mb-8 max-w-[620px] rounded-[24px] border border-[#e2cbb5] bg-[#fbefe3] px-6 py-6 text-center shadow-[0_24px_60px_-46px_rgba(122,82,56,0.75)] sm:mb-11 sm:px-10 sm:py-7"
+    >
+      <div className="flex items-center justify-center gap-3">
+        <span aria-hidden className="h-px w-8 bg-[#d9b89c]" />
+        <p className="text-[13.5px] font-semibold uppercase tracking-[0.26em] text-[#a06c4a]">
+          Please reply by
+        </p>
+        <span aria-hidden className="h-px w-8 bg-[#d9b89c]" />
+      </div>
+
+      <p className="mt-3 font-display text-[34px] leading-[1.05] text-[#24372d] sm:text-[44px]">
+        {date}
+      </p>
+
+      {days > 0 ? (
+        <p className="mt-2.5 text-[15px] text-[#8d6a52]">
+          {days === 1 ? "One day left to let us know" : `${days} days left to let us know`}
+        </p>
+      ) : days === 0 ? (
+        <p className="mt-2.5 text-[15px] font-medium text-[#a4503f]">Today is the last day</p>
+      ) : (
+        <p className="mt-2.5 text-[15px] text-[#8d6a52]">
+          We’re past the date — do still tell us, as soon as you can.
+        </p>
+      )}
+    </motion.div>
   );
 }
 
@@ -398,12 +503,14 @@ function Field({
   onChange,
   inputMode,
   multiline,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange(value: string): void;
   inputMode?: "tel" | "email";
   multiline?: boolean;
+  placeholder?: string;
 }) {
   const shared =
     "min-h-[52px] w-full rounded-2xl border border-[#d9d4cb] bg-[#fbfaf7] px-4 py-3 text-[15px] text-[#2d332d] " +
@@ -419,12 +526,13 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={`${shared} resize-none`}
-          placeholder="Optional"
+          placeholder={placeholder ?? "Optional"}
         />
       ) : (
         <input
           value={value}
           inputMode={inputMode}
+          placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           className={shared}
         />

@@ -39,16 +39,24 @@
   --color-surface-soft: #fef9f3;
   --color-surface-sunken: #f5ede3;
 
-  /* ── Ink ── */
+  /* ── Ink ──
+     Four weights, and every one of them has to be legible on ivory in daylight
+     on a phone. The two quiet weights and the hairlines were tuned for how the
+     screen looked rather than for how it read: `muted` sat at about 3.6:1 and
+     `faint` at 2.2:1 against the canvas, which is below the floor for text of
+     any size, and the borders at 1.2:1 were all but invisible — buttons and
+     filters read as words floating on cream. These carry the same warmth two
+     steps darker: muted clears 5:1, faint clears 4:1, and a border can be
+     seen. */
   --color-ink: #1a1714;
-  --color-ink-soft: #55504a;
-  --color-ink-muted: #8a8078;
-  --color-ink-faint: #b4aaa0;
+  --color-ink-soft: #4c463f;
+  --color-ink-muted: #6b6259;
+  --color-ink-faint: #8e8478;
 
-  /* ── Lines — hairlines carry the layout now ── */
-  --color-line: #e5d9c8;
-  --color-line-soft: #f0e6d8;
-  --color-line-strong: #d4c4b0;
+  /* ── Lines — hairlines carry the layout, so they have to be visible ── */
+  --color-line: #dbcbb4;
+  --color-line-soft: #ebe0cf;
+  --color-line-strong: #b6a289;
 
   /* ── Event accents — richer, more celebratory ── */
   --color-haldi: #d4922a;

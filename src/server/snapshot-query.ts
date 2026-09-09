@@ -205,6 +205,7 @@ export async function fetchSnapshot(
         allergies: g.allergies,
         accessibilityNeeds: g.accessibilityNeeds,
         needsAccommodation: g.needsAccommodation,
+        rsvpToken: g.rsvpToken,
         saveTheDateSentAt: g.saveTheDateSentAt,
         invitationSentAt: g.invitationSentAt,
         tier: g.tier,

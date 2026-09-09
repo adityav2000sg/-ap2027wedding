@@ -9,7 +9,10 @@ import "server-only";
  * disagrees with the screen.
  *
  * Mutations are not exposed here at all — the model proposes them as structured
- * actions, and a human approves before anything is written.
+ * actions from the capability registry, and a human approves before anything is
+ * written. What this file owes those proposals is ids: every change names the
+ * record it acts on, so `find_records` exists to turn "Anil Ahuja" or "the Bali
+ * caterer" into something a proposal can be built from.
  */
 
 import { buildBudgetView, paymentsByPayer } from "@/domain/budget";
@@ -210,6 +213,38 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           },
         },
         required: ["estimatedGuests"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "find_records",
+      description:
+        "Look up records by name and get their ids. Use this before proposing any change — every change " +
+        "names the thing it acts on, and ids can never be guessed. Searches guests, households, events, " +
+        "venues, vendors, tasks, people (planning team), budget categories and lines, payments, run-of-show " +
+        "entries, hotels, outfits, wardrobe people and responsibilities.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "Part of a name — 'Ahuja', 'sangeet', 'caterer'. Leave empty to list everything of a type.",
+          },
+          type: {
+            type: "string",
+            enum: [
+              "guest", "household", "event", "venue", "vendor", "task", "member",
+              "budgetCategory", "budgetItem", "payment", "timeline", "hotel",
+              "outfit", "wardrobePerson", "responsibility",
+            ],
+            description: "Which kind of record. Omit to search every kind at once.",
+          },
+          limit: { type: "number", description: "How many to return. Default 12, max 50." },
+        },
+        required: [],
       },
     },
   },
@@ -726,6 +761,220 @@ export async function runTool(
       });
     }
 
+    /**
+     * Names to ids.
+     *
+     * Every proposal names the record it acts on, and an id is the one thing
+     * the model can never infer, so this is the door every change goes through.
+     * It searches the snapshot rather than the database, so it can only ever
+     * surface what this viewer can already see — and money-bearing rows stay
+     * behind the same permission as everywhere else.
+     */
+    case "find_records": {
+      const query = String(args.query ?? "").toLowerCase().trim();
+      const wanted = args.type ? String(args.type) : null;
+      const limit = Math.min(Math.max(Number(args.limit ?? 12) || 12, 1), 50);
+
+      const memberName = (id: string | null) =>
+        id ? (snapshot.members.find((m) => m.id === id)?.name ?? null) : null;
+      const eventName = (id: string | null) =>
+        id ? (snapshot.events.find((e) => e.id === id)?.name ?? null) : null;
+
+      interface Candidate {
+        type: string;
+        id: string;
+        label: string;
+        detail: string;
+        /** The argument name a proposal passes this id as. */
+        idArg: string;
+      }
+
+      const pools: Record<string, () => Candidate[]> = {
+        guest: () =>
+          snapshot.guests.map((g) => ({
+            type: "guest",
+            id: g.id,
+            label: `${g.firstName} ${g.lastName}`.trim(),
+            detail: [
+              g.relationship,
+              `tier ${g.tier}`,
+              snapshot.households.find((h) => h.id === g.householdId)?.name,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            idArg: "guestId",
+          })),
+        household: () =>
+          snapshot.households.map((h) => ({
+            type: "household",
+            id: h.id,
+            label: h.name,
+            detail: `${snapshot.guests.filter((g) => g.householdId === h.id).length} people · tier ${h.tier} · ${h.rsvpReply.toLowerCase()}`,
+            idArg: "householdId",
+          })),
+        event: () =>
+          snapshot.events.map((e) => ({
+            type: "event",
+            id: e.id,
+            label: e.name,
+            detail: `${formatMediumDate(e.date)} · ${formatMinute(e.startMinute)}–${formatMinute(e.endMinute)}`,
+            idArg: "eventId",
+          })),
+        venue: () =>
+          snapshot.venues.map((v) => ({
+            type: "venue",
+            id: v.id,
+            label: v.name,
+            detail: [v.city, v.capacity ? `holds ${v.capacity}` : null].filter(Boolean).join(" · "),
+            idArg: "venueId",
+          })),
+        vendor: () =>
+          snapshot.vendors.map((v) => ({
+            type: "vendor",
+            id: v.id,
+            label: v.businessName,
+            detail: `${VENDOR_CATEGORY_LABEL[v.category] ?? v.category} · ${VENDOR_STATUS_TEXT[v.status] ?? v.status}`,
+            idArg: "vendorId",
+          })),
+        task: () =>
+          snapshot.tasks.map((t) => ({
+            type: "task",
+            id: t.id,
+            label: t.title,
+            detail: [
+              t.status,
+              t.dueDate ? `due ${formatMediumDate(new Date(t.dueDate))}` : null,
+              memberName(t.ownerId),
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            idArg: "taskId",
+          })),
+        member: () =>
+          snapshot.members.map((m) => ({
+            type: "member",
+            id: m.id,
+            label: m.name,
+            detail: m.relation,
+            idArg: "ownerId",
+          })),
+        budgetCategory: () =>
+          snapshot.categories.map((c) => ({
+            type: "budgetCategory",
+            id: c.id,
+            label: c.name,
+            detail: canSeeMoney ? money(c.allocatedAmount) : "",
+            idArg: "categoryId",
+          })),
+        budgetItem: () =>
+          snapshot.budgetItems.map((i) => ({
+            type: "budgetItem",
+            id: i.id,
+            label: i.name,
+            detail: canSeeMoney ? `${money(i.allocatedAmount)} allocated` : "",
+            idArg: "itemId",
+          })),
+        payment: () =>
+          snapshot.payments.map((p) => ({
+            type: "payment",
+            id: p.id,
+            label: p.label,
+            detail: [
+              canSeeMoney ? money(p.amount) : null,
+              `due ${formatMediumDate(p.dueDate)}`,
+              p.status,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            idArg: "paymentId",
+          })),
+        timeline: () =>
+          snapshot.timeline.map((t) => ({
+            type: "timeline",
+            id: t.id,
+            label: t.title,
+            detail: `${formatMediumDate(t.date)} · ${formatMinute(t.startMinute)}`,
+            idArg: "entryId",
+          })),
+        hotel: () =>
+          snapshot.hotels.map((h) => ({
+            type: "hotel",
+            id: h.id,
+            label: h.name,
+            detail: [h.city, `${h.contractedRooms} rooms`].filter(Boolean).join(" · "),
+            idArg: "hotelId",
+          })),
+        outfit: () =>
+          snapshot.outfits.map((o) => ({
+            type: "outfit",
+            id: o.id,
+            label: o.outfitType,
+            detail: [
+              snapshot.wardrobePeople.find((p) => p.id === o.personId)?.name,
+              eventName(o.eventId),
+              o.status,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            idArg: "outfitId",
+          })),
+        wardrobePerson: () =>
+          snapshot.wardrobePeople.map((p) => ({
+            type: "wardrobePerson",
+            id: p.id,
+            label: p.name,
+            detail: p.role,
+            idArg: "personId",
+          })),
+        responsibility: () =>
+          snapshot.responsibilities.map((r) => ({
+            type: "responsibility",
+            id: r.id,
+            label: r.title,
+            detail: [r.area, memberName(r.ownerId)].filter(Boolean).join(" · "),
+            idArg: "responsibilityId",
+          })),
+      };
+
+      if (wanted && !pools[wanted]) {
+        throw new Error(`Unknown record type "${wanted}".`);
+      }
+
+      const searched = wanted ? [wanted] : Object.keys(pools);
+      const hidden = !canSeeMoney;
+      const matches: Candidate[] = [];
+      for (const type of searched) {
+        if (hidden && (type === "payment" || type === "budgetItem" || type === "budgetCategory")) {
+          continue;
+        }
+        for (const candidate of pools[type]()) {
+          if (!query || candidate.label.toLowerCase().includes(query) ||
+              candidate.detail.toLowerCase().includes(query)) {
+            matches.push(candidate);
+          }
+        }
+      }
+
+      // Closest first: an exact name beats a prefix, which beats a mention.
+      const rank = (label: string) => {
+        const value = label.toLowerCase();
+        if (!query) return 2;
+        if (value === query) return 0;
+        if (value.startsWith(query)) return 1;
+        return 2;
+      };
+      matches.sort((a, b) => rank(a.label) - rank(b.label) || a.label.localeCompare(b.label));
+
+      return json({
+        query: query || null,
+        totalMatching: matches.length,
+        note:
+          "Pass `id` as the argument named in `idArg` when you propose a change. " +
+          "Never use a label in place of an id.",
+        results: matches.slice(0, limit),
+      });
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -752,7 +1001,7 @@ export function buildSystemPrompt(
     "",
     "How to work:",
     "- Always call tools to get real figures. Never guess, never work from memory of earlier messages if a number might have changed.",
-    "- Tool results include `id` fields. You MUST use those exact ids when proposing a change — never invent one. If you don't have the id, call the relevant tool first.",
+    "- Tool results include `id` fields. You MUST use those exact ids when proposing a change — never invent one. find_records is the quickest way from a name to an id, and works for every kind of record.",
     "- Times are minutes from midnight (1140 = 7:00 PM). Read startMinute/endMinute from get_events before proposing a time change.",
     "- Call several tools when a question spans areas.",
     "- NUMBERS MUST BE COPIED EXACTLY from tool output. Never round, never recompute, never approximate, never carry a figure over from an earlier answer.",
@@ -769,14 +1018,15 @@ export function buildSystemPrompt(
     "- The single highest-leverage decision is choosing the venue: it sets the date, the room block and most of the budget.",
     "",
     "Making changes:",
-    "- You can PROPOSE changes with the propose_change tool. You cannot apply them — the user approves each one, and they see a full preview of everything it would affect before deciding.",
-    "- If the user asks you to change, set, update or move ANYTHING, you must call propose_change. Do not decide on their behalf that no change is needed — if you think it is unnecessary, propose it anyway and say why you are unsure.",
-    "- When a change is clearly the right recommendation, propose it and say why.",
-    "- Propose one change per call. Two or three at most in a reply.",
-    "- Things you can change: the planning guest count and total budget; a function's time, date, venue and expected guests; one guest's RSVP for one function, and whether they need a room; a vendor's status and quoted or contracted figure; and a task's owner, due date, status or priority.",
-    "- Moving a function to a different day is event.date. Reordering the week means proposing a new date for each function that moves — one call each, in the order they should end up.",
+    "- You can propose a change to ANYTHING in this app: guests and households, invitations and who has been sent what, functions and their times, dates and venues, tasks, vendors and contracts, the budget and its payments, the run of show, rooms and journeys, responsibilities on the day, outfits and fittings. The propose_change tool lists every action you have, with the arguments each one takes.",
+    "- You cannot apply anything yourself. Each proposal is shown to the user, with a full preview of its consequences where we can model them, and they approve or dismiss it.",
+    "- IDS ARE NOT GUESSABLE. Call find_records to turn a name into an id before you propose anything. If find_records returns nothing, say so — never invent an id, and never pass a name where an id is asked for.",
+    "- If the user asks you to change, add, set, move, remove, assign or record ANYTHING, call propose_change. Do not decide on their behalf that no change is needed — if you think it is unnecessary, propose it anyway and say why you are unsure.",
+    "- A request that needs several changes gets several calls: one per change, in the order they should happen. Say plainly what the set of them does. Six calls for six functions is right; one vague call is not.",
+    "- Where something can be done two ways, prefer the specific action: event.time for hours, event.date for a day, event.venue for a venue, rather than event.update.",
     "- Putting an RSVP back to awaiting is guest.rsvp with status PENDING. Removing someone from a function is NOT_INVITED, which is different from DECLINED: not invited means never asked, declined means asked and said no.",
+    "- household.send and guest.send record that something went out. They do not send anything — nothing in this app messages a guest by itself. Say so rather than implying you have contacted anybody.",
     "- Never say you have made, applied or saved a change. Say you have suggested it and it is waiting for their approval.",
-    "- If you cannot propose something (no permission, or it isn't a supported change), say so plainly and describe what they'd do instead.",
+    "- If you cannot propose something — no permission, or no action covers it — say so plainly and describe what they would do by hand instead.",
   ].join("\n");
 }

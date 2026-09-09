@@ -25,6 +25,7 @@ import {
   Invitations,
   type InvitationRow,
   type InvitationStats,
+  type Tier,
   type TierStat,
 } from "./invitations";
 
@@ -110,14 +111,15 @@ const DIET_LABEL: Record<string, string> = {
 };
 
 export function GuestsWorkspace({
-  guests, households, events, stats, canEdit, currency, rsvpEnabled, singleRsvp,
+  guests, households, events, statsByTier, canEdit, currency, rsvpEnabled, singleRsvp,
   invitations, invitationStats, invitationTiers,
   initialFilter, initialEvent, initialGuest, initialSide,
 }: {
   guests: Guest[];
   households: { id: string; name: string; invitationStatus: string; rsvpToken: string; side: string }[];
   events: { id: string; name: string; tone: string; counts: { invited: number; confirmed: number } }[];
-  stats: Record<string, number>;
+  /** Every figure on this page belongs to one wave, so they arrive per wave. */
+  statsByTier: Record<Tier, Record<string, number>>;
   canEdit: boolean;
   currency: string;
   rsvpEnabled: boolean;
@@ -138,7 +140,16 @@ export function GuestsWorkspace({
   const [openGuest, setOpenGuest] = React.useState<string | null>(initialGuest);
   const [savingCell, setSavingCell] = React.useState<string | null>(null);
   const [cellMenu, setCellMenu] = React.useState<{ guestId: string; eventId: string } | null>(null);
-  const [view, setView] = React.useState<"list" | "invitations">("list");
+  const [view, setView] = React.useState<"list" | "held" | "invitations">("list");
+  // Which held-back wave the second tab is showing. B is the one anybody
+  // actually works from; C is the reserve, and would otherwise have nowhere to
+  // live now that the main list is tier A alone.
+  const [heldTier, setHeldTier] = React.useState<Exclude<Tier, "A">>("B");
+
+  // The list is read one wave at a time: tier A is the wedding as it stands,
+  // and the counts above it have to mean the same thing.
+  const activeTier: Tier = view === "held" ? heldTier : "A";
+  const stats = statsByTier[activeTier];
 
   // Every RSVP goes through the propagation engine. Most are trivial and save
   // straight away; the ones that move catering, rooms or capacity stop and
@@ -167,13 +178,14 @@ export function GuestsWorkspace({
           default: return true;
         }
       })
+      .filter((guest) => guest.tier === activeTier)
       .filter((guest) => !side || guest.side === side)
       .filter((guest) =>
         !q ||
         `${guest.firstName} ${guest.lastName}`.toLowerCase().includes(q) ||
         (guest.householdName ?? "").toLowerCase().includes(q),
       );
-  }, [guests, filter, side, query]);
+  }, [guests, filter, side, query, activeTier]);
 
   // Group by household — a wedding list is families, not individuals.
   const grouped = React.useMemo(() => {
@@ -229,6 +241,11 @@ export function GuestsWorkspace({
             <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Guests</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
               {stats.total} people across {stats.households} households
+              {activeTier === "A" ? (
+                <span className="text-ink-faint"> · the invited list</span>
+              ) : (
+                <span className="text-ink-faint"> · held back, tier {activeTier}</span>
+              )}
             </p>
           </div>
           {/* Three controls don't fit one line on a phone without squeezing the
@@ -258,8 +275,9 @@ export function GuestsWorkspace({
       {/* Two views of the same list: who's coming, and who has been asked. */}
       <div className="mb-6 flex items-center gap-1 border-b border-line">
         {([
-          { key: "list", label: "Guest list" },
-          { key: "invitations", label: "Invitations & RSVPs" },
+          { key: "list", label: "Guest list", count: statsByTier.A.total },
+          { key: "held", label: "Tier B", count: statsByTier.B.total },
+          { key: "invitations", label: "Invitations & RSVPs", count: null },
         ] as const).map((tab) => (
           <button
             key={tab.key}
@@ -271,6 +289,9 @@ export function GuestsWorkspace({
             )}
           >
             {tab.label}
+            {tab.count !== null ? (
+              <span className="tabular ml-1.5 text-[11.5px] text-ink-faint">{tab.count}</span>
+            ) : null}
             {view === tab.key ? (
               <motion.span
                 layoutId="guests-view-underline"
@@ -302,12 +323,41 @@ export function GuestsWorkspace({
         </motion.div>
       ) : (
       <motion.div
-        key="list"
+        key={`list-${activeTier}`}
         initial={reduce ? false : { opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         exit={reduce ? undefined : { opacity: 0, y: -4 }}
         transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       >
+      {view === "held" ? (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-soft px-3.5 py-3">
+          <p className="text-[12.5px] leading-snug text-ink-muted">
+            {heldTier === "B"
+              ? "Held back — not on the save-the-date send. Move somebody to tier A and they join the invited list."
+              : "The reserve — considered, and not invited."}
+          </p>
+          <span className="inline-flex items-center gap-0.5 rounded-lg border border-line p-0.5">
+            {(["B", "C"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setHeldTier(option)}
+                aria-pressed={heldTier === option}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-[12px] transition-colors",
+                  heldTier === option
+                    ? "bg-ink text-canvas"
+                    : "text-ink-muted hover:bg-surface-sunken hover:text-ink",
+                )}
+              >
+                Tier {option}
+                <span className="tabular ml-1.5 opacity-70">{statsByTier[option].total}</span>
+              </button>
+            ))}
+          </span>
+        </div>
+      ) : null}
+
       {/* Overview */}
       <div className="stat-row mb-6 border-y border-line py-5" style={{ ["--stat-cols" as string]: 5 }}>
         <Figure value={stats.invited} label="On the list" />
@@ -346,7 +396,7 @@ export function GuestsWorkspace({
               "rounded-lg border px-2.5 py-1 text-[12.5px] transition-colors",
               filter === f.key
                 ? "border-saffron/30 bg-saffron-soft text-saffron"
-                : "border-line text-ink-muted hover:border-line-strong hover:text-ink",
+                : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
             )}
           >
             {f.label}
@@ -511,14 +561,12 @@ export function GuestsWorkspace({
                   Guest
                 </th>
                 {singleRsvp ? (
-                  <>
-                    <th className="px-2 py-2 text-center text-[11.5px] font-medium text-ink-muted">
-                      Tier
-                    </th>
-                    <th className="px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
-                      Coming?
-                    </th>
-                  </>
+                  // Tier lives in the guest's own panel now. Every row on this
+                  // list is already the wave named at the top of the page, so a
+                  // three-way toggle against 231 identical answers was noise.
+                  <th className="px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
+                    Coming?
+                  </th>
                 ) : (
                   events.map((event) => (
                     <th key={event.id} className="px-2 py-2 text-center">
@@ -541,7 +589,7 @@ export function GuestsWorkspace({
                 <React.Fragment key={householdName}>
                   <tr>
                     <td
-                      colSpan={(singleRsvp ? 2 : events.length) + 2}
+                      colSpan={(singleRsvp ? 1 : events.length) + 2}
                       className="sticky left-0 bg-canvas pb-1 pt-4 text-[12px] font-medium text-ink-soft"
                     >
                       {householdName}
@@ -584,33 +632,23 @@ export function GuestsWorkspace({
                       </td>
 
                       {singleRsvp ? (
-                        <>
-                          <td className="px-2 py-1.5 text-center">
-                            <TierCell
-                              tier={guest.tier}
-                              canEdit={canEdit}
-                              busy={savingCell === `${guest.id}:tier`}
-                              onChange={(next) => setTier(guest.id, next)}
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <Select
-                              value={overallStatus(guest)}
-                              disabled={!canEdit || savingCell === guest.id}
-                              onChange={(e) => setAttendance(guest.id, e.target.value)}
-                              className={cn(
-                                "h-7 w-auto min-w-[136px] text-[12.5px]",
-                                savingCell === guest.id && "opacity-40",
-                              )}
-                            >
-                              {ATTENDANCE_CHOICES.map((choice) => (
-                                <option key={choice.value} value={choice.value}>
-                                  {choice.label}
-                                </option>
-                              ))}
-                            </Select>
-                          </td>
-                        </>
+                        <td className="px-2 py-1.5">
+                          <Select
+                            value={overallStatus(guest)}
+                            disabled={!canEdit || savingCell === guest.id}
+                            onChange={(e) => setAttendance(guest.id, e.target.value)}
+                            className={cn(
+                              "h-7 w-auto min-w-[136px] text-[12.5px]",
+                              savingCell === guest.id && "opacity-40",
+                            )}
+                          >
+                            {ATTENDANCE_CHOICES.map((choice) => (
+                              <option key={choice.value} value={choice.value}>
+                                {choice.label}
+                              </option>
+                            ))}
+                          </Select>
+                        </td>
                       ) : (
                       events.map((event) => {
                         const status = guest.rsvp[event.id] ?? "NOT_INVITED";
@@ -720,6 +758,8 @@ export function GuestsWorkspace({
         canEdit={canEdit}
         onSetRsvp={setCell}
         onSetAttendance={setAttendance}
+        onSetTier={setTier}
+        savingTier={savingCell === `${active?.id}:tier`}
         household={households.find((h) => h.id === active?.householdId) ?? null}
         rsvpEnabled={rsvpEnabled}
         singleRsvp={singleRsvp}
@@ -794,13 +834,16 @@ function Figure({
 }
 
 function GuestSheet({
-  guest, events, canEdit, household, rsvpEnabled, singleRsvp, onClose, onChanged, onSetRsvp, onSetAttendance,
+  guest, events, canEdit, household, rsvpEnabled, singleRsvp, onClose, onChanged, onSetRsvp,
+  onSetAttendance, onSetTier, savingTier,
 }: {
   guest: Guest | null;
   events: { id: string; name: string; tone: string }[];
   canEdit: boolean;
   onSetRsvp(guestId: string, eventId: string, status: string): void;
   onSetAttendance(guestId: string, status: string): void;
+  onSetTier(guestId: string, tier: string): void;
+  savingTier: boolean;
   household: { id: string; name: string; rsvpToken: string } | null;
   rsvpEnabled: boolean;
   singleRsvp: boolean;
@@ -932,6 +975,23 @@ function GuestSheet({
           })}
         </div>
         )}
+      </section>
+
+      <section className="mb-5 border-t border-line pt-4">
+        <h4 className="eyebrow mb-2">Which wave</h4>
+        <div className="flex items-center gap-2">
+          <TierCell
+            tier={guest.tier}
+            canEdit={canEdit}
+            busy={savingTier}
+            onChange={(next) => onSetTier(guest.id, next)}
+          />
+          <p className="text-[11.5px] leading-snug text-ink-muted">
+            {guest.tier === "A"
+              ? "On the invited list."
+              : `Held back on tier ${guest.tier} — not on the save-the-date send.`}
+          </p>
+        </div>
       </section>
 
       <section className="mb-5 space-y-2.5 border-y border-line py-4">

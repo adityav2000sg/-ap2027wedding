@@ -67,10 +67,12 @@ const buttonVariants = cva(
           "bg-ink text-canvas hover:bg-ink/88 active:scale-[0.985] shadow-flat",
         accent:
           "bg-saffron text-white hover:bg-saffron/90 active:scale-[0.985] shadow-flat",
+        // A bordered button has to look like a button before it is hovered:
+        // `line` on ivory was a suggestion of an edge, not an edge.
         secondary:
-          "bg-surface border border-line text-ink hover:bg-surface-sunken hover:border-line-strong active:scale-[0.985]",
+          "bg-surface border border-line-strong text-ink hover:bg-surface-sunken hover:border-ink-faint active:scale-[0.985]",
         ghost: "text-ink-soft hover:bg-surface-sunken hover:text-ink active:scale-[0.97]",
-        quiet: "text-ink-muted hover:text-ink hover:bg-surface-sunken active:scale-[0.97]",
+        quiet: "text-ink-soft hover:text-ink hover:bg-surface-sunken active:scale-[0.97]",
         danger:
           "bg-critical text-white hover:bg-critical/90 active:scale-[0.985]",
         dangerGhost: "text-critical hover:bg-critical-soft active:scale-[0.97]",
@@ -115,7 +117,7 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        neutral: "bg-surface-sunken text-ink-soft border border-line",
+        neutral: "bg-surface-sunken text-ink-soft border border-line-strong",
         solid: "bg-ink text-canvas",
         outline: "border border-line-strong text-ink-soft",
         critical: "bg-critical-soft text-critical border border-critical/20",

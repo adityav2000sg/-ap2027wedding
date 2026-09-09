@@ -38,6 +38,10 @@ const DIETS = [
 const personSchema = z.object({
   guestId: z.string().min(1),
   coming: z.enum(["YES", "NO"]),
+  /// The save-the-date collects a number and (optionally) an email from each
+  /// person who says yes, rather than one set of details for the household.
+  phone: z.string().trim().max(40).optional(),
+  email: z.string().trim().max(160).optional(),
   dietary: z.enum(DIETS).optional(),
   allergies: z.string().trim().max(280).optional(),
   accessibilityNeeds: z.string().trim().max(280).optional(),
@@ -64,15 +68,41 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
   }
   const data = parsed.data;
 
-  const household = await db.household.findUnique({
+  let household = await db.household.findUnique({
     where: { rsvpToken: data.token },
     select: {
       id: true,
       weddingId: true,
-      guests: { where: { archivedAt: null }, select: { id: true } },
+      guests: {
+        where: { archivedAt: null, rsvpToken: null },
+        select: { id: true, tier: true },
+      },
       wedding: { select: { rsvpEnabled: true, invitationStage: true } },
     },
   });
+  let personalGuestId: string | null = null;
+
+  if (!household) {
+    const personal = await db.guest.findUnique({
+      where: { rsvpToken: data.token },
+      select: {
+        id: true,
+        household: {
+          select: {
+            id: true,
+            weddingId: true,
+            guests: {
+              where: { archivedAt: null },
+              select: { id: true, tier: true },
+            },
+            wedding: { select: { rsvpEnabled: true, invitationStage: true } },
+          },
+        },
+      },
+    });
+    household = personal?.household ?? null;
+    personalGuestId = personal?.id ?? null;
+  }
 
   // Deliberately the same answer for a token that never existed and one that
   // has been rotated.
@@ -82,7 +112,14 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
   }
 
   // The set of people this token is allowed to speak for.
-  const allowed = new Set(household.guests.map((g) => g.id));
+  const isSaveTheDate = household.wedding.invitationStage === "SAVE_THE_DATE";
+  const allowed = new Set(
+    personalGuestId
+      ? [personalGuestId]
+      : household.guests
+          .filter((guest) => !isSaveTheDate || guest.tier === "A")
+          .map((guest) => guest.id),
+  );
   const people = data.people.filter((person) => allowed.has(person.guestId));
   if (people.length === 0) {
     return { ok: false, error: "We couldn't match those names — do let us know." };
@@ -95,8 +132,6 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
 
   const now = new Date();
   const comingCount = people.filter((p) => p.coming === "YES").length;
-  const isSaveTheDate = household.wedding.invitationStage === "SAVE_THE_DATE";
-
   await db.$transaction(async (tx) => {
     for (const person of people) {
       await tx.guest.update({
@@ -114,6 +149,16 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
             : {}),
           ...(person.needsTransport !== undefined
             ? { needsTransport: person.needsTransport }
+            : {}),
+          // Their own details, never blanked by an empty box: somebody who
+          // leaves the email field alone keeps the address we already had.
+          ...(person.phone ? { phone: person.phone } : {}),
+          ...(person.email ? { email: person.email } : {}),
+          ...(personalGuestId === person.guestId
+            ? {
+                rsvpMessage: data.message || null,
+                rsvpSubmittedAt: now,
+              }
             : {}),
         },
       });
@@ -141,8 +186,9 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
       }
     }
 
-    // Contact details go on the first person who came back, since the form
-    // collects one number for the household.
+    // The invitation form still collects one number for the household; it goes
+    // on the first person who came back. The save-the-date sends nothing here,
+    // because each person has already answered with their own.
     if (data.phone || data.email) {
       await tx.guest.update({
         where: { id: people[0].guestId },
@@ -153,6 +199,17 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
       });
     }
 
+    const tierAStillAwaiting = isSaveTheDate
+      ? await tx.guest.count({
+          where: {
+            householdId: household.id,
+            archivedAt: null,
+            tier: "A",
+            stdResponse: null,
+          },
+        })
+      : 0;
+
     await tx.household.update({
       where: { id: household.id },
       data: {
@@ -160,7 +217,7 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
           ? // The household's RSVP stays untouched — nobody has been formally
             // invited yet, and marking them "coming" a year out would inflate
             // every headcount in the app.
-            { stdRepliedAt: now }
+            { stdRepliedAt: tierAStillAwaiting === 0 ? now : null }
           : {
               // Anybody coming makes it a yes for the household; a household is
               // only a no when nobody from it is coming.
@@ -168,7 +225,7 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
               rsvpRepliedAt: now,
               rsvpSubmittedAt: now,
             }),
-        rsvpMessage: data.message || null,
+        ...(personalGuestId ? {} : { rsvpMessage: data.message || null }),
       },
     });
 

@@ -15,9 +15,15 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PrismaClient, type GuestSide, type VendorStatus } from "@prisma/client";
+import {
+  PrismaClient,
+  type GuestSide,
+  type GuestTier,
+  type VendorStatus,
+} from "@prisma/client";
 
 import { FAMILY_ACCOUNTS } from "../src/config/family-accounts";
+import { hasPersonalInvitation } from "../src/config/personal-invitations";
 import { hashPassword } from "../src/server/auth-hash";
 import { generateMasterPlan } from "../src/server/plan-generator";
 import { seedOperations } from "./seed-ops";
@@ -388,6 +394,13 @@ async function main() {
         side: sideOf(guest.side),
         relationship: cleanLabel(guest.category),
         isChild,
+        tier: guest.tier as GuestTier,
+        attendanceScore: guest.probabilityScore
+          ? Math.round(guest.probabilityScore)
+          : null,
+        rsvpToken: hasPersonalInvitation(guest.firstName, guest.lastName)
+          ? rsvpToken()
+          : null,
         // Everyone is flying in — this is a destination wedding.
         needsAccommodation: true,
         needsTransport: true,

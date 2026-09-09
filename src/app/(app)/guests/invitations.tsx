@@ -25,13 +25,15 @@ import {
   setGuestSend,
   setHouseholdReply,
   setHouseholdSend,
-  setHouseholdTier,
 } from "@/server/actions/guests";
 
 export type Tier = "A" | "B" | "C";
 
 export interface InvitationPerson {
   guestId: string;
+  rsvpToken: string | null;
+  /** Their own wave — a household can span two. */
+  tier: Tier;
   name: string;
   phone: string | null;
   email: string | null;
@@ -80,12 +82,6 @@ export interface TierStat {
   awaiting: number;
 }
 
-const TIER_BLURB: Record<Tier, string> = {
-  A: "First wave — save-the-dates go to these now",
-  B: "Held back until Tier A replies are in",
-  C: "Reserve list",
-};
-
 const FILTERS = [
   { key: "all", label: "Everyone" },
   { key: "std-not-sent", label: "No save-the-date" },
@@ -111,7 +107,7 @@ export function Invitations({
   const reduce = useReducedMotion();
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState<string>("all");
-  const [tierFilter, setTierFilter] = React.useState<Tier | "">("");
+  const [tierFilter, setTierFilter] = React.useState<Tier | "">("A");
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [busy, setBusy] = React.useState<string | null>(null);
 
@@ -145,6 +141,50 @@ export function Invitations({
       );
   }, [rows, filter, tierFilter, query]);
 
+  const displayStats = React.useMemo<InvitationStats>(() => {
+    if (!tierFilter) return stats;
+    const scoped = rows.filter((row) => row.tier === tierFilter);
+    const yes = scoped.filter((row) => row.reply === "YES");
+    const no = scoped.filter((row) => row.reply === "NO");
+    const awaiting = scoped.filter((row) => row.reply === "AWAITING");
+    const rsvpSent = scoped.filter((row) => row.invitationSent).length;
+
+    // Head counts follow the person's own wave. A household on tier A can hold
+    // a cousin on tier B who is not part of this send, and counting them here
+    // is what made this screen disagree with the guest list.
+    const heads = (list: InvitationRow[]) =>
+      list.reduce(
+        (sum, row) => sum + row.people.filter((p) => p.tier === tierFilter).length,
+        0,
+      );
+
+    return {
+      households: scoped.length,
+      stdSent: scoped.filter((row) => row.saveTheDateSent).length,
+      rsvpSent,
+      yes: yes.length,
+      no: no.length,
+      awaiting: awaiting.length,
+      peopleYes: heads(yes),
+      peopleNo: heads(no),
+      peopleAwaiting: heads(awaiting),
+      peopleStdSent: scoped.reduce(
+        (sum, row) =>
+          sum + row.people.filter((p) => p.tier === tierFilter && p.saveTheDateSent).length,
+        0,
+      ),
+      peopleInviteSent: scoped.reduce(
+        (sum, row) =>
+          sum + row.people.filter((p) => p.tier === tierFilter && p.invitationSent).length,
+        0,
+      ),
+      responseRate:
+        rsvpSent === 0 ? 0 : Math.round(((yes.length + no.length) / rsvpSent) * 100),
+    };
+  }, [rows, stats, tierFilter]);
+
+  const activeTier = tierFilter ? tiers.find((t) => t.tier === tierFilter) ?? null : null;
+
   function toggleExpanded(id: string) {
     setExpanded((current) => {
       const next = new Set(current);
@@ -164,59 +204,70 @@ export function Invitations({
 
   return (
     <div>
-      {/* Waves */}
-      <div className="mb-6 grid gap-2 sm:grid-cols-3">
-        {tiers.map((tier) => (
-          <button
-            key={tier.tier}
-            type="button"
-            onClick={() => setTierFilter((t) => (t === tier.tier ? "" : tier.tier))}
-            className={cn(
-              "rounded-xl border p-3 text-left transition-colors",
-              tierFilter === tier.tier
-                ? "border-saffron/40 bg-saffron-soft"
-                : "border-line hover:border-line-strong",
-            )}
-          >
-            <div className="flex items-baseline justify-between">
-              <span className="text-[12.5px] font-medium text-ink">Tier {tier.tier}</span>
-              <span className="tabular text-[12px] text-ink-muted">
-                {tier.households} · {tier.people} people
-              </span>
-            </div>
-            <p className="mt-0.5 text-[11.5px] leading-snug text-ink-faint">
-              {TIER_BLURB[tier.tier]}
-            </p>
-            <p className="tabular mt-2 text-[11.5px] text-ink-muted">
-              {tier.stdSent}/{tier.households} save-the-dates ·{" "}
-              {tier.yes} yes
-            </p>
-          </button>
-        ))}
+      {/* Which wave this is.
+          Three cards and a toggle on every row was a lot of furniture for a
+          question with one answer: the save-the-date goes to tier A. It's a
+          sentence now, with the other waves a quiet click away for the day
+          they matter. */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-[13px] text-ink-soft">
+          <span className="font-medium text-ink">
+            {tierFilter ? `Tier ${tierFilter}` : "Every wave"}
+          </span>
+          {activeTier ? (
+            <>
+              {" — "}
+              {activeTier.people} people in {activeTier.households} households ·{" "}
+              {activeTier.stdSent}/{activeTier.households} save-the-dates sent
+            </>
+          ) : null}
+        </p>
+
+        {tiers.length > 1 ? (
+          <div className="flex items-center gap-1">
+            {tiers.map((tier) => (
+              <button
+                key={tier.tier}
+                type="button"
+                onClick={() => setTierFilter(tier.tier)}
+                aria-pressed={tierFilter === tier.tier}
+                className={cn(
+                  "rounded-lg border px-2.5 py-1 text-[12px] transition-colors",
+                  tierFilter === tier.tier
+                    ? "border-ink bg-ink text-canvas"
+                    : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
+                )}
+              >
+                Tier {tier.tier}
+                <span className="tabular ml-1.5 opacity-70">{tier.people}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Overview */}
       <div className="stat-row mb-6 border-y border-line py-5" style={{ ["--stat-cols" as string]: 5 }}>
-        <Figure value={`${stats.stdSent}/${stats.households}`} label="Save-the-dates sent" />
-        <Figure value={`${stats.rsvpSent}/${stats.households}`} label="Invitations sent" />
-        <Figure value={stats.yes} label="Said yes" tone="positive" />
-        <Figure value={stats.no} label="Said no" />
-        <Figure value={`${stats.responseRate}%`} label="Replied" tone="attention" />
+        <Figure value={`${displayStats.stdSent}/${displayStats.households}`} label="Save-the-dates sent" />
+        <Figure value={`${displayStats.rsvpSent}/${displayStats.households}`} label="Invitations sent" />
+        <Figure value={displayStats.yes} label="Said yes" tone="positive" />
+        <Figure value={displayStats.no} label="Said no" />
+        <Figure value={`${displayStats.responseRate}%`} label="Replied" tone="attention" />
       </div>
 
       <SegmentBar
         className="mb-2"
         segments={[
-          { value: stats.yes, tone: "olive", label: "Yes" },
-          { value: stats.no, tone: "slate", label: "No" },
-          { value: stats.awaiting, tone: "amber", label: "Awaiting" },
+          { value: displayStats.yes, tone: "olive", label: "Yes" },
+          { value: displayStats.no, tone: "slate", label: "No" },
+          { value: displayStats.awaiting, tone: "amber", label: "Awaiting" },
         ]}
       />
       <p className="mb-6 text-[12px] text-ink-muted">
-        {stats.peopleYes} confirmed · {stats.peopleAwaiting} still to answer ·{" "}
-        {stats.peopleNo} not coming
+        {displayStats.peopleYes} confirmed · {displayStats.peopleAwaiting} still to answer ·{" "}
+        {displayStats.peopleNo} not coming
         <span className="mx-2 text-ink-faint">·</span>
-        {stats.peopleStdSent} people personally messaged
+        {displayStats.peopleStdSent} people personally messaged
       </p>
 
       {/* Filters */}
@@ -230,7 +281,7 @@ export function Invitations({
               "min-h-[32px] rounded-lg border px-2.5 text-[12.5px] transition-colors",
               filter === f.key
                 ? "border-saffron/30 bg-saffron-soft text-saffron"
-                : "border-line text-ink-muted hover:border-line-strong hover:text-ink",
+                : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
             )}
           >
             {f.label}
@@ -259,6 +310,8 @@ export function Invitations({
         <div className="border-t border-line">
           {filtered.map((row, index) => {
             const open = expanded.has(row.householdId);
+            const personalLinks = row.people.filter((person) => person.rsvpToken).length;
+            const hasGroupRecipients = row.people.some((person) => !person.rsvpToken);
             return (
               <motion.div
                 key={row.householdId}
@@ -300,17 +353,23 @@ export function Invitations({
                     ) : null}
                   </button>
 
-                  <CopyLink token={row.householdId ? row.rsvpToken : ""} name={row.name} />
-
-                  <TierSelect
-                    tier={row.tier}
-                    disabled={!canEdit || busy === `${row.householdId}:tier`}
-                    onChange={(tier) =>
-                      run(`${row.householdId}:tier`, () =>
-                        setHouseholdTier(row.householdId, tier),
-                      )
-                    }
-                  />
+                  {/* A household can be both: partners who each answer for
+                      themselves, and relatives who share the family link. Show
+                      whichever of the two exists, rather than only the first. */}
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {hasGroupRecipients ? (
+                      <CopyLink
+                        token={row.rsvpToken}
+                        name={row.name}
+                        label={personalLinks > 0 ? "Group link" : "Copy link"}
+                      />
+                    ) : null}
+                    {personalLinks > 0 ? (
+                      <Badge variant="important" size="xs">
+                        {personalLinks} personal {personalLinks === 1 ? "link" : "links"}
+                      </Badge>
+                    ) : null}
+                  </span>
 
                   <div className="flex items-center gap-4">
                     <Labelled label="Save the date">
@@ -456,6 +515,23 @@ function PersonRow({
         {person.name}
       </span>
 
+      {/* The eight couples who answer separately. Each of them replies only
+          for themselves, so their link is the one that gets sent — the family
+          link deliberately doesn't speak for them. */}
+      {person.rsvpToken ? (
+        <span className="flex shrink-0 items-center gap-1.5">
+          <Badge variant="important" size="xs">Personal invite</Badge>
+          <CopyLink
+            token={person.rsvpToken}
+            name={person.name}
+            label="Copy their link"
+            tone="personal"
+          />
+        </span>
+      ) : (
+        <span className="shrink-0 text-[11px] text-ink-faint">on the group link</span>
+      )}
+
       {editing || phone ? (
         <Input
           value={phone}
@@ -479,7 +555,7 @@ function PersonRow({
           type="button"
           onClick={() => setEditing(true)}
           disabled={!canEdit}
-          className="h-7 rounded-lg border border-dashed border-line px-2 text-[11.5px] text-ink-faint transition-colors hover:border-line-strong hover:text-ink-muted"
+          className="h-7 rounded-lg border border-dashed border-line-strong px-2 text-[11.5px] text-ink-soft transition-colors hover:border-ink-faint hover:text-ink"
         >
           + Number
         </button>
@@ -503,40 +579,6 @@ function PersonRow({
           />
         </Labelled>
       </div>
-    </div>
-  );
-}
-
-function TierSelect({
-  tier,
-  disabled,
-  onChange,
-}: {
-  tier: Tier;
-  disabled: boolean;
-  onChange(tier: Tier): void;
-}) {
-  return (
-    <div className="flex items-center gap-0.5 rounded-lg border border-line p-0.5">
-      {(["A", "B", "C"] as const).map((option) => (
-        <button
-          key={option}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(option)}
-          aria-pressed={tier === option}
-          aria-label={`Tier ${option}`}
-          className={cn(
-            "h-6 w-6 rounded-md text-[11.5px] font-medium transition-colors",
-            tier === option
-              ? "bg-ink text-canvas"
-              : "text-ink-faint hover:bg-surface-sunken hover:text-ink-muted",
-            disabled && "cursor-default opacity-60",
-          )}
-        >
-          {option}
-        </button>
-      ))}
     </div>
   );
 }
@@ -660,7 +702,18 @@ function Figure({
  * The link is per household and unguessable; it opens their reply and nobody
  * else's.
  */
-function CopyLink({ token, name }: { token: string; name: string }) {
+function CopyLink({
+  token,
+  name,
+  label = "Copy link",
+  tone,
+}: {
+  token: string;
+  name: string;
+  label?: string;
+  /** Personal links are the exception, and are drawn like one. */
+  tone?: "personal";
+}) {
   const [copied, setCopied] = React.useState(false);
 
   async function copy() {
@@ -684,13 +737,15 @@ function CopyLink({ token, name }: { token: string; name: string }) {
       onClick={copy}
       title={`Copy the invitation link for ${name}`}
       className={cn(
-        "shrink-0 rounded-lg border px-2 py-1 text-[11.5px] transition-colors",
+        "shrink-0 rounded-lg border px-2.5 py-1 text-[11.5px] font-medium transition-colors",
         copied
-          ? "border-positive/30 bg-positive-soft text-positive"
-          : "border-line text-ink-faint hover:border-line-strong hover:text-ink",
+          ? "border-positive bg-positive-soft text-positive"
+          : tone === "personal"
+            ? "border-important/40 bg-important-soft text-important hover:border-important"
+            : "border-line-strong bg-surface text-ink-soft hover:border-ink-faint hover:text-ink",
       )}
     >
-      {copied ? "Copied" : "Copy link"}
+      {copied ? "Copied" : label}
     </button>
   );
 }

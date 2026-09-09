@@ -245,7 +245,7 @@ export function PeoplePicker({
                 "flex min-h-[36px] items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-[12.5px] transition-colors",
                 on
                   ? "border-saffron/40 bg-saffron-soft text-saffron"
-                  : "border-line text-ink-muted hover:border-line-strong hover:text-ink",
+                  : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
                 disabled && "cursor-default opacity-60",
               )}
             >

@@ -3,10 +3,16 @@ import "server-only";
 /**
  * AI-proposed changes.
  *
- * The model never writes. It calls `propose_change`, which validates the shape,
- * runs the impact engine and records a pending proposal. A human then approves,
- * and execution goes through exactly the same `applyChange` path a manual edit
- * would — same validation, same permission check, same activity log.
+ * The model never writes. It calls `propose_change` with one of the actions in
+ * the capability registry, which validates the arguments, checks the action
+ * against the viewer's own permissions, runs the impact engine where the change
+ * is one it models, and records a pending proposal. A human then approves, and
+ * execution goes through exactly the same path a manual edit would — same
+ * validation, same permission check, same activity log.
+ *
+ * The registry is deliberately wide: everything the app can do, the assistant
+ * can suggest. Withholding capabilities bought nothing, because proposing is
+ * not applying — the gate is the approval, not the size of the catalogue.
  */
 
 import { z } from "zod";
@@ -15,83 +21,79 @@ import { analyseChange, type ImpactReport, type PlannedChange } from "@/domain/i
 import { db } from "@/server/db";
 import { fetchSnapshot } from "@/server/snapshot-query";
 import type { Viewer } from "@/server/permissions";
+import { EXECUTORS } from "./execute";
+import {
+  capabilityCatalogue,
+  capabilityActions,
+  findCapability,
+  permittedActions,
+  type CapabilityArea,
+} from "./registry";
 import type { ToolDefinition } from "./qwen";
 
-/**
- * What the AI may suggest — now every change the app itself can make.
- *
- * The list used to be a subset, which meant asking it to move a function to a
- * different day, or to put an RSVP back to awaiting, got a polite refusal for
- * no good reason. Withholding them bought nothing: proposing is not applying.
- * Every one of these still goes through the same preview-and-approve path a
- * person uses, executed by the same server action with the same permission
- * check, and nothing is written until somebody presses the button.
- */
-export const PROPOSABLE = [
-  "wedding.guests",
-  "wedding.budget",
-  "event.time",
-  "event.date",
-  "event.venue",
-  "event.guests",
-  "guest.rsvp",
-  "guest.accommodation",
-  "vendor.status",
-  "vendor.quote",
-  "task.update",
-] as const;
-
 const proposalSchema = z.object({
-  action: z.enum(PROPOSABLE),
+  action: z.string().min(1),
   summary: z.string().trim().min(1).max(300),
   args: z.record(z.string(), z.unknown()),
 });
 
-export const PROPOSE_TOOL: ToolDefinition = {
-  type: "function",
-  function: {
-    name: "propose_change",
-    description:
-      "Propose a specific change for the user to approve. Use this when they ask you to change something, or when a change is clearly the right recommendation. " +
-      "You cannot apply it yourself — proposing shows them a preview of everything it would affect, and they decide. " +
-      "Call this once per distinct change. Always explain in your reply what you proposed and why.",
-    parameters: {
-      type: "object",
-      properties: {
-        action: {
-          type: "string",
-          enum: [...PROPOSABLE],
-          description:
-            "wedding.guests = change the overall guest estimate. " +
-            "event.time = move a function's start/end time. Prefer passing {eventId, shiftMinutes} — a relative shift, positive for later — and let the system do the arithmetic. " +
-            "event.guests = change one function's expected attendance. " +
-            "vendor.status = move a vendor along (e.g. to SELECTED). " +
-            "vendor.quote = record a new quote amount. " +
-            "task.update = change a task's owner, due date, status or priority.",
+/**
+ * The change tool, described for one person.
+ *
+ * The catalogue is generated from the registry and filtered to what this
+ * viewer could do by hand, so the model is never told about a capability it
+ * would only be refused on.
+ */
+export function proposeTool(viewer: Viewer): ToolDefinition {
+  const has = (permission: Parameters<typeof viewer.permissions.has>[0]) =>
+    viewer.permissions.has(permission);
+
+  return {
+    type: "function",
+    function: {
+      name: "propose_change",
+      description:
+        "Propose one specific change for the user to approve. Use this whenever they ask you to add, " +
+        "change, move, remove, assign, record or set anything at all — and when a change is clearly the " +
+        "right recommendation. You cannot apply it yourself: proposing shows them what it would affect and " +
+        "they decide. Call it once per distinct change; several calls make a plan they can approve together. " +
+        "Every id must come from a tool result — use find_records to look one up by name. " +
+        "What you can propose:\n" +
+        capabilityCatalogue(has),
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: permittedActions(has),
+            description: "One of the actions listed above.",
+          },
+          summary: {
+            type: "string",
+            description:
+              "One plain sentence describing the change as the user would say it. " +
+              "e.g. 'Move the Shaadi 45 minutes later' or 'Add a task to chase the Bali venue quote'.",
+          },
+          args: {
+            type: "object",
+            description:
+              "The arguments that action takes, exactly as named in the list above. " +
+              "Dates are YYYY-MM-DD; times are minutes from midnight (1140 = 7:00 PM).",
+          },
         },
-        summary: {
-          type: "string",
-          description:
-            "One plain sentence describing the change, as the user would say it. e.g. 'Move the Shaadi 45 minutes later'.",
-        },
-        args: {
-          type: "object",
-          description:
-            "The change parameters. wedding.guests: {estimatedGuests}. " +
-            "event.time: {eventId, shiftMinutes} to move a function by a relative amount (STRONGLY PREFERRED — never do the arithmetic yourself), " +
-            "or {eventId, startMinute, endMinute} for an absolute time. " +
-            "event.guests: {eventId, estimatedGuests}. vendor.status: {vendorId, status}. vendor.quote: {vendorId, amount}. " +
-            "task.update: {taskId, and any of ownerId, dueDate (YYYY-MM-DD), status, priority}.",
-        },
+        required: ["action", "summary", "args"],
       },
-      required: ["action", "summary", "args"],
     },
-  },
-};
+  };
+}
+
+/** Every action the registry knows, for tests and diagnostics. */
+export const PROPOSABLE = capabilityActions();
 
 export interface RecordedProposal {
   id: string;
   action: string;
+  area: CapabilityArea | null;
   summary: string;
   args: Record<string, unknown>;
   impact: ImpactReport | null;
@@ -119,21 +121,41 @@ export async function recordProposal(
   }
 
   const { action, summary, args } = parsed.data;
+  const capability = findCapability(action);
+  if (!capability) {
+    // Answering with the list rather than a flat refusal — the model can pick
+    // the right one and try again in the same turn.
+    return {
+      toolOutput: JSON.stringify({
+        error: `There is no action called "${action}".`,
+        availableActions: capabilityActions(),
+      }),
+      proposal: null,
+    };
+  }
+
+  // Bad arguments come straight back rather than becoming a dead card the user
+  // has to dismiss: the model can correct them and propose again.
+  const checked = capability.schema.safeParse(args);
+  if (!checked.success) {
+    const issue = checked.error.issues[0];
+    return {
+      toolOutput: JSON.stringify({
+        error: `Those arguments don't fit ${action}: ${issue?.path.join(".") || "args"} — ${issue?.message}`,
+        expects: capability.hint,
+      }),
+      proposal: null,
+    };
+  }
+
   const snapshot = await fetchSnapshot(viewer.weddingId);
 
-  // Task updates don't go through the impact engine — they're low-risk and have
-  // their own execution path.
   let impact: ImpactReport | null = null;
   let blocked: string | null = null;
 
-  if (action === "task.update") {
-    const taskId = String(args.taskId ?? "");
-    const task = snapshot.tasks.find((t) => t.id === taskId);
-    if (!task) blocked = "That task doesn't exist.";
-    if (!viewer.permissions.has("tasks.edit")) {
-      blocked = "You don't have permission to change tasks.";
-    }
-  } else {
+  if (!viewer.permissions.has(capability.permission)) {
+    blocked = "You don't have permission to make that change.";
+  } else if (capability.planned) {
     try {
       // A relative shift is far more reliable than asking the model to add
       // minutes to a clock time, so resolve it here against the real event.
@@ -147,8 +169,7 @@ export async function recordProposal(
         delete args.shiftMinutes;
       }
 
-      const change = { type: action, ...args } as unknown as PlannedChange;
-      impact = analyseChange(snapshot, change, viewer.displayCurrency);
+      impact = analyseChange(snapshot, capability.planned(args), viewer.displayCurrency);
     } catch (error) {
       blocked =
         error instanceof Error ? error.message : "That change couldn't be modelled.";
@@ -184,6 +205,7 @@ export async function recordProposal(
     proposal: {
       id: record.id,
       action,
+      area: capability.area,
       summary,
       args,
       impact,
@@ -195,6 +217,10 @@ export async function recordProposal(
 /**
  * Execute an approved proposal. Runs through the same server actions a manual
  * edit uses, so permissions and activity logging are identical.
+ *
+ * Two routes, and the difference matters: changes the impact engine models go
+ * through `applyChange`, which re-checks the preview against current state and
+ * refuses to apply a stale one. Everything else calls its ordinary action.
  */
 export async function executeProposal(
   proposalId: string,
@@ -208,29 +234,34 @@ export async function executeProposal(
   }
 
   const args = (proposal.args ?? {}) as Record<string, unknown>;
+  const capability = findCapability(proposal.action);
 
   try {
-    if (proposal.action === "task.update") {
-      const { updateTask } = await import("@/server/actions/tasks");
-      const result = await updateTask({ id: args.taskId, ...args });
-      if (!result.ok) throw new Error(result.error);
-    } else {
+    if (!capability) {
+      throw new Error("That kind of change is no longer supported.");
+    }
+    if (!viewer.permissions.has(capability.permission)) {
+      throw new Error("You don't have permission to make that change.");
+    }
+
+    if (capability.planned) {
       const { applyChange } = await import("@/server/actions/impact");
-      const result = await applyChange(
-        { type: proposal.action, ...args },
-        {
-          // The proposal id doubles as the idempotency key, so approving twice
-          // can't apply twice.
-          idempotencyKey: `proposal:${proposalId}`,
-          reason: `Suggested by the AI Planner and approved by ${viewer.name}`,
-        },
-      );
+      const result = await applyChange(capability.planned(args) as PlannedChange, {
+        // The proposal id doubles as the idempotency key, so approving twice
+        // can't apply twice.
+        idempotencyKey: `proposal:${proposalId}`,
+        reason: `Suggested by the AI Planner and approved by ${viewer.name}`,
+      });
       if (!result.ok) throw new Error(result.error);
       if (result.data.stale) {
         throw new Error(
           "Something changed since this was suggested. Ask again so the consequences can be recalculated.",
         );
       }
+    } else {
+      const execute = EXECUTORS[proposal.action];
+      if (!execute) throw new Error("That change has no way to run.");
+      await execute(args);
     }
 
     await db.aIActionProposal.update({

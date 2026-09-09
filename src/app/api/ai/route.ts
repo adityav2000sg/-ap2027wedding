@@ -2,21 +2,42 @@ import { NextResponse } from "next/server";
 
 import { logActivity } from "@/server/activity";
 import { getViewer } from "@/server/auth";
+import type { Permission } from "@/server/permissions";
 import { db } from "@/server/db";
 import { loadSnapshot } from "@/server/snapshot";
 import { AiUnavailableError, chat, isAiConfigured, type ChatMessage } from "@/server/ai/qwen";
 import { TOOL_DEFINITIONS, buildSystemPrompt, runTool } from "@/server/ai/tools";
-import { PROPOSE_TOOL, recordProposal, type RecordedProposal } from "@/server/ai/proposals";
+import { proposeTool, recordProposal, type RecordedProposal } from "@/server/ai/proposals";
 
 export const maxDuration = 60;
 
-/** Stops a runaway tool loop from burning the quota. */
-const MAX_TOOL_ROUNDS = 4;
+/**
+ * Stops a runaway tool loop from burning the quota.
+ *
+ * Higher than it used to be, and deliberately: a real request — "reorder the
+ * week", "chase everyone who hasn't replied" — is a lookup, then a read, then
+ * several proposals. Four rounds cut those off half-finished.
+ */
+const MAX_TOOL_ROUNDS = 10;
 
 /** Crude per-process rate limit — enough to stop an accidental loop. */
 const recentCalls = new Map<string, number[]>();
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 12;
+
+/** Anybody who can change something is somebody the planner can suggest to. */
+const EDIT_PERMISSIONS = [
+  "tasks.edit",
+  "guests.edit",
+  "events.edit",
+  "vendors.edit",
+  "budget.edit",
+  "timeline.edit",
+  "logistics.edit",
+  "wardrobe.edit",
+  "wedding.configure",
+  "ai.execute",
+] as const satisfies readonly Permission[];
 
 function rateLimited(userId: string): boolean {
   const now = Date.now();
@@ -83,11 +104,14 @@ export async function POST(request: Request) {
   const toolsUsed: string[] = [];
   const proposals: RecordedProposal[] = [];
 
-  // The model may only propose changes it has permission to make.
-  const canPropose =
-    viewer.permissions.has("ai.execute") ||
-    viewer.permissions.has("tasks.edit");
-  const tools = canPropose ? [...TOOL_DEFINITIONS, PROPOSE_TOOL] : TOOL_DEFINITIONS;
+  // The model may only propose changes this person could make by hand. The
+  // tool itself is built per viewer, and lists only their own capabilities.
+  const canPropose = EDIT_PERMISSIONS.some((permission) =>
+    viewer.permissions.has(permission),
+  );
+  const tools = canPropose
+    ? [...TOOL_DEFINITIONS, proposeTool(viewer)]
+    : TOOL_DEFINITIONS;
 
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {

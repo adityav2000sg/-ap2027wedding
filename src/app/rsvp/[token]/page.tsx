@@ -26,14 +26,33 @@ import { SaveTheDate, type StdPerson } from "./save-the-date";
 // The reply must reflect what was just submitted, never a cached copy.
 export const dynamic = "force-dynamic";
 
+/**
+ * The date replies are needed by.
+ *
+ * Held in one place, as a real date and the words for it, so the deadline shown
+ * on the invitation and the countdown beside it can never disagree.
+ */
+const REPLY_BY = new Date("2026-10-01T00:00:00.000Z");
+const REPLY_BY_LABEL = "1st October 2026";
+
 export const metadata: Metadata = {
   // A wedding invitation has no business in a search index.
   robots: { index: false, follow: false },
 };
 
-async function loadHousehold(token: string) {
-  return db.household.findUnique({
+async function loadInvitation(token: string) {
+  const personal = await db.guest.findUnique({
     where: { rsvpToken: token },
+    select: {
+      id: true,
+      householdId: true,
+      rsvpMessage: true,
+      rsvpSubmittedAt: true,
+    },
+  });
+
+  const household = await db.household.findUnique({
+    where: personal ? { id: personal.householdId ?? "" } : { rsvpToken: token },
     select: {
       id: true,
       name: true,
@@ -41,7 +60,12 @@ async function loadHousehold(token: string) {
       rsvpSubmittedAt: true,
       stdRepliedAt: true,
       guests: {
-        where: { archivedAt: null },
+        // A household link speaks only for ordinary group recipients. Guests
+        // with a personal token are intentionally excluded and answer through
+        // their own private link instead.
+        where: personal
+          ? { id: personal.id, archivedAt: null }
+          : { archivedAt: null, rsvpToken: null },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
@@ -54,6 +78,7 @@ async function loadHousehold(token: string) {
           accessibilityNeeds: true,
           needsAccommodation: true,
           needsTransport: true,
+          tier: true,
           stdResponse: true,
           invitations: { select: { status: true }, take: 1 },
         },
@@ -72,6 +97,8 @@ async function loadHousehold(token: string) {
       },
     },
   });
+
+  return household ? { household, personal } : null;
 }
 
 export default async function RsvpPage({
@@ -80,10 +107,17 @@ export default async function RsvpPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const household = await loadHousehold(token);
-  if (!household) notFound();
+  const invitation = await loadInvitation(token);
+  if (!invitation) notFound();
+  const { household, personal } = invitation;
 
   const { wedding } = household;
+  const invitedGuests = personal
+    ? household.guests
+    : wedding.invitationStage === "SAVE_THE_DATE"
+      ? household.guests.filter((guest) => guest.tier === "A")
+      : household.guests;
+  if (invitedGuests.length === 0) notFound();
   const days = daysBetween(new Date(), wedding.startDate);
 
   // Same photograph as the sign-in screen, if it's there.
@@ -91,7 +125,7 @@ export default async function RsvpPage({
     existsSync(path.join(process.cwd(), "public", file)),
   );
 
-  const people: RsvpPerson[] = household.guests.map((guest) => {
+  const people: RsvpPerson[] = invitedGuests.map((guest) => {
     const status = guest.invitations[0]?.status;
     return {
       guestId: guest.id,
@@ -107,7 +141,7 @@ export default async function RsvpPage({
     };
   });
 
-  const contact = household.guests.find((g) => g.phone || g.email);
+  const contact = invitedGuests.find((g) => g.phone || g.email);
 
   // Whichever mailing is currently out. They ask different questions to
   // different deadlines, so they're different pages rather than one page with
@@ -117,10 +151,14 @@ export default async function RsvpPage({
       existsSync(path.join(process.cwd(), "public", file)),
     );
 
-    const stdPeople: StdPerson[] = household.guests.map((guest) => ({
+    // Contact details are per person on the save-the-date: everyone coming
+    // gives us their own number, even where two of them share a room.
+    const stdPeople: StdPerson[] = invitedGuests.map((guest) => ({
       guestId: guest.id,
       name: `${guest.firstName} ${guest.lastName}`.trim(),
       response: guest.stdResponse,
+      phone: guest.phone ?? "",
+      email: guest.email ?? "",
     }));
 
     return (
@@ -129,11 +167,10 @@ export default async function RsvpPage({
         photo={photo ?? null}
         music={music ?? null}
         people={stdPeople}
-        phone={contact?.phone ?? ""}
-        email={contact?.email ?? ""}
-        message={household.rsvpMessage ?? ""}
-        alreadyReplied={household.stdRepliedAt !== null}
-        rsvpBy="1st October 2026"
+        message={personal?.rsvpMessage ?? household.rsvpMessage ?? ""}
+        alreadyReplied={personal ? Boolean(stdPeople[0]?.response) : household.stdRepliedAt !== null}
+        rsvpBy={REPLY_BY_LABEL}
+        rsvpByDays={daysBetween(new Date(), REPLY_BY)}
         partnerA={wedding.partnerAName}
         partnerB={wedding.partnerBName}
         date={formatDateRange(wedding.startDate, wedding.endDate)}
@@ -219,8 +256,8 @@ export default async function RsvpPage({
               people={people}
               phone={contact?.phone ?? ""}
               email={contact?.email ?? ""}
-              message={household.rsvpMessage ?? ""}
-              alreadyReplied={household.rsvpSubmittedAt !== null}
+              message={personal?.rsvpMessage ?? household.rsvpMessage ?? ""}
+              alreadyReplied={personal ? personal.rsvpSubmittedAt !== null : household.rsvpSubmittedAt !== null}
             />
           </>
         ) : (
