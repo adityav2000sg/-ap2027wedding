@@ -282,7 +282,10 @@ export function SaveTheDate({
                   <p className="text-[13.5px] font-medium uppercase tracking-[0.18em] text-[#6d8f7f]">
                     Your reply
                   </p>
-                  <h2 className="mt-2.5 font-invite-script text-[34px] leading-[1.18] text-[#cf8a68] sm:text-[46px]">
+                  <h2
+                    className="mt-2.5 font-invite-script text-[34px] font-bold leading-[1.18] text-[#cf8a68] sm:text-[46px]"
+                    style={{ WebkitTextStroke: "0.45px currentColor" }}
+                  >
                     Will you join us in Bali?
                   </h2>
                   <p className="mt-3.5 text-[15px] leading-relaxed text-[#5d7a6c] sm:text-[14.5px]">

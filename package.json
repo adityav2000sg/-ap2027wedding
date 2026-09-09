@@ -26,6 +26,7 @@
     "fix:allocations": "tsx scripts/fix-allocations.ts",
     "fix:households": "tsx scripts/split-households.ts",
     "import:tiers": "tsx scripts/import-tiers.ts",
+    "import:groupings": "tsx scripts/import-groupings.ts",
     "tasks:reset-owners": "tsx scripts/reset-task-owners.ts"
   },
   "prisma": {

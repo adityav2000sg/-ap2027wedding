@@ -27,6 +27,7 @@ import { hasPersonalInvitation } from "../src/config/personal-invitations";
 import { hashPassword } from "../src/server/auth-hash";
 import { generateMasterPlan } from "../src/server/plan-generator";
 import { seedOperations } from "./seed-ops";
+import { importSaveTheDateGroupings } from "../scripts/import-groupings";
 
 const db = new PrismaClient();
 
@@ -424,6 +425,11 @@ async function main() {
       })),
     });
   }
+
+  // The later Groupings workbook supersedes the old household column for the
+  // final save-the-date audience: 123 rows, 233 Tier A guests, and four
+  // children who were not present in the original 267-row master list.
+  await importSaveTheDateGroupings({ prisma: db, apply: true });
 
   // ── Rooms ──────────────────────────────────────────────────────────────────
   console.log(`→ Loading ${data.rooms.length} room allocations…`);

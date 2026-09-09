@@ -8,20 +8,17 @@ import {
   PERSONAL_INVITATION_COUPLES,
 } from "./personal-invitations";
 
-interface ImportedGuest {
-  tier: string;
-  firstName: string;
-  lastName: string;
-  household: string | null;
-}
-
-const imported = JSON.parse(
-  readFileSync(path.join(process.cwd(), "prisma/data/wedding-import.json"), "utf8"),
-) as { guests: ImportedGuest[] };
+const groupings = JSON.parse(
+  readFileSync(
+    path.join(process.cwd(), "prisma/data/save-the-date-groupings.json"),
+    "utf8",
+  ),
+) as string[][];
 
 describe("personal invitation exceptions", () => {
-  it("keeps the final save-the-date audience at the verified 231 Tier A guests", () => {
-    expect(imported.guests.filter((guest) => guest.tier === "A")).toHaveLength(231);
+  it("keeps the workbook source at 123 groups and 233 Tier A guests", () => {
+    expect(groupings).toHaveLength(123);
+    expect(groupings.flat()).toHaveLength(233);
   });
 
   it("contains the eight highlighted couples and no extra people", () => {
@@ -29,28 +26,28 @@ describe("personal invitation exceptions", () => {
     expect(PERSONAL_INVITATION_COUPLES.flat()).toHaveLength(16);
   });
 
-  it("matches one Tier A guest for every highlighted name", () => {
+  it("matches one workbook guest for every highlighted name", () => {
     for (const name of PERSONAL_INVITATION_COUPLES.flat()) {
-      const matches = imported.guests.filter(
-        (guest) =>
-          `${guest.firstName} ${guest.lastName}`.trim().replace(/\s+/g, " ") === name,
-      );
+      const matches = groupings.flat().filter((guest) => guest === name);
       expect(matches, name).toHaveLength(1);
-      expect(matches[0]?.tier, name).toBe("A");
     }
   });
 
-  it("keeps both partners in the same planning group", () => {
-    for (const couple of PERSONAL_INVITATION_COUPLES) {
-      const groups = couple.map((name) => {
-        const guest = imported.guests.find(
-          (candidate) =>
-            `${candidate.firstName} ${candidate.lastName}`.trim().replace(/\s+/g, " ") === name,
-        );
-        return guest?.household;
-      });
-      expect(groups[0], couple.join(" & ")).toBe(groups[1]);
-    }
+  it("keeps separate personal links even when a couple shares a workbook row", () => {
+    expect(groupings).toContainEqual(["John Nicolaou", "Marilena Nicolaou"]);
+    expect(hasPersonalInvitation("John", "Nicolaou")).toBe(true);
+    expect(hasPersonalInvitation("Marilena", "Nicolaou")).toBe(true);
+  });
+
+  it("includes the four children added by the workbook", () => {
+    expect(groupings.flat()).toEqual(
+      expect.arrayContaining([
+        "Inaaya Takiar",
+        "Amara Takiar",
+        "Shaan Batura",
+        "Maya Batura",
+      ]),
+    );
   });
 
   it("does not turn ordinary family members into personal-link recipients", () => {

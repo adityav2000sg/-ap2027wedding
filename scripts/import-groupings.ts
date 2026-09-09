@@ -22,15 +22,15 @@
  */
 
 import { randomBytes, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import ExcelJS from "exceljs";
 
-const db = new PrismaClient();
-
-const SHEET =
+const SOURCE =
   process.argv.find((a) => a.startsWith("--file="))?.slice(7) ??
-  "/Users/adityavaidya/Library/Containers/net.whatsapp.WhatsApp/Data/tmp/documents/FFEBA71D-7890-4BD0-A3AE-8C638528EB80/Groupings.xlsx";
+  path.join(process.cwd(), "prisma", "data", "save-the-date-groupings.json");
 const APPLY = process.argv.includes("--apply");
 
 const norm = (value: string) =>
@@ -57,33 +57,109 @@ interface Candidate {
   first: string;
   last: string;
   full: string;
+  display: string;
+  side: string;
   householdName: string | null;
   tier: string;
   hasPersonalLink: boolean;
 }
 
-async function main() {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(SHEET);
-  const sheet = workbook.worksheets[0];
+interface Match {
+  name: string;
+  row: number;
+  candidate: Candidate;
+  how: string;
+}
 
-  const groups: string[][] = [];
-  sheet.eachRow((row) => {
-    const cells = Array.isArray(row.values) ? row.values : [];
-    const names = cells
-      .slice(1)
-      .map((value) => (value && typeof value === "object" && "text" in value ? String(value.text) : value))
-      .filter((value): value is string => typeof value === "string" && value.trim() !== "")
-      .map((value) => value.trim());
-    if (names.length > 0) groups.push(names);
-  });
+/**
+ * Confirmed identities where the workbook intentionally uses a maiden name,
+ * nickname, shortened name, or initials. These are explicit because a fuzzy
+ * match is not safe enough to drive rooms and invitation links.
+ */
+const CONFIRMED_ALIASES: Record<string, string> = {
+  "mary jane bercero bantoc": "mary jane bantoc",
+  "swati shukla": "swati lamba",
+  "vinit bharara": "vinnie bharara",
+  ap: "anil parashar",
+  kathryn: "katheryn",
+};
 
-  const guests = await db.guest.findMany({
+/** The four children are present in the final workbook, but not the old list. */
+const NEW_GUESTS: Record<
+  string,
+  { firstName: string; lastName: string; side: "GROOM"; relationship: string }
+> = {
+  "inaaya takiar": {
+    firstName: "Inaaya",
+    lastName: "Takiar",
+    side: "GROOM",
+    relationship: "Extended Family",
+  },
+  "amara takiar": {
+    firstName: "Amara",
+    lastName: "Takiar",
+    side: "GROOM",
+    relationship: "Extended Family",
+  },
+  "shaan batura": {
+    firstName: "Shaan",
+    lastName: "Batura",
+    side: "GROOM",
+    relationship: "Extended Family",
+  },
+  "maya batura": {
+    firstName: "Maya",
+    lastName: "Batura",
+    side: "GROOM",
+    relationship: "Extended Family",
+  },
+};
+
+/** Duplicate exact names in the old master list, disambiguated by their side. */
+const ROW_SIDE_OVERRIDES: Record<string, string> = {
+  "32:sanjay anand": "BRIDE",
+  "64:sanjay anand": "GROOM",
+  "123:amay bham": "GROOM",
+  "123:ashray bham": "GROOM",
+};
+
+export async function importSaveTheDateGroupings({
+  prisma,
+  source = SOURCE,
+  apply = false,
+}: {
+  prisma: PrismaClient;
+  source?: string;
+  apply?: boolean;
+}) {
+  let groups: string[][];
+  if (path.extname(source).toLowerCase() === ".json") {
+    groups = JSON.parse(readFileSync(source, "utf8")) as string[][];
+  } else {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(source);
+    const sheet = workbook.worksheets[0];
+    groups = [];
+    sheet.eachRow((row) => {
+      const cells = Array.isArray(row.values) ? row.values : [];
+      const names = cells
+        .slice(1)
+        .map((value) =>
+          value && typeof value === "object" && "text" in value ? String(value.text) : value,
+        )
+        .filter((value): value is string => typeof value === "string" && value.trim() !== "")
+        .map((value) => value.trim());
+      if (names.length > 0) groups.push(names);
+    });
+  }
+
+  const guests = await prisma.guest.findMany({
     where: { archivedAt: null },
     select: {
       id: true,
       firstName: true,
       lastName: true,
+      side: true,
       tier: true,
       rsvpToken: true,
       household: { select: { name: true } },
@@ -95,31 +171,67 @@ async function main() {
     first: norm(guest.firstName),
     last: norm(guest.lastName),
     full: norm(`${guest.firstName} ${guest.lastName}`),
+    display: `${guest.firstName} ${guest.lastName}`.trim(),
+    side: guest.side,
     householdName: guest.household?.name ?? null,
     tier: guest.tier,
     hasPersonalLink: guest.rsvpToken !== null,
   }));
 
-  const byFull = new Map(pool.map((c) => [c.full, c]));
+  for (const [full, guest] of Object.entries(NEW_GUESTS)) {
+    if (pool.some((candidate) => candidate.full === full)) continue;
+    pool.push({
+      id: `new:${full}`,
+      first: norm(guest.firstName),
+      last: norm(guest.lastName),
+      full,
+      display: `${guest.firstName} ${guest.lastName}`.trim(),
+      side: guest.side,
+      householdName: null,
+      tier: "A",
+      hasPersonalLink: false,
+    });
+  }
+
+  const byFull = new Map<string, Candidate[]>();
+  for (const candidate of pool) {
+    const list = byFull.get(candidate.full) ?? [];
+    list.push(candidate);
+    byFull.set(candidate.full, list);
+  }
   const firstNameCount = new Map<string, number>();
   for (const candidate of pool) {
     firstNameCount.set(candidate.first, (firstNameCount.get(candidate.first) ?? 0) + 1);
   }
 
   const taken = new Set<string>();
-  const matched: { name: string; candidate: Candidate; how: string }[] = [];
+  const matched: Match[] = [];
   const unmatched: { name: string; row: number }[] = [];
 
   groups.forEach((group, index) => {
+    const row = index + 1;
     for (const name of group) {
       const key = norm(name);
       const parts = key.split(" ");
       const first = parts[0];
       const last = parts.slice(1).join(" ");
 
-      // 1. The same name, spelled the same way.
-      let hit = byFull.get(key);
+      // 1. A user-confirmed alias or the exact same name.
+      const confirmedFull = CONFIRMED_ALIASES[key];
+      const sideOverride = ROW_SIDE_OVERRIDES[`${row}:${key}`];
+      const exact = [
+        ...(byFull.get(confirmedFull ?? key) ?? []),
+        ...(confirmedFull && confirmedFull !== key ? (byFull.get(key) ?? []) : []),
+      ];
+      let hit = exact.find(
+        (candidate) =>
+          !taken.has(candidate.id) &&
+          (!sideOverride || candidate.side === sideOverride),
+      );
       let how = "exact";
+
+      if (hit && confirmedFull && hit.full !== key) how = "confirmed alias";
+      if (hit && sideOverride) how = "same-name person, confirmed by side";
 
       // 2. The same first name and a surname a letter or two out — Patni for
       //    Pattni, Jareth for Jerath.
@@ -150,9 +262,9 @@ async function main() {
 
       if (hit && !taken.has(hit.id)) {
         taken.add(hit.id);
-        matched.push({ name, candidate: hit, how });
+        matched.push({ name, row, candidate: hit, how });
       } else {
-        unmatched.push({ name, row: index + 1 });
+        unmatched.push({ name, row });
       }
     }
   });
@@ -160,8 +272,9 @@ async function main() {
   const onTheSheet = new Set(matched.map((m) => m.candidate.id));
   const droppedFromA = pool.filter((c) => c.tier === "A" && !onTheSheet.has(c.id));
   const addedToA = matched.filter((m) => m.candidate.tier !== "A");
+  const newGuests = matched.filter((m) => m.candidate.id.startsWith("new:"));
 
-  console.log(`Sheet: ${groups.length} groups, ${groups.flat().length} people.`);
+  console.log(`Source: ${groups.length} groups, ${groups.flat().length} people.`);
   console.log(`Matched ${matched.length}. Unmatched ${unmatched.length}.`);
 
   const fuzzy = matched.filter((m) => m.how !== "exact");
@@ -187,12 +300,16 @@ async function main() {
     for (const m of addedToA) console.log(`  ${m.candidate.full} (tier ${m.candidate.tier} today)`);
   }
 
+  if (newGuests.length > 0) {
+    console.log(`\nWould add ${newGuests.length} guests from the workbook:`);
+    for (const match of newGuests) console.log(`  row ${match.row}: ${match.name}`);
+  }
+
   // Regrouping: how many people would change household.
   const moves: string[] = [];
   groups.forEach((group, index) => {
-    const members = group
-      .map((name) => matched.find((m) => m.name === name && group.includes(m.name)))
-      .filter((m): m is (typeof matched)[number] => Boolean(m));
+    const row = index + 1;
+    const members = matched.filter((match) => match.row === row);
     const households = new Set(members.map((m) => m.candidate.householdName ?? "—"));
     if (households.size > 1) {
       moves.push(
@@ -205,19 +322,81 @@ async function main() {
     console.log(moves.join("\n"));
   }
 
-  if (!APPLY) {
+  if (!apply) {
     console.log("\nDry run. Nothing was written. Re-run with --apply to make these changes.");
-    await db.$disconnect();
     return;
   }
 
   console.log("\nApplying…");
-  await db.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const wedding = await tx.wedding.findFirstOrThrow({ select: { id: true } });
+    const events = await tx.event.findMany({
+      where: { weddingId: wedding.id },
+      select: { id: true },
+    });
+
+    const resolvedIds = new Map<string, string>();
+    for (const match of newGuests) {
+      const guest = NEW_GUESTS[match.candidate.full];
+      const existing = await tx.guest.findFirst({
+        where: {
+          weddingId: wedding.id,
+          firstName: guest.firstName,
+          lastName: guest.lastName,
+          archivedAt: null,
+        },
+        select: { id: true },
+      });
+      const created =
+        existing ??
+        (await tx.guest.create({
+          data: {
+            weddingId: wedding.id,
+            firstName: guest.firstName,
+            lastName: guest.lastName,
+            side: guest.side,
+            relationship: guest.relationship,
+            isChild: true,
+            tier: "A",
+            attendanceScore: 3,
+            needsAccommodation: true,
+            needsTransport: true,
+          },
+          select: { id: true },
+        }));
+      resolvedIds.set(match.candidate.id, created.id);
+    }
+
+    if (events.length > 0) {
+      const children = await tx.guest.findMany({
+        where: {
+          weddingId: wedding.id,
+          archivedAt: null,
+          OR: Object.values(NEW_GUESTS).map((guest) => ({
+            firstName: guest.firstName,
+            lastName: guest.lastName,
+          })),
+        },
+        select: { id: true },
+      });
+      await tx.eventInvitation.createMany({
+        data: children.flatMap((child) =>
+          events.map((event) => ({
+            guestId: child.id,
+            eventId: event.id,
+            status: "PENDING" as const,
+          })),
+        ),
+        skipDuplicates: true,
+      });
+    }
+
+    const idOf = (candidate: Candidate) => resolvedIds.get(candidate.id) ?? candidate.id;
+    const resolvedOnTheSheet = matched.map((match) => idOf(match.candidate));
 
     // Tier follows the sheet exactly: on it means A, off it means held back.
     await tx.guest.updateMany({
-      where: { weddingId: wedding.id, id: { in: [...onTheSheet] } },
+      where: { weddingId: wedding.id, id: { in: resolvedOnTheSheet } },
       data: { tier: "A" },
     });
     await tx.guest.updateMany({
@@ -225,33 +404,41 @@ async function main() {
         weddingId: wedding.id,
         tier: "A",
         archivedAt: null,
-        id: { notIn: [...onTheSheet] },
+        id: { notIn: resolvedOnTheSheet },
       },
       data: { tier: "B" },
     });
 
     // One row, one household — which is one room and one invitation. Personal
     // links are never touched; they hang off the guest, not the group.
-    for (const [index, group] of groups.entries()) {
-      const members = group
-        .map((name) => matched.find((m) => m.name === name))
-        .filter((m): m is (typeof matched)[number] => Boolean(m));
+    for (const [index] of groups.entries()) {
+      const members = matched.filter((match) => match.row === index + 1);
       if (members.length === 0) continue;
 
-      const surnames = members.map((m) => m.candidate.last).filter(Boolean);
-      const name =
-        new Set(surnames).size === 1 && surnames.length > 0
-          ? members[0].candidate.last.replace(/\b\w/g, (c) => c.toUpperCase())
-          : members
-              .map((m) => m.candidate.full.replace(/\b\w/g, (c) => c.toUpperCase()))
-              .join(" & ");
+      const memberIds = members.map((member) => idOf(member.candidate));
+      const name = members.map((member) => member.candidate.display).join(" & ");
 
-      const existing = await tx.household.findFirst({
-        where: { weddingId: wedding.id, name },
-        select: { id: true },
+      // Reuse a household only when its membership is exactly this row. Name
+      // equality is not identity: the workbook contains several unrelated
+      // Chowdhry, Anand, Mehan, Ahuja, and Lamba rows.
+      const candidates = await tx.household.findMany({
+        where: { weddingId: wedding.id, guests: { some: { id: { in: memberIds } } } },
+        select: { id: true, guests: { where: { archivedAt: null }, select: { id: true } } },
       });
+      const wanted = new Set(memberIds);
+      const existing = candidates.find(
+        (household) =>
+          household.guests.length === wanted.size &&
+          household.guests.every((guest) => wanted.has(guest.id)),
+      );
       const household =
-        existing ??
+        (existing
+          ? await tx.household.update({
+              where: { id: existing.id },
+              data: { name, tier: "A" },
+              select: { id: true },
+            })
+          : null) ??
         (await tx.household.create({
           data: {
             weddingId: wedding.id,
@@ -266,12 +453,17 @@ async function main() {
         }));
 
       await tx.guest.updateMany({
-        where: { id: { in: members.map((m) => m.candidate.id) } },
+        where: { id: { in: memberIds } },
         data: { householdId: household.id },
       });
 
       if (index === 0) console.log("  regrouping…");
     }
+
+    await tx.guest.updateMany({
+      where: { weddingId: wedding.id, firstName: "Vinnie", lastName: "Bharara" },
+      data: { firstName: "Vinit" },
+    });
 
     // Households nobody is in any more.
     const empty = await tx.household.findMany({
@@ -285,11 +477,14 @@ async function main() {
   });
 
   console.log("Done.");
-  await db.$disconnect();
 }
 
-main().catch(async (error) => {
-  console.error(error);
-  await db.$disconnect();
-  process.exit(1);
-});
+if (path.basename(process.argv[1] ?? "") === "import-groupings.ts") {
+  const cliDb = new PrismaClient();
+  importSaveTheDateGroupings({ prisma: cliDb, source: SOURCE, apply: APPLY })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    })
+    .finally(() => cliDb.$disconnect());
+}
