@@ -17,6 +17,7 @@ import { Avatar, Badge, Button, EmptyState, SegmentBar } from "@/components/ui/p
 import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { BedIcon, CheckIcon, ChevronRightIcon, RouteIcon, SearchIcon } from "@/components/ui/icons";
+import { GUEST_RELATIONSHIPS } from "@/config/guest-relationships";
 import {
   archiveGuest,
   setGuestAttendance,
@@ -1239,6 +1240,19 @@ function GuestSheet({
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Guest category" htmlFor="g-relationship">
+          <Select
+            id="g-relationship"
+            value={guest.relationship ?? ""}
+            disabled={!canEdit}
+            onChange={(e) => patch({ relationship: e.target.value })}
+          >
+            <option value="">Not set</option>
+            {GUEST_RELATIONSHIPS.map((relationship) => (
+              <option key={relationship} value={relationship}>{relationship}</option>
+            ))}
+          </Select>
+        </FormField>
         <FormField label="Dietary" htmlFor="g-diet">
           <Select
             id="g-diet"

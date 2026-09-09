@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/primitives";
 import { Sheet } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { PlusIcon } from "@/components/ui/icons";
+import { GUEST_RELATIONSHIPS } from "@/config/guest-relationships";
 import { createGuest } from "@/server/actions/guests";
 
 const DIETS: [string, string][] = [
@@ -237,13 +238,17 @@ function GuestComposer({
               <option value="GROOM">Groom's</option>
             </Select>
           </FormField>
-          <FormField label="How are they related?" htmlFor="g-rel">
-            <Input
+          <FormField label="Guest category" htmlFor="g-rel">
+            <Select
               id="g-rel"
               value={form.relationship}
               onChange={(e) => set("relationship", e.target.value)}
-              placeholder="Cousin, Family friend…"
-            />
+            >
+              <option value="">Not set</option>
+              {GUEST_RELATIONSHIPS.map((relationship) => (
+                <option key={relationship} value={relationship}>{relationship}</option>
+              ))}
+            </Select>
           </FormField>
         </div>
 
