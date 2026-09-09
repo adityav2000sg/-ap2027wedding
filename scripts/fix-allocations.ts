@@ -122,8 +122,20 @@ async function main() {
 
     planned.push(`Add ${person.name} to the wardrobe as ${person.role}.`);
     if (apply) {
+      // Onto the end of the list. Left at the default of 0 he ties with the
+      // bride and lands second, ahead of the groom and both sets of parents.
+      const last = await db.wardrobePerson.aggregate({
+        where: { weddingId: wedding.id },
+        _max: { sortOrder: true },
+      });
+
       await db.wardrobePerson.create({
-        data: { weddingId: wedding.id, name: person.name, role: person.role },
+        data: {
+          weddingId: wedding.id,
+          name: person.name,
+          role: person.role,
+          sortOrder: (last._max.sortOrder ?? 0) + 1,
+        },
       });
     }
   }
