@@ -5,6 +5,7 @@ import { z } from "zod";
 import { logViewerActivity } from "@/server/activity";
 import { db } from "@/server/db";
 import { deleteMedia } from "@/server/media";
+import { mirrorToOverall } from "@/server/moodboards";
 import { optionalId, optionalString, revalidateWedding, withAction } from "./shared";
 
 // ───────────────────────────────────────────────────────────────── Moodboards
@@ -173,6 +174,31 @@ export async function removeMoodboardItem(id: string) {
   });
 }
 
+/**
+ * Take one picture off one board, leaving it everywhere else.
+ *
+ * The counterpart to adding: together they make the board list a set of
+ * checkboxes for a picture rather than a place you have to delete and
+ * re-upload to reorganise.
+ */
+export async function removeMediaFromBoard(moodboardId: string, mediaId: string) {
+  return withAction("documents.upload", async (viewer) => {
+    const item = await db.moodboardItem.findFirst({
+      where: {
+        moodboardId,
+        mediaId,
+        moodboard: { weddingId: viewer.weddingId },
+      },
+      select: { id: true },
+    });
+    if (!item) throw new Error("That image isn't on that board.");
+
+    await db.moodboardItem.delete({ where: { id: item.id } });
+    revalidateWedding();
+    return { id: item.id };
+  });
+}
+
 /** Put an existing image onto another board. One file, many contexts. */
 export async function addExistingMediaToBoard(moodboardId: string, mediaIds: string[]) {
   return withAction("documents.upload", async (viewer) => {
@@ -193,6 +219,10 @@ export async function addExistingMediaToBoard(moodboardId: string, mediaIds: str
       })),
       skipDuplicates: true,
     });
+
+    // Every board is a slice of the whole week's look, so the overall board
+    // collects whatever lands anywhere else.
+    await mirrorToOverall(viewer.weddingId, ids, { skipBoardId: board.id });
 
     if (result.count > 0) {
       await logViewerActivity(viewer, {

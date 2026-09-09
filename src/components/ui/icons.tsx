@@ -168,6 +168,14 @@ export const ImageIcon = (p: IconProps) => (
   <Icon {...p}><rect x="1.5" y="3" width="13" height="10" rx="1.5" /><circle cx="5.5" cy="6.5" r="1.2" /><path d="M2 11l3.5-3 2.5 2.2L11 7l3.5 3.4" /></Icon>
 );
 
+/** A luggage tag — "which boards does this belong to". */
+export const TagIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7.4 2H3a1 1 0 00-1 1v4.4a1 1 0 00.3.7l6 6a1 1 0 001.4 0l4.1-4.1a1 1 0 000-1.4l-6-6a1 1 0 00-.7-.3z" />
+    <circle cx="5.1" cy="5.1" r="1" />
+  </Icon>
+);
+
 /** The notification bell. Drawn on this set's 16px grid, not a 24px one. */
 export const BellIcon = (p: IconProps) => (
   <Icon {...p}>

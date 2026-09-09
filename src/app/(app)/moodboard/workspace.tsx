@@ -16,11 +16,13 @@ import { cn, toneClasses } from "@/lib/cn";
 import { Button, EmptyState } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
 import { FormField, Input, Select, Textarea } from "@/components/ui/form";
-import { PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { CheckIcon, PlusIcon, TagIcon, TrashIcon } from "@/components/ui/icons";
 import { Uploader } from "@/components/media/uploader";
 import { Lightbox } from "@/components/media/lightbox";
 import {
+  addExistingMediaToBoard,
   createMoodboard,
+  removeMediaFromBoard,
   removeMoodboardItem,
   reorderMoodboardItems,
   updateMediaCaption,
@@ -78,6 +80,17 @@ export function MoodboardWorkspace({
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [dragId, setDragId] = React.useState<string | null>(null);
+  /**
+   * Which picture's board list is open, and where to draw it.
+   *
+   * The menu is rendered at the top of the workspace rather than inside the
+   * tile: a tile clips its own contents so the zoom-on-hover stays inside the
+   * frame, and a menu drawn in there would be cut off at the edge.
+   */
+  const [boardMenu, setBoardMenu] = React.useState<
+    { mediaId: string; x: number; y: number } | null
+  >(null);
+  const [filing, setFiling] = React.useState<string | null>(null);
 
   React.useEffect(() => setSelectedId(activeBoardId), [activeBoardId]);
 
@@ -93,6 +106,33 @@ export function MoodboardWorkspace({
   }, [boards]);
 
   const totalImages = boards.reduce((sum, b) => sum + b.itemCount, 0);
+
+  /**
+   * The board that holds the week's whole look.
+   *
+   * Everything added anywhere is mirrored onto it by the server, so it is shown
+   * as ticked and can't be unticked here — otherwise you'd untick it and watch
+   * it come straight back.
+   */
+  const overallBoardId = boards.find((b) => b.scope === "WEDDING")?.id ?? null;
+
+  const boardsHolding = React.useCallback(
+    (mediaId: string) =>
+      new Set(
+        boards
+          .filter((b) => b.items.some((item) => item.mediaId === mediaId))
+          .map((b) => b.id),
+      ),
+    [boards],
+  );
+
+  async function toggleBoard(boardId: string, mediaId: string, on: boolean) {
+    setFiling(mediaId);
+    if (on) await removeMediaFromBoard(boardId, mediaId);
+    else await addExistingMediaToBoard(boardId, [mediaId]);
+    setFiling(null);
+    router.refresh();
+  }
 
   async function onDrop(targetId: string) {
     if (!dragId || dragId === targetId || !board) return;
@@ -263,6 +303,26 @@ export function MoodboardWorkspace({
                           </button>
                           <button
                             type="button"
+                            aria-label="Which boards this belongs to"
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setBoardMenu((current) =>
+                                current?.mediaId === item.mediaId
+                                  ? null
+                                  : { mediaId: item.mediaId, x: rect.right, y: rect.bottom },
+                              );
+                            }}
+                            className={cn(
+                              "pointer-events-auto flex h-7 w-7 items-center justify-center rounded-lg backdrop-blur transition-colors",
+                              boardMenu?.mediaId === item.mediaId
+                                ? "bg-saffron text-white"
+                                : "bg-ink/45 text-white hover:bg-ink/65",
+                            )}
+                          >
+                            <TagIcon size={12} />
+                          </button>
+                          <button
+                            type="button"
                             aria-label="Remove from this board"
                             onClick={async () => {
                               setItems((c) => c.filter((i) => i.id !== item.id));
@@ -307,6 +367,64 @@ export function MoodboardWorkspace({
           />
         )}
       </div>
+
+      {/* Filing a picture: the board list as a set of ticks. */}
+      {boardMenu ? (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setBoardMenu(null)}
+            aria-hidden
+          />
+          <div
+            role="menu"
+            className="fixed z-50 w-60 rounded-xl border border-line-strong bg-surface p-1 shadow-float"
+            style={{
+              top: Math.min(boardMenu.y + 6, window.innerHeight - 320),
+              left: Math.max(12, boardMenu.x - 240),
+            }}
+          >
+            <p className="px-2 py-1.5 text-[11px] uppercase tracking-[0.08em] text-ink-faint">
+              On which boards
+            </p>
+            <div className="max-h-[260px] overflow-y-auto">
+              {boards.map((option) => {
+                const on = boardsHolding(boardMenu.mediaId).has(option.id);
+                const locked = option.id === overallBoardId;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={locked || filing === boardMenu.mediaId}
+                    onClick={() => toggleBoard(option.id, boardMenu.mediaId, on)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12.5px] transition-colors",
+                      locked
+                        ? "cursor-default text-ink-muted"
+                        : "text-ink-soft hover:bg-surface-sunken hover:text-ink",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border",
+                        on
+                          ? "border-ink bg-ink text-canvas"
+                          : "border-line-strong",
+                      )}
+                    >
+                      {on ? <CheckIcon size={10} /> : null}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{option.name}</span>
+                    {locked ? (
+                      <span className="shrink-0 text-[10.5px] text-ink-faint">always</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <Lightbox
         images={items.map((item) => ({

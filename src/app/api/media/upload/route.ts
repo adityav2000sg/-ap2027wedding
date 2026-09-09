@@ -4,6 +4,7 @@ import { logActivity } from "@/server/activity";
 import { getViewer } from "@/server/auth";
 import { ingestUpload } from "@/server/media";
 import { db } from "@/server/db";
+import { mirrorToOverall } from "@/server/moodboards";
 
 export const maxDuration = 60;
 
@@ -78,6 +79,12 @@ export async function POST(request: Request) {
               caption,
               sortOrder: count,
             },
+          });
+
+          // Anything pinned to a function's board belongs to the week's look
+          // as well, so the overall board keeps itself.
+          await mirrorToOverall(viewer.weddingId, [result.id], {
+            skipBoardId: board.id,
           });
         }
       }
