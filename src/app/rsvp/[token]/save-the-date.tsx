@@ -354,12 +354,9 @@ export function SaveTheDate({
                                   : `Wonderful. Where can we reach ${person.name.split(" ")[0]}?`}
                               </p>
                               <div className="grid gap-4 sm:grid-cols-2">
-                                <Field
-                                  label="Mobile number"
+                                <PhoneField
                                   value={person.phone}
                                   onChange={(value) => update(person.guestId, { phone: value })}
-                                  inputMode="tel"
-                                  placeholder="Including the country code"
                                 />
                                 <Field
                                   label="Email — optional"
@@ -744,6 +741,132 @@ function ChoiceIcon({ tone }: { tone: "yes" | "no" }) {
         <path d="m4.2 4.2 7.6 7.6m0-7.6-7.6 7.6" />
       )}
     </svg>
+  );
+}
+
+/**
+ * Dialling codes, most likely first.
+ *
+ * The list is the wedding's own geography — London, Delhi, Singapore, the Gulf
+ * — and then the rest of the places guests are flying from. Held by ISO code
+ * rather than by dialling code because the United States and Canada share +1
+ * and a dropdown cannot have two options with the same value.
+ */
+const DIAL_CODES: { iso: string; flag: string; dial: string; name: string }[] = [
+  { iso: "GB", flag: "🇬🇧", dial: "+44", name: "United Kingdom" },
+  { iso: "IN", flag: "🇮🇳", dial: "+91", name: "India" },
+  { iso: "SG", flag: "🇸🇬", dial: "+65", name: "Singapore" },
+  { iso: "AE", flag: "🇦🇪", dial: "+971", name: "United Arab Emirates" },
+  { iso: "US", flag: "🇺🇸", dial: "+1", name: "United States" },
+  { iso: "CA", flag: "🇨🇦", dial: "+1", name: "Canada" },
+  { iso: "AU", flag: "🇦🇺", dial: "+61", name: "Australia" },
+  { iso: "HK", flag: "🇭🇰", dial: "+852", name: "Hong Kong" },
+  { iso: "ID", flag: "🇮🇩", dial: "+62", name: "Indonesia" },
+  { iso: "TH", flag: "🇹🇭", dial: "+66", name: "Thailand" },
+  { iso: "MY", flag: "🇲🇾", dial: "+60", name: "Malaysia" },
+  { iso: "NZ", flag: "🇳🇿", dial: "+64", name: "New Zealand" },
+  { iso: "QA", flag: "🇶🇦", dial: "+974", name: "Qatar" },
+  { iso: "SA", flag: "🇸🇦", dial: "+966", name: "Saudi Arabia" },
+  { iso: "OM", flag: "🇴🇲", dial: "+968", name: "Oman" },
+  { iso: "BH", flag: "🇧🇭", dial: "+973", name: "Bahrain" },
+  { iso: "KW", flag: "🇰🇼", dial: "+965", name: "Kuwait" },
+  { iso: "IE", flag: "🇮🇪", dial: "+353", name: "Ireland" },
+  { iso: "DE", flag: "🇩🇪", dial: "+49", name: "Germany" },
+  { iso: "FR", flag: "🇫🇷", dial: "+33", name: "France" },
+  { iso: "CH", flag: "🇨🇭", dial: "+41", name: "Switzerland" },
+  { iso: "NL", flag: "🇳🇱", dial: "+31", name: "Netherlands" },
+  { iso: "ES", flag: "🇪🇸", dial: "+34", name: "Spain" },
+  { iso: "IT", flag: "🇮🇹", dial: "+39", name: "Italy" },
+  { iso: "ZA", flag: "🇿🇦", dial: "+27", name: "South Africa" },
+  { iso: "JP", flag: "🇯🇵", dial: "+81", name: "Japan" },
+  { iso: "CN", flag: "🇨🇳", dial: "+86", name: "China" },
+  { iso: "PH", flag: "🇵🇭", dial: "+63", name: "Philippines" },
+  { iso: "LK", flag: "🇱🇰", dial: "+94", name: "Sri Lanka" },
+  { iso: "PK", flag: "🇵🇰", dial: "+92", name: "Pakistan" },
+  { iso: "BD", flag: "🇧🇩", dial: "+880", name: "Bangladesh" },
+  { iso: "NP", flag: "🇳🇵", dial: "+977", name: "Nepal" },
+];
+
+/** Longest code wins, so +971 is never read as +97. */
+function splitPhone(value: string): { iso: string; rest: string } {
+  const trimmed = value.trim();
+  const match = [...DIAL_CODES]
+    .sort((a, b) => b.dial.length - a.dial.length)
+    .find((entry) => trimmed.startsWith(entry.dial));
+  if (!match) return { iso: "GB", rest: trimmed };
+  return { iso: match.iso, rest: trimmed.slice(match.dial.length).trim() };
+}
+
+/**
+ * A number we can actually ring.
+ *
+ * Asking for "your number, including the country code" gets you a number
+ * without the country code — from a guest in Dubai, which is the one case
+ * where it matters. Pick the flag, type the rest.
+ */
+function PhoneField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange(value: string): void;
+}) {
+  const parsed = splitPhone(value);
+  const [iso, setIso] = React.useState(parsed.iso);
+  const country = DIAL_CODES.find((entry) => entry.iso === iso) ?? DIAL_CODES[0];
+
+  const emit = (nextIso: string, rest: string) => {
+    const dial = DIAL_CODES.find((entry) => entry.iso === nextIso)?.dial ?? "+44";
+    onChange(rest.trim() === "" ? "" : `${dial} ${rest.trim()}`);
+  };
+
+  const shared =
+    "min-h-[48px] rounded-2xl border border-[#d9d4cb] bg-[#fbfaf7] text-[16px] text-[#2d332d] " +
+    "outline-none transition-all duration-300 focus:border-[#6d8373] focus:bg-white " +
+    "focus:shadow-[0_0_0_3px_rgba(109,131,115,0.13)] sm:min-h-[44px] sm:text-[14px]";
+
+  return (
+    <label className="block">
+      <span className="mb-1.5 flex items-baseline gap-1.5 text-[13.5px] font-medium text-[#66645d]">
+        Mobile number
+        <span className="text-[11.5px] font-normal uppercase tracking-[0.08em] text-[#a4503f]">
+          Required
+        </span>
+      </span>
+      <span className="flex gap-2">
+        <span className="relative shrink-0">
+          <select
+            value={iso}
+            aria-label="Country dialling code"
+            onChange={(event) => {
+              setIso(event.target.value);
+              emit(event.target.value, parsed.rest);
+            }}
+            className={`${shared} w-[112px] appearance-none px-3 pr-7`}
+          >
+            {DIAL_CODES.map((entry) => (
+              <option key={entry.iso} value={entry.iso}>
+                {entry.flag} {entry.dial}
+              </option>
+            ))}
+          </select>
+          <svg
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8b877f]"
+            width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden
+          >
+            <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <input
+          value={parsed.rest}
+          inputMode="tel"
+          autoComplete="tel-national"
+          placeholder={country.iso === "GB" ? "7700 900123" : "Your number"}
+          onChange={(event) => emit(iso, event.target.value)}
+          className={`${shared} min-w-0 flex-1 px-4 py-2.5`}
+        />
+      </span>
+    </label>
   );
 }
 
