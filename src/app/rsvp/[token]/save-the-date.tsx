@@ -826,7 +826,10 @@ function PhoneField({
     "focus:shadow-[0_0_0_3px_rgba(109,131,115,0.13)] sm:min-h-[44px] sm:text-[14px]";
 
   return (
-    <label className="block">
+    // min-w-0: a grid item won't shrink below its content's minimum width, and
+    // an <input> reports that as its intrinsic size="20" — about 336px at this
+    // font, which is wider than the column and hangs off the right of the card.
+    <label className="block min-w-0">
       <span className="mb-1.5 flex items-baseline gap-1.5 text-[13.5px] font-medium text-[#66645d]">
         Mobile number
         <span className="text-[11.5px] font-normal uppercase tracking-[0.08em] text-[#a4503f]">
@@ -891,7 +894,9 @@ function Field({
     "focus:border-[#6d8373] focus:bg-white focus:shadow-[0_0_0_3px_rgba(109,131,115,0.13)]";
 
   return (
-    <label className="block">
+    // See PhoneField: without min-w-0 the input's intrinsic 20-character width
+    // becomes the column's minimum and overflows the card.
+    <label className="block min-w-0">
       <span className="mb-1.5 block text-[13.5px] font-medium text-[#66645d]">{label}</span>
       {multiline ? (
         <textarea
