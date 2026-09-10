@@ -52,6 +52,7 @@ export function makeGuest(id: string, overrides: Partial<GuestNode> = {}): Guest
     invitationSentAt: null,
     tier: "A" as const,
     stdResponse: null,
+    rsvpMessage: null,
     attendanceScore: 5,
     phone: null,
     email: null,
@@ -306,6 +307,7 @@ export function snapshotWithGuests(
     rsvpRepliedAt: null,
     rsvpSubmittedAt: null,
     stdRepliedAt: null,
+    rsvpMessage: null,
     giftReceived: false,
     notes: null,
   }));

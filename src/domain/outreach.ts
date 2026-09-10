@@ -21,7 +21,7 @@ export const TIER_LABEL: Record<GuestTier, string> = {
 };
 
 /** What somebody said to the save-the-date, rolled up for a whole household. */
-export type StdReply = "YES" | "NO" | "PARTIAL" | "AWAITING";
+export type StdReply = "YES" | "MIXED" | "NO" | "PARTIAL" | "AWAITING";
 
 export interface OutreachPerson {
   guestId: string;
@@ -37,6 +37,8 @@ export interface OutreachPerson {
   /// Their own answer to the save-the-date. This is the reply that exists a
   /// year out; the household's `reply` belongs to the invitation proper.
   stdResponse: "YES" | "NO" | null;
+  /// What they wrote when they replied on their own link.
+  message: string | null;
 }
 
 export interface OutreachRow {
@@ -67,6 +69,8 @@ export interface OutreachRow {
   stdYes: number;
   stdNo: number;
   stdAwaiting: number;
+  /// The note left with the reply, if there was one.
+  message: string | null;
 }
 
 export interface OutreachStats {
@@ -127,6 +131,7 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
       saveTheDateSent: Boolean(guest.saveTheDateSentAt),
       invitationSent: Boolean(guest.invitationSentAt),
       stdResponse: guest.stdResponse,
+      message: guest.rsvpMessage,
     });
     members.set(guest.householdId, list);
   }
@@ -148,6 +153,7 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
         people.some((p) => p.tier === t),
       ) ?? "C",
       people,
+      message: household.rsvpMessage,
       stdReply: rollUpStd(people),
       stdYes: people.filter((p) => p.stdResponse === "YES").length,
       stdNo: people.filter((p) => p.stdResponse === "NO").length,
@@ -175,20 +181,22 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
 }
 
 /**
- * One household, one answer.
+ * One household, one answer — except when it isn't one.
  *
- * Anybody coming makes it a yes; a household is only a no when everyone who
- * answered said no and nobody is outstanding. Anything in between is partial,
- * which is a different job from awaiting.
+ * A family where the parents are coming and the son can't is not "coming", and
+ * calling it that is how somebody ends up with a room they don't need. Five
+ * states, and the two in the middle are the ones that matter: MIXED is a real
+ * answer from everybody that happens to differ, PARTIAL is a household still
+ * missing somebody's reply.
  */
 function rollUpStd(people: OutreachPerson[]): StdReply {
   if (people.length === 0) return "AWAITING";
-  const answered = people.filter(
-    (person) => person.stdResponse === "YES" || person.stdResponse === "NO",
-  );
-  if (answered.length === 0) return "AWAITING";
-  if (answered.length < people.length) return "PARTIAL";
-  return answered.some((person) => person.stdResponse === "YES") ? "YES" : "NO";
+  const yes = people.filter((person) => person.stdResponse === "YES").length;
+  const no = people.filter((person) => person.stdResponse === "NO").length;
+  if (yes + no === 0) return "AWAITING";
+  if (yes + no < people.length) return "PARTIAL";
+  if (yes > 0 && no > 0) return "MIXED";
+  return yes > 0 ? "YES" : "NO";
 }
 
 export function outreachStats(snapshot: WeddingSnapshot): OutreachStats {

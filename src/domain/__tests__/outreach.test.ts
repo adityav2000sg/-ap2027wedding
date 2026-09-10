@@ -160,12 +160,19 @@ describe("outreach", () => {
     expect(partial.stdYes).toBe(1);
     expect(partial.stdAwaiting).toBe(1);
 
-    // Once the second person answers, the household has answered.
+    // Once the second person answers, the household has answered — but they
+    // disagreed, and a family where one is coming and one isn't is not a yes.
+    // Calling it one is how somebody ends up holding a room they don't need.
     snapshot.guests[1] = { ...snapshot.guests[1], stdResponse: "NO" };
     const answered = outreachRows(snapshot).find((r) => r.householdId === "h0")!;
-    // Anybody coming makes it a yes for the household.
-    expect(answered.stdReply).toBe("YES");
+    expect(answered.stdReply).toBe("MIXED");
+    expect(answered.stdYes).toBe(1);
+    expect(answered.stdNo).toBe(1);
     expect(answered.stdAwaiting).toBe(0);
+
+    // Agreeing makes it a plain yes.
+    snapshot.guests[1] = { ...snapshot.guests[1], stdResponse: "YES" };
+    expect(outreachRows(snapshot).find((r) => r.householdId === "h0")!.stdReply).toBe("YES");
 
     // Nobody in h1 has said anything.
     expect(outreachRows(snapshot).find((r) => r.householdId === "h1")!.stdReply).toBe(

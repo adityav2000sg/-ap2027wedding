@@ -41,9 +41,11 @@ export interface InvitationPerson {
   invitationSent: boolean;
   /** What they said to the save-the-date, if they've said anything. */
   stdResponse: "YES" | "NO" | null;
+  /** The note they left with it, when they replied on their own link. */
+  message: string | null;
 }
 
-export type StdReply = "YES" | "NO" | "PARTIAL" | "AWAITING";
+export type StdReply = "YES" | "MIXED" | "NO" | "PARTIAL" | "AWAITING";
 
 export interface InvitationRow {
   householdId: string;
@@ -63,6 +65,8 @@ export interface InvitationRow {
   stdYes: number;
   stdNo: number;
   stdAwaiting: number;
+  /** The note left with the household's reply. */
+  message: string | null;
 }
 
 export interface InvitationStats {
@@ -103,8 +107,9 @@ const FILTERS = [
   { key: "not-invited", label: "No invitation" },
   { key: "partial", label: "Partly messaged" },
   { key: "awaiting", label: "Awaiting reply" },
-  { key: "yes", label: "Coming" },
-  { key: "no", label: "Not coming" },
+  { key: "yes", label: "All coming" },
+  { key: "split", label: "Some coming" },
+  { key: "no", label: "Nobody coming" },
 ] as const;
 
 export function Invitations({
@@ -155,11 +160,12 @@ export function Invitations({
               ? row.stdReply === "AWAITING" || row.stdReply === "PARTIAL"
               : row.reply === "AWAITING";
           case "yes":
-            return savingTheDate ? row.stdYes > 0 : row.reply === "YES";
+            // Everybody who was asked said yes — not "somebody did".
+            return savingTheDate ? row.stdReply === "YES" : row.reply === "YES";
+          case "split":
+            return savingTheDate ? row.stdReply === "MIXED" : false;
           case "no":
-            return savingTheDate
-              ? row.stdNo > 0 && row.stdYes === 0
-              : row.reply === "NO";
+            return savingTheDate ? row.stdReply === "NO" : row.reply === "NO";
           default: return true;
         }
       })
@@ -547,6 +553,14 @@ export function Invitations({
                     className="overflow-hidden"
                   >
                     <div className="mb-2 ml-6 border-l border-line pl-4">
+                      {/* The note they wrote when they replied. The form calls
+                          it "very much read", which was not true of anywhere
+                          in this app until it appeared here. */}
+                      {row.message ? (
+                        <p className="mb-2 rounded-lg border border-line bg-surface-soft px-3 py-2 text-[12.5px] italic leading-snug text-ink-soft">
+                          “{row.message}”
+                        </p>
+                      ) : null}
                       {row.people.length === 0 ? (
                         <p className="py-2 text-[12.5px] text-ink-faint">
                           Nobody is listed in this household yet.
@@ -640,6 +654,12 @@ function PersonRow({
       ) : (
         <span className="shrink-0 text-[11px] text-ink-faint">on the group link</span>
       )}
+
+      {person.message ? (
+        <p className="w-full rounded-lg border border-line bg-surface-soft px-3 py-1.5 text-[12px] italic leading-snug text-ink-soft">
+          “{person.message}”
+        </p>
+      ) : null}
 
       {editing || phone ? (
         <Input
@@ -843,17 +863,22 @@ function StdReplyBadge({
   if (reply === "PARTIAL") {
     return (
       <Badge size="xs" variant="attention">
-        {yes > 0 ? `${yes} of ${headcount} said yes` : "Part answered"}
+        {yes > 0 ? `${yes} of ${headcount} so far` : "Part answered"}
+      </Badge>
+    );
+  }
+  if (reply === "MIXED") {
+    // Everybody answered and they didn't agree. Not a yes, and not a no: the
+    // room and the headcount both depend on knowing which.
+    return (
+      <Badge size="xs" variant="info">
+        {yes} of {headcount} coming
       </Badge>
     );
   }
   return (
     <Badge size="xs" variant={reply === "YES" ? "positive" : "neutral"}>
-      {reply === "YES"
-        ? headcount > 1
-          ? `${yes} of ${headcount} said yes`
-          : "Said yes"
-        : "Said no"}
+      {reply === "YES" ? (headcount > 1 ? "All coming" : "Said yes") : "Said no"}
     </Badge>
   );
 }

@@ -149,6 +149,7 @@ export default async function GuestsPage({
         stdYes: row.stdYes,
         stdNo: row.stdNo,
         stdAwaiting: row.stdAwaiting,
+        message: row.message,
       }))}
       invitationStats={outreachStats(snapshot)}
       invitationTiers={outreachByTier(snapshot)}

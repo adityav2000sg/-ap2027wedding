@@ -152,6 +152,8 @@ export interface HouseholdNode {
   /// Set once everybody in the household on the current wave has answered the
   /// save-the-date. Kept apart from the RSVP proper.
   stdRepliedAt: Date | null;
+  /// What they wrote in the note box when they replied.
+  rsvpMessage: string | null;
   giftReceived: boolean;
   notes: string | null;
 }
@@ -184,6 +186,8 @@ export interface GuestNode {
   /// Their answer to the save-the-date — a year-out intention, deliberately
   /// not an acceptance, and never mixed into the per-event invitations.
   stdResponse: "YES" | "NO" | null;
+  /// Their own note, when they answered on a personal link.
+  rsvpMessage: string | null;
   /// How likely they are to come, 1–5, from the original guest list.
   attendanceScore: number | null;
   needsTransport: boolean;
