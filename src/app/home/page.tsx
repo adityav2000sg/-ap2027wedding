@@ -68,7 +68,7 @@ export default async function GuestHomePage({
   const location = wedding.cities[0] ?? "Bali";
 
   return (
-    <main className="min-h-dvh overflow-hidden bg-[#f4f0e9] text-[#2b2d28] selection:bg-[#d9a285]/40">
+    <main className="guest-site-enter min-h-dvh overflow-hidden bg-[#f4f0e9] text-[#2b2d28] selection:bg-[#d9a285]/40">
       <header id="top" className="relative min-h-[760px] overflow-hidden sm:min-h-[820px] lg:min-h-screen">
         <Image
           src="/brand/proposal.jpg"
@@ -103,6 +103,21 @@ export default async function GuestHomePage({
             </a>
           </div>
         </nav>
+
+        {replyReceived ? (
+          <div
+            role="status"
+            className="absolute left-1/2 top-[92px] z-20 flex w-[calc(100%-40px)] max-w-[620px] -translate-x-1/2 items-center justify-center gap-3 rounded-full border border-white/55 bg-[#fffdf8]/92 px-5 py-3.5 text-center text-[15px] font-medium text-[#355341] shadow-[0_18px_50px_-32px_rgba(0,0,0,0.72)] backdrop-blur-md sm:top-[112px]"
+          >
+            <span
+              aria-hidden
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#294436] text-[13px] text-white"
+            >
+              ✓
+            </span>
+            Your reply is in. We can’t wait to celebrate with you in Bali.
+          </div>
+        ) : null}
 
         <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-12 text-white sm:px-10 sm:pb-16 lg:px-14 lg:pb-14">
           <div className="mx-auto max-w-[1320px]">
@@ -164,20 +179,6 @@ export default async function GuestHomePage({
 
       <section id="celebration" className="scroll-mt-8 border-y border-[#d7d0c5] bg-[#ede9e1] px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
         <div className="mx-auto max-w-[1120px]">
-          {replyReceived ? (
-            <div
-              role="status"
-              className="mx-auto mb-12 flex max-w-[720px] items-center justify-center gap-3 rounded-full border border-[#b9cbbd] bg-[#f7faf5] px-5 py-3.5 text-center text-[15px] font-medium text-[#355341] shadow-[0_18px_50px_-38px_rgba(41,68,54,0.7)]"
-            >
-              <span
-                aria-hidden
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#294436] text-[13px] text-white"
-              >
-                ✓
-              </span>
-              Your reply is in. We can’t wait to celebrate with you in Bali.
-            </div>
-          ) : null}
           <div className="mx-auto max-w-[720px] text-center">
             <p className="text-[15px] font-semibold uppercase tracking-[0.2em] text-[#9a6c50]">The celebration</p>
             <h2 className="mt-4 font-display text-[clamp(44px,6vw,72px)] leading-none tracking-[-0.045em] text-[#24372d]">

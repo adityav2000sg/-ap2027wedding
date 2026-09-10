@@ -20,6 +20,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/cn";
@@ -85,27 +86,32 @@ export function SaveTheDate({
   location: string;
   days: number;
 }) {
+  const router = useRouter();
   const reduce = useReducedMotion();
   const [people, setPeople] = React.useState(initialPeople);
   const [message, setMessage] = React.useState(initialMessage);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<{ coming: number; total: number } | null>(null);
+  const [leaving, setLeaving] = React.useState(false);
 
-  // A yes unlocks the wedding website. Let the acknowledgement land first,
-  // then take the guest straight into the programme rather than leaving them
-  // at the end of a form. Keeping this as a normal navigation also means the
-  // browser's Back button still returns to the private link if they need to
-  // change their reply.
+  // A yes opens the wedding website from the beginning. The acknowledgement
+  // and confetti get a moment to land, then a cream veil bridges the two pages
+  // while Next swaps them in-place. This keeps the invitation feeling like one
+  // continuous piece rather than flashing into an anchor halfway down a page.
   React.useEffect(() => {
     if (!done || done.coming === 0) return;
 
-    const timer = window.setTimeout(() => {
-      window.location.assign("/home?reply=received#celebration");
-    }, 1_100);
+    const veilTimer = window.setTimeout(() => setLeaving(true), 1_550);
+    const navigationTimer = window.setTimeout(() => {
+      router.push("/home?reply=received", { scroll: true });
+    }, 2_050);
 
-    return () => window.clearTimeout(timer);
-  }, [done]);
+    return () => {
+      window.clearTimeout(veilTimer);
+      window.clearTimeout(navigationTimer);
+    };
+  }, [done, router]);
 
   const unanswered = people.filter((person) => person.response === null).length;
   const yesCount = people.filter((person) => person.response === "YES").length;
@@ -216,6 +222,19 @@ export function SaveTheDate({
           inside the thank-you card: a transformed ancestor turns `fixed` into
           `absolute`, and the celebration would be trapped in a box. */}
       {done && done.coming > 0 ? <Celebration /> : null}
+
+      <AnimatePresence>
+        {leaving ? (
+          <motion.div
+            key="page-transition"
+            aria-hidden
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reduce ? 0 : 0.55, ease: [0.4, 0, 0.2, 1] }}
+            className="pointer-events-none fixed inset-0 z-[70] bg-[#f4f0e9]"
+          />
+        ) : null}
+      </AnimatePresence>
 
       <header className="relative flex h-[72svh] min-h-[520px] max-h-[720px] items-center justify-center overflow-hidden sm:min-h-[560px] lg:h-[58svh]">
         {photo ? (
@@ -562,7 +581,10 @@ function Celebration() {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // A full-screen 3x canvas on a phone is millions of pixels per frame. Cap
+    // mobile density a little lower: the pieces stay crisp, but the animation
+    // keeps enough headroom for the page transition beside it.
+    const dpr = Math.min(window.devicePixelRatio || 1, window.innerWidth < 640 ? 1.35 : 2);
     let width = window.innerWidth;
     let height = window.innerHeight;
     const resize = () => {
@@ -610,39 +632,45 @@ function Celebration() {
     };
 
     // Both corners, at once, as the card lands.
-    fire(0, height, -Math.PI / 3.1, 0.42, 70, 26);
-    fire(width, height, -Math.PI + Math.PI / 3.1, 0.42, 70, 26);
+    fire(0, height, -Math.PI / 3.1, 0.42, 46, 26);
+    fire(width, height, -Math.PI + Math.PI / 3.1, 0.42, 46, 26);
     const volley = window.setTimeout(() => {
-      fire(width / 2, height * 0.92, -Math.PI / 2, 0.7, 60, 22);
+      fire(width / 2, height * 0.92, -Math.PI / 2, 0.7, 34, 22);
     }, 260);
 
     // And a slow fall over everything, for as long as it runs.
     let shower: number | undefined = window.setInterval(() => {
-      for (let i = 0; i < 3; i += 1) {
+      for (let i = 0; i < 2; i += 1) {
         const piece = make(random(0, width), -20, random(-0.6, 0.6), random(1.4, 3), random(6, 12));
         piece.gravity = random(0.02, 0.05);
         pieces.push(piece);
       }
-    }, 90);
+    }, 110);
 
     const started = performance.now();
     const RUN = 6200;
     const FADE = 1400;
     let frame = 0;
+    let lastFrame = started;
 
     const draw = (now: number) => {
       const elapsed = now - started;
+      // Physics are measured against a 60fps frame. If the browser misses a
+      // frame, advance by the elapsed time instead of advancing by one frame;
+      // that is what prevents the confetti visibly dropping into slow motion.
+      const frameScale = Math.min(Math.max((now - lastFrame) / (1000 / 60), 0.25), 3);
+      lastFrame = now;
       context.clearRect(0, 0, width, height);
       const fading = Math.max(0, Math.min(1, (elapsed - (RUN - FADE)) / FADE));
 
       for (const piece of pieces) {
-        piece.vy += piece.gravity;
-        piece.vx *= piece.drag;
-        piece.vy *= piece.drag;
-        piece.wobble += piece.wobbleSpeed;
-        piece.x += piece.vx + Math.cos(piece.wobble) * 0.9;
-        piece.y += piece.vy;
-        piece.angle += piece.spin;
+        piece.vy += piece.gravity * frameScale;
+        piece.vx *= Math.pow(piece.drag, frameScale);
+        piece.vy *= Math.pow(piece.drag, frameScale);
+        piece.wobble += piece.wobbleSpeed * frameScale;
+        piece.x += (piece.vx + Math.cos(piece.wobble) * 0.9) * frameScale;
+        piece.y += piece.vy * frameScale;
+        piece.angle += piece.spin * frameScale;
 
         if (piece.y > height + 40) piece.life = 0;
         if (piece.life === 0) continue;

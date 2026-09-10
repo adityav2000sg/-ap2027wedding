@@ -15,6 +15,7 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/primitives";
@@ -58,6 +59,7 @@ export function RsvpForm({
   message: string;
   alreadyReplied: boolean;
 }) {
+  const router = useRouter();
   const reduce = useReducedMotion();
   const [people, setPeople] = React.useState(initialPeople);
   const [contact, setContact] = React.useState({ phone, email });
@@ -73,11 +75,11 @@ export function RsvpForm({
     if (!done || done.coming === 0) return;
 
     const timer = window.setTimeout(() => {
-      window.location.assign("/home?reply=received#celebration");
-    }, 1_100);
+      router.push("/home?reply=received", { scroll: true });
+    }, 1_300);
 
     return () => window.clearTimeout(timer);
-  }, [done]);
+  }, [done, router]);
 
   function update(guestId: string, patch: Partial<RsvpPerson>) {
     setPeople((current) =>
