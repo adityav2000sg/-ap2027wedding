@@ -8,25 +8,12 @@
   that cards used to do.
 */
 
-/*
-  Optional licensed display face. If `public/fonts/golden-hour.woff2` exists it
-  takes over everywhere; if it doesn't, CSS quietly falls through to Fraunces.
-  No build step, no code change.
-*/
 @font-face {
   /* Edwardian Script ITC — the title face. Subset to Latin and compressed to
      WOFF2 (20KB) from the licensed desktop file. */
   font-family: "Edwardian Script";
   src: url("/fonts/edwardian-script.woff2") format("woff2");
   font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Golden Hour";
-  src: url("/fonts/golden-hour.woff2") format("woff2");
-  font-weight: 300 700;
   font-style: normal;
   font-display: swap;
 }
@@ -103,9 +90,9 @@
   --color-positive-soft: #eaf3ec;
 
   /* ── Type ──
-     Golden Hour first (only resolves if the file is present), then the
-     self-hosted Fraunces, then system serifs. */
-  --font-display: "Golden Hour", var(--font-display-loaded), "Iowan Old Style",
+     Fraunces is self-hosted by Next, so the display face never generates a
+     missing-font request in a guest's browser. */
+  --font-display: var(--font-display-loaded), "Iowan Old Style",
     "Palatino Linotype", Palatino, Georgia, serif;
   /* The big title face. Self-hosted first; the local desktop install and the
      system scripts only matter while the file is in flight. */

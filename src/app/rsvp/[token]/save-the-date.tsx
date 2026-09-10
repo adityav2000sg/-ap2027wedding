@@ -92,6 +92,21 @@ export function SaveTheDate({
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<{ coming: number; total: number } | null>(null);
 
+  // A yes unlocks the wedding website. Let the acknowledgement land first,
+  // then take the guest straight into the programme rather than leaving them
+  // at the end of a form. Keeping this as a normal navigation also means the
+  // browser's Back button still returns to the private link if they need to
+  // change their reply.
+  React.useEffect(() => {
+    if (!done || done.coming === 0) return;
+
+    const timer = window.setTimeout(() => {
+      window.location.assign("/home?reply=received#celebration");
+    }, 1_100);
+
+    return () => window.clearTimeout(timer);
+  }, [done]);
+
   const unanswered = people.filter((person) => person.response === null).length;
   const yesCount = people.filter((person) => person.response === "YES").length;
   const onePerson = people.length === 1;

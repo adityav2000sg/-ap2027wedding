@@ -21,10 +21,9 @@ import { Fraunces, Inter } from "next/font/google";
  * Both are self-hosted by next/font (fetched at build, served from our origin),
  * so there's no third-party request at runtime and no layout shift.
  *
- * Golden Hour, if you have a licence for it, is wired up in `globals.css` as a
- * plain `@font-face` pointing at `public/fonts/golden-hour.woff2`. CSS ignores a
- * font file that isn't there and falls through to Fraunces, so dropping the file
- * in is the only step needed to switch the whole app over.
+ * There is no speculative Golden Hour webfont declaration. Declaring a file
+ * that is not licensed and shipped makes every page issue a visible 404 before
+ * falling back; Fraunces is the deliberate production display face.
  */
 
 export const displayFont = Fraunces({

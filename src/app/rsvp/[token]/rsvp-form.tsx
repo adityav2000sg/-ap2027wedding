@@ -66,6 +66,19 @@ export function RsvpForm({
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<{ coming: number; total: number } | null>(null);
 
+  // The formal invitation follows the same guest journey as the save-the-date:
+  // once at least one person accepts, open the wedding website and its event
+  // details. A decline remains on the private thank-you screen.
+  React.useEffect(() => {
+    if (!done || done.coming === 0) return;
+
+    const timer = window.setTimeout(() => {
+      window.location.assign("/home?reply=received#celebration");
+    }, 1_100);
+
+    return () => window.clearTimeout(timer);
+  }, [done]);
+
   function update(guestId: string, patch: Partial<RsvpPerson>) {
     setPeople((current) =>
       current.map((person) => (person.guestId === guestId ? { ...person, ...patch } : person)),

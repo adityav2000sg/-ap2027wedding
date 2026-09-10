@@ -26,7 +26,13 @@ const longDayFormat = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-export default async function GuestHomePage() {
+export default async function GuestHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reply?: string }>;
+}) {
+  const params = await searchParams;
+  const replyReceived = params.reply === "received";
   const wedding = await db.wedding.findFirst({
     orderBy: { createdAt: "asc" },
     select: {
@@ -158,6 +164,20 @@ export default async function GuestHomePage() {
 
       <section id="celebration" className="scroll-mt-8 border-y border-[#d7d0c5] bg-[#ede9e1] px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
         <div className="mx-auto max-w-[1120px]">
+          {replyReceived ? (
+            <div
+              role="status"
+              className="mx-auto mb-12 flex max-w-[720px] items-center justify-center gap-3 rounded-full border border-[#b9cbbd] bg-[#f7faf5] px-5 py-3.5 text-center text-[15px] font-medium text-[#355341] shadow-[0_18px_50px_-38px_rgba(41,68,54,0.7)]"
+            >
+              <span
+                aria-hidden
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#294436] text-[13px] text-white"
+              >
+                ✓
+              </span>
+              Your reply is in. We can’t wait to celebrate with you in Bali.
+            </div>
+          ) : null}
           <div className="mx-auto max-w-[720px] text-center">
             <p className="text-[15px] font-semibold uppercase tracking-[0.2em] text-[#9a6c50]">The celebration</p>
             <h2 className="mt-4 font-display text-[clamp(44px,6vw,72px)] leading-none tracking-[-0.045em] text-[#24372d]">
