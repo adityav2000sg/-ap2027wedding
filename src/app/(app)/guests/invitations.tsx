@@ -18,6 +18,7 @@ import { motion, useReducedMotion } from "motion/react";
 
 import { CANONICAL_SITE_ORIGIN } from "@/config/site";
 import { cn } from "@/lib/cn";
+import { publicRsvpPath } from "@/lib/rsvp-links";
 import { Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
 import { Input } from "@/components/ui/form";
 import { CheckIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
@@ -899,7 +900,7 @@ function CopyLink({
   const [copied, setCopied] = React.useState(false);
 
   async function copy() {
-    const url = `${CANONICAL_SITE_ORIGIN}/rsvp/${token}`;
+    const url = `${CANONICAL_SITE_ORIGIN}${publicRsvpPath(name, token)}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch {

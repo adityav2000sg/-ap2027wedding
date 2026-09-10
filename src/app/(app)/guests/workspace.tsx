@@ -18,6 +18,7 @@ import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { BedIcon, CheckIcon, ChevronRightIcon, RouteIcon, SearchIcon } from "@/components/ui/icons";
 import { GUEST_RELATIONSHIPS } from "@/config/guest-relationships";
+import { publicRsvpPath } from "@/lib/rsvp-links";
 import {
   archiveGuest,
   setGuestAttendance,
@@ -1331,7 +1332,7 @@ function GuestSheet({
             Share this with {household.name} so they can answer for everyone.
           </p>
           <code className="mt-1.5 block truncate rounded bg-surface px-2 py-1 text-[11px] text-ink-soft">
-            /rsvp/{household.rsvpToken.slice(0, 16)}…
+            {publicRsvpPath(household.name, household.rsvpToken)}
           </code>
         </div>
       ) : null}

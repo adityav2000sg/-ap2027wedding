@@ -15,10 +15,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { formatDateRange, daysBetween } from "@/lib/dates";
+import { publicRsvpKey, publicRsvpPath, rsvpCodeFromPath } from "@/lib/rsvp-links";
 import { db } from "@/server/db";
 import { RsvpForm, type RsvpPerson } from "./rsvp-form";
 import { SaveTheDate, type StdPerson } from "./save-the-date";
@@ -41,21 +42,69 @@ export const metadata: Metadata = {
 };
 
 async function loadInvitation(token: string) {
-  const personal = await db.guest.findUnique({
+  let personal = await db.guest.findUnique({
     where: { rsvpToken: token },
     select: {
       id: true,
       householdId: true,
+      firstName: true,
+      lastName: true,
+      rsvpToken: true,
       rsvpMessage: true,
       rsvpSubmittedAt: true,
     },
   });
 
+  let householdKey = personal
+    ? null
+    : await db.household.findUnique({
+        where: { rsvpToken: token },
+        select: { id: true, name: true, rsvpToken: true },
+      });
+
+  // New links expose only a 12-character private prefix. Legacy full-token
+  // links are still accepted above, then redirected to their readable alias.
+  if (!personal && !householdKey) {
+    const code = rsvpCodeFromPath(token);
+    if (!code) return null;
+
+    const [matchingPeople, matchingHouseholds] = await Promise.all([
+      db.guest.findMany({
+        where: { rsvpToken: { startsWith: code } },
+        take: 2,
+        select: {
+          id: true,
+          householdId: true,
+          firstName: true,
+          lastName: true,
+          rsvpToken: true,
+          rsvpMessage: true,
+          rsvpSubmittedAt: true,
+        },
+      }),
+      db.household.findMany({
+        where: { rsvpToken: { startsWith: code } },
+        take: 2,
+        select: { id: true, name: true, rsvpToken: true },
+      }),
+    ]);
+
+    // A collision is extraordinarily unlikely, but opening neither invitation
+    // is safer than choosing the wrong person if one ever occurs.
+    if (matchingPeople.length + matchingHouseholds.length !== 1) return null;
+    personal = matchingPeople[0] ?? null;
+    householdKey = matchingHouseholds[0] ?? null;
+  }
+
+  const householdId = personal?.householdId ?? householdKey?.id;
+  if (!householdId) return null;
+
   const household = await db.household.findUnique({
-    where: personal ? { id: personal.householdId ?? "" } : { rsvpToken: token },
+    where: { id: householdId },
     select: {
       id: true,
       name: true,
+      rsvpToken: true,
       rsvpMessage: true,
       rsvpSubmittedAt: true,
       stdRepliedAt: true,
@@ -98,7 +147,12 @@ async function loadInvitation(token: string) {
     },
   });
 
-  return household ? { household, personal } : null;
+  if (!household) return null;
+  return {
+    household,
+    personal,
+    resolvedToken: personal?.rsvpToken ?? household.rsvpToken,
+  };
 }
 
 export default async function RsvpPage({
@@ -109,7 +163,14 @@ export default async function RsvpPage({
   const { token } = await params;
   const invitation = await loadInvitation(token);
   if (!invitation) notFound();
-  const { household, personal } = invitation;
+  const { household, personal, resolvedToken } = invitation;
+
+  const invitationName = personal
+    ? `${personal.firstName} ${personal.lastName}`.trim()
+    : household.name;
+  if (token !== publicRsvpKey(invitationName, resolvedToken)) {
+    redirect(publicRsvpPath(invitationName, resolvedToken));
+  }
 
   const { wedding } = household;
   const invitedGuests = personal
@@ -163,7 +224,7 @@ export default async function RsvpPage({
 
     return (
       <SaveTheDate
-        token={token}
+        token={resolvedToken}
         photo={photo ?? null}
         music={music ?? null}
         people={stdPeople}
@@ -252,7 +313,7 @@ export default async function RsvpPage({
             </div>
 
             <RsvpForm
-              token={token}
+              token={resolvedToken}
               people={people}
               phone={contact?.phone ?? ""}
               email={contact?.email ?? ""}
