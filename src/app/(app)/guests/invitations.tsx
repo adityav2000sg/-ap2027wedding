@@ -16,6 +16,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 
+import { CANONICAL_SITE_ORIGIN } from "@/config/site";
 import { cn } from "@/lib/cn";
 import { Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
 import { Input } from "@/components/ui/form";
@@ -898,7 +899,7 @@ function CopyLink({
   const [copied, setCopied] = React.useState(false);
 
   async function copy() {
-    const url = `${window.location.origin}/rsvp/${token}`;
+    const url = `${CANONICAL_SITE_ORIGIN}/rsvp/${token}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch {
