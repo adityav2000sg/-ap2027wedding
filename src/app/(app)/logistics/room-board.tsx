@@ -15,12 +15,18 @@
  * Deliberately not drag and drop. It reads well in a demo and fails on a phone,
  * which is where half of this will be done, and it hides capacity at the moment
  * you most need to see it.
+ *
+ * The replies feed straight into it. A bed held for somebody who has said they
+ * aren't coming is the one thing here that costs real money and goes unnoticed,
+ * so it is marked "Reallocate" on the person, counted at the top, and can be
+ * filtered down to on its own — and then it's the same Move button as always.
  */
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
+import type { RoomStanding } from "@/domain/guests";
 import { cn } from "@/lib/cn";
 import { Avatar, Badge, Button, EmptyState } from "@/components/ui/primitives";
 import { Input, Select } from "@/components/ui/form";
@@ -35,6 +41,8 @@ export interface RoomOccupant {
   isChild: boolean;
   isSenior: boolean;
   accessibilityNeeds: string | null;
+  /** Their own answer, turned into what it means for this bed. */
+  standing: RoomStanding;
 }
 
 export interface Room {
@@ -60,6 +68,18 @@ export function RoomBoard({
   const [query, setQuery] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
   const [moving, setMoving] = React.useState<string | null>(null);
+  const [onlyReallocate, setOnlyReallocate] = React.useState(false);
+
+  /** Beds held by people who have said they aren't coming. */
+  const toReallocate = React.useMemo(
+    () =>
+      rooms.reduce(
+        (sum, room) =>
+          sum + room.occupants.filter((o) => o.standing === "REALLOCATE").length,
+        0,
+      ),
+    [rooms],
+  );
 
   // Naming the hotel under every room only helps when there's more than one to
   // tell apart. With a single venue it's the same three words 112 times.
@@ -86,8 +106,14 @@ export function RoomBoard({
 
   const filtered = React.useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return rooms;
-    return rooms.filter(
+    let list = rooms;
+    if (onlyReallocate) {
+      list = list.filter((room) =>
+        room.occupants.some((o) => o.standing === "REALLOCATE"),
+      );
+    }
+    if (!q) return list;
+    return list.filter(
       (room) =>
         room.number.includes(q) ||
         room.occupants.some(
@@ -96,7 +122,7 @@ export function RoomBoard({
             (o.householdName ?? "").toLowerCase().includes(q),
         ),
     );
-  }, [rooms, query]);
+  }, [rooms, query, onlyReallocate]);
 
   async function move(guestId: string, roomNumber: string | null) {
     setBusy(guestId);
@@ -119,6 +145,23 @@ export function RoomBoard({
           ) : null}
         </p>
 
+        {toReallocate > 0 ? (
+          <button
+            type="button"
+            onClick={() => setOnlyReallocate((on) => !on)}
+            aria-pressed={onlyReallocate}
+            className={cn(
+              "shrink-0 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+              onlyReallocate
+                ? "border-attention bg-attention text-white"
+                : "border-attention/40 bg-attention-soft/50 text-attention hover:bg-attention-soft",
+            )}
+          >
+            {toReallocate} {toReallocate === 1 ? "bed" : "beds"} to reallocate
+            {onlyReallocate ? " · showing" : ""}
+          </button>
+        ) : null}
+
         <div className="relative min-w-0 flex-1 sm:max-w-[240px]">
           <SearchIcon
             size={14}
@@ -133,8 +176,10 @@ export function RoomBoard({
         </div>
       </div>
 
-      {/* Anyone with nowhere to sleep, first. */}
-      {unhoused.length > 0 ? (
+      {/* Anyone with nowhere to sleep, first — unless you've asked to see the
+          beds that need giving away, in which case a list of forty-six people
+          waiting for a room is the thing standing between you and the answer. */}
+      {unhoused.length > 0 && !onlyReallocate ? (
         <section className="mb-6 rounded-xl border border-attention/25 bg-attention-soft/40 p-3.5">
           <h3 className="mb-2 text-[12.5px] font-medium text-attention">
             {unhoused.length} {unhoused.length === 1 ? "person needs" : "people need"} a
@@ -156,6 +201,7 @@ export function RoomBoard({
                     </span>
                   ) : null}
                 </span>
+                <StandingMark standing={person.standing} />
                 {canEdit ? (
                   <RoomPicker
                     rooms={rooms}
@@ -175,11 +221,19 @@ export function RoomBoard({
 
       {filtered.length === 0 ? (
         <EmptyState
-          title={query ? "No room or name matches" : "No rooms allocated yet"}
+          title={
+            onlyReallocate
+              ? "Nothing to reallocate"
+              : query
+                ? "No room or name matches"
+                : "No rooms allocated yet"
+          }
           description={
-            query
-              ? "Try a different name or number."
-              : "Put someone in a room and it'll appear here."
+            onlyReallocate
+              ? "Everybody in a room is either coming or hasn't answered yet."
+              : query
+                ? "Try a different name or number."
+                : "Put someone in a room and it'll appear here."
           }
         />
       ) : (
@@ -187,6 +241,12 @@ export function RoomBoard({
           <AnimatePresence initial={false}>
             {filtered.map((room) => {
               const over = room.occupants.length > perRoom;
+              const freeing = room.occupants.filter(
+                (o) => o.standing === "REALLOCATE",
+              ).length;
+              const settled =
+                room.occupants.length > 0 &&
+                room.occupants.every((o) => o.standing === "CONFIRMED");
               return (
                 <motion.li
                   key={room.number}
@@ -197,7 +257,9 @@ export function RoomBoard({
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                   className={cn(
                     "rounded-xl border p-3",
-                    over ? "border-attention/40 bg-attention-soft/30" : "border-line",
+                    over || freeing > 0
+                      ? "border-attention/40 bg-attention-soft/30"
+                      : "border-line",
                   )}
                 >
                   <div className="mb-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
@@ -218,6 +280,17 @@ export function RoomBoard({
                     {over ? (
                       <Badge size="xs" variant="attention">
                         Over capacity
+                      </Badge>
+                    ) : null}
+                    {freeing > 0 ? (
+                      <Badge size="xs" variant="attention">
+                        {freeing === room.occupants.length
+                          ? "Room frees up"
+                          : `${freeing} to reallocate`}
+                      </Badge>
+                    ) : settled ? (
+                      <Badge size="xs" variant="positive">
+                        Confirmed
                       </Badge>
                     ) : null}
                   </div>
@@ -251,6 +324,8 @@ export function RoomBoard({
                           ) : null}
                         </span>
 
+                        <StandingMark standing={person.standing} />
+
                         {canEdit ? (
                           moving === person.guestId ? (
                             <RoomPicker
@@ -268,9 +343,14 @@ export function RoomBoard({
                             <button
                               type="button"
                               onClick={() => setMoving(person.guestId)}
-                              className="shrink-0 rounded-lg border border-line-strong px-2 py-1 text-[11.5px] text-ink-soft transition-colors hover:border-ink-faint hover:bg-surface-sunken hover:text-ink"
+                              className={cn(
+                                "shrink-0 rounded-lg border px-2 py-1 text-[11.5px] transition-colors",
+                                person.standing === "REALLOCATE"
+                                  ? "border-attention/50 bg-attention-soft text-attention hover:bg-attention hover:text-white"
+                                  : "border-line-strong text-ink-soft hover:border-ink-faint hover:bg-surface-sunken hover:text-ink",
+                              )}
                             >
-                              Move
+                              {person.standing === "REALLOCATE" ? "Reallocate" : "Move"}
                             </button>
                           )
                         ) : null}
@@ -284,6 +364,26 @@ export function RoomBoard({
         </ul>
       )}
     </>
+  );
+}
+
+/**
+ * What their answer means for the bed they're in.
+ *
+ * Nothing is drawn for somebody who hasn't answered, which is most of the list
+ * for most of the year: a column of "awaiting" repeated down every room says
+ * nothing you didn't already know, and it buries the two rows that matter.
+ */
+function StandingMark({ standing }: { standing: RoomStanding }) {
+  if (standing === "AWAITING") return null;
+  return standing === "CONFIRMED" ? (
+    <Badge size="xs" variant="positive" className="shrink-0">
+      Confirmed
+    </Badge>
+  ) : (
+    <Badge size="xs" variant="attention" className="shrink-0">
+      Not coming
+    </Badge>
   );
 }
 
@@ -318,6 +418,25 @@ function RoomPicker({
     () => new Map(rooms.map((room) => [room.number, room.occupants.length])),
     [rooms],
   );
+
+  /**
+   * Beds in each room whose occupant has said no.
+   *
+   * A room reading "2 of 2, full" is not full if one of the two isn't coming,
+   * and that's precisely the room you want to put somebody in. Saying so here
+   * is the difference between the list answering the question and merely
+   * reporting the current state of the spreadsheet.
+   */
+  const leaving = React.useMemo(() => {
+    const map = new Map<string, number>();
+    for (const room of rooms) {
+      map.set(
+        room.number,
+        room.occupants.filter((person) => person.standing === "REALLOCATE").length,
+      );
+    }
+    return map;
+  }, [rooms]);
 
   /**
    * Who is already in each room.
@@ -362,10 +481,12 @@ function RoomPicker({
           .map((number) => {
             const taken = occupancy.get(number) ?? 0;
             const names = occupantNames.get(number);
+            const freeing = leaving.get(number) ?? 0;
             return (
               <option key={number} value={number}>
                 Room {number} — {taken === 0 ? "empty" : names}
                 {taken > 0 ? ` · ${taken} of ${perRoom}${taken >= perRoom ? ", full" : ""}` : ""}
+                {freeing > 0 ? ` · ${freeing} not coming` : ""}
               </option>
             );
           })}

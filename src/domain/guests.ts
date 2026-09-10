@@ -275,6 +275,65 @@ export function saveTheDateCounts(
   };
 }
 
+/**
+ * Whether somebody's bed is settled or needs to be given away.
+ *
+ * A room allocation made before anybody replied is a guess, and the replies
+ * are what turn it into a plan. Once a guest has said they're coming, the room
+ * they're in is theirs — confirmed. Once they've said they're not, the bed is
+ * still allocated to them and nobody has noticed: that is the one case worth
+ * putting in front of a human, because it's a room being paid for and held for
+ * an empty bed, and it's the room somebody on the B list could have.
+ *
+ * "Reallocate" is deliberately a prompt and not an action. Taking a declined
+ * guest out of their room automatically would be wrong twice over — plans
+ * change, and the couple may want to keep a family together in a room even
+ * when one of them drops out.
+ */
+export type RoomStanding = "CONFIRMED" | "REALLOCATE" | "AWAITING";
+
+/**
+ * Everyone's standing, in one pass.
+ *
+ * The per-event invitation outranks the save-the-date, because it is the later
+ * and firmer question: somebody can wave yes at a save-the-date a year out and
+ * decline the wedding itself, and it's the second answer that decides whether
+ * a bed is needed. A tentative counts as coming — you hold the room for a
+ * maybe.
+ *
+ * Until the invitations proper go out, nobody has any event answers at all, so
+ * in practice this reads the save-the-date, which is exactly the signal the
+ * couple are working from today.
+ */
+export function attendanceStandings(snapshot: WeddingSnapshot): Map<string, RoomStanding> {
+  const byGuest = groupInvitations(snapshot.invitations);
+  const standings = new Map<string, RoomStanding>();
+
+  for (const guest of snapshot.guests) {
+    const asked = (byGuest.get(guest.id) ?? []).filter(
+      (invitation) => invitation.status !== "NOT_INVITED",
+    );
+    const answered = asked.filter((invitation) => invitation.status !== "PENDING");
+
+    if (answered.some((i) => i.status === "CONFIRMED" || i.status === "TENTATIVE")) {
+      standings.set(guest.id, "CONFIRMED");
+    } else if (answered.length > 0 && answered.length === asked.length) {
+      // Every function they were asked to, answered, and no to all of it. One
+      // no among functions they haven't finished answering isn't enough: they
+      // may still be coming for the rest of the week, and still need the bed.
+      standings.set(guest.id, "REALLOCATE");
+    } else if (guest.stdResponse === "YES") {
+      standings.set(guest.id, "CONFIRMED");
+    } else if (guest.stdResponse === "NO") {
+      standings.set(guest.id, "REALLOCATE");
+    } else {
+      standings.set(guest.id, "AWAITING");
+    }
+  }
+
+  return standings;
+}
+
 export function roomsRequired(snapshot: WeddingSnapshot): number {
   const perRoom = Math.max(1, snapshot.wedding.guestsPerRoom);
   const needing = snapshot.guests.filter((g) => g.needsAccommodation).length;

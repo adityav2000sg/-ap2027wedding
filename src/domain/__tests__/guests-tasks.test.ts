@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  attendanceStandings,
   computeEventGuestCounts,
   computeGuestCounts,
   roomsRequired,
@@ -327,5 +328,58 @@ describe("save-the-date replies", () => {
     expect(saveTheDateCounts(snapshot).yes).toBe(1);
     expect(computeGuestCounts(snapshot).confirmed).toBe(0);
     expect(computeGuestCounts(snapshot).pending).toBe(1);
+  });
+});
+
+describe("what a reply means for a bed", () => {
+  it("reads the save-the-date while that is the only answer anybody has given", () => {
+    const standings = attendanceStandings(
+      makeSnapshot({
+        guests: [
+          makeGuest("yes", { stdResponse: "YES" }),
+          makeGuest("no", { stdResponse: "NO" }),
+          makeGuest("quiet"),
+        ],
+      }),
+    );
+
+    expect(standings.get("yes")).toBe("CONFIRMED");
+    expect(standings.get("no")).toBe("REALLOCATE");
+    expect(standings.get("quiet")).toBe("AWAITING");
+  });
+
+  it("lets the invitation proper overrule the save-the-date, in both directions", () => {
+    const standings = attendanceStandings(
+      makeSnapshot({
+        guests: [
+          makeGuest("dropped-out", { stdResponse: "YES" }),
+          makeGuest("changed-mind", { stdResponse: "NO" }),
+        ],
+        invitations: [
+          makeInvitation("dropped-out", "event-shaadi", "DECLINED"),
+          makeInvitation("changed-mind", "event-shaadi", "CONFIRMED"),
+        ],
+      }),
+    );
+
+    expect(standings.get("dropped-out")).toBe("REALLOCATE");
+    expect(standings.get("changed-mind")).toBe("CONFIRMED");
+  });
+
+  it("holds the room for a maybe, and for somebody who has only answered one of two", () => {
+    const standings = attendanceStandings(
+      makeSnapshot({
+        guests: [makeGuest("maybe"), makeGuest("half-answered")],
+        invitations: [
+          makeInvitation("maybe", "event-shaadi", "TENTATIVE"),
+          makeInvitation("half-answered", "event-shaadi", "DECLINED"),
+          makeInvitation("half-answered", "event-mehendi", "PENDING"),
+        ],
+      }),
+    );
+
+    expect(standings.get("maybe")).toBe("CONFIRMED");
+    // Said no to one function, hasn't answered the other — still needs a bed.
+    expect(standings.get("half-answered")).toBe("AWAITING");
   });
 });

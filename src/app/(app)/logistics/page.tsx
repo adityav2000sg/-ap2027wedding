@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import {
+  attendanceStandings,
   guestsNeedingPickup,
   roomsContracted,
   roomsRequired,
@@ -9,7 +10,7 @@ import { cn } from "@/lib/cn";
 import { BedIcon, PlaneIcon, RouteIcon } from "@/components/ui/icons";
 import { ExportMenu } from "@/components/wedding/export-menu";
 import { Responsibilities } from "./responsibilities";
-import { RoomBoard } from "./room-board";
+import { RoomBoard, type RoomOccupant } from "./room-board";
 import { TransportBoard } from "./transport-board";
 import { TravelBoard } from "./travel-board";
 import { getViewer } from "@/server/auth";
@@ -32,9 +33,17 @@ export default async function LogisticsPage({
   );
   const memberById = new Map(snapshot.members.map((m) => [m.id, m.name]));
 
+  // What everyone's reply means for the bed they're in — or the bed they need.
+  const standings = attendanceStandings(snapshot);
+
   const needRooms = snapshot.guests.filter((g) => g.needsAccommodation);
   const housed = new Set(snapshot.stays.map((s) => s.guestId));
-  const unhoused = needRooms.filter((g) => !housed.has(g.id));
+  // Somebody who has said they aren't coming doesn't need chasing for a room;
+  // leaving them in the "still need a bed" list inflates the number the couple
+  // are working to, which is the number that decides how many rooms to hold.
+  const unhoused = needRooms.filter(
+    (g) => !housed.has(g.id) && standings.get(g.id) !== "REALLOCATE",
+  );
 
   const householdNameById = new Map(snapshot.households.map((h) => [h.id, h.name]));
   const hotelNameById = new Map(snapshot.hotels.map((h) => [h.id, h.name]));
@@ -52,15 +61,7 @@ export default async function LogisticsPage({
         const room = map.get(key) ?? {
           number: key,
           hotelName: hotelNameById.get(stay.hotelId) ?? "",
-          occupants: [] as {
-            guestId: string;
-            name: string;
-            householdName: string | null;
-            side: string;
-            isChild: boolean;
-            isSenior: boolean;
-            accessibilityNeeds: string | null;
-          }[],
+          occupants: [] as RoomOccupant[],
         };
 
         room.occupants.push({
@@ -73,11 +74,12 @@ export default async function LogisticsPage({
           isChild: guest.isChild,
           isSenior: guest.isSenior,
           accessibilityNeeds: guest.accessibilityNeeds,
+          standing: standings.get(guest.id) ?? "AWAITING",
         });
 
         map.set(key, room);
         return map;
-      }, new Map<string, { number: string; hotelName: string; occupants: { guestId: string; name: string; householdName: string | null; side: string; isChild: boolean; isSenior: boolean; accessibilityNeeds: string | null }[] }>())
+      }, new Map<string, { number: string; hotelName: string; occupants: RoomOccupant[] }>())
       .values(),
   ].sort((a, b) => Number(a.number) - Number(b.number) || a.number.localeCompare(b.number));
 
@@ -85,6 +87,11 @@ export default async function LogisticsPage({
     (t) => t.direction === "ARRIVAL" && t.pickupRequired,
   );
   const unassignedPickups = pickups.filter((t) => !t.journeyId);
+
+  // Rooms allocated to people who have since said they aren't coming.
+  const bedsToReallocate = snapshot.stays.filter(
+    (stay) => stay.roomNumber && standings.get(stay.guestId) === "REALLOCATE",
+  ).length;
 
   const unownedResponsibilities = snapshot.responsibilities.filter((r) => !r.ownerId);
 
@@ -116,8 +123,14 @@ export default async function LogisticsPage({
           icon={<BedIcon size={14} />}
           value={`${snapshot.stays.length}`}
           label="Guests allocated"
-          detail={unhoused.length > 0 ? `${unhoused.length} still need one` : "everyone placed"}
-          alarming={unhoused.length > 0}
+          detail={
+            bedsToReallocate > 0
+              ? `${bedsToReallocate} to reallocate`
+              : unhoused.length > 0
+                ? `${unhoused.length} still need one`
+                : "everyone placed"
+          }
+          alarming={bedsToReallocate > 0 || unhoused.length > 0}
         />
         <Figure
           icon={<PlaneIcon size={14} />}
@@ -155,6 +168,7 @@ export default async function LogisticsPage({
               isChild: guest.isChild,
               isSenior: guest.isSenior,
               accessibilityNeeds: guest.accessibilityNeeds,
+              standing: standings.get(guest.id) ?? "AWAITING",
             }))}
           />
         }
