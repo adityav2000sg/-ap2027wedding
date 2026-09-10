@@ -205,13 +205,13 @@ export default async function GuestHomePage() {
 
       <section id="bali" className="relative min-h-[760px] scroll-mt-8 overflow-hidden">
         <Image
-          src="/brand/hero-mandap.jpg"
-          alt="A wedding setting in Bali"
+          src="/brand/conrad-bali.webp"
+          alt="Conrad Bali resort and beach"
           fill
           sizes="100vw"
-          className="object-cover object-center"
+          className="object-cover object-[58%_center] sm:object-center"
         />
-        <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-[#132019]/24 via-[#132019]/28 to-[#132019]/62" />
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-[#132019]/18 via-[#132019]/24 to-[#132019]/62" />
         <div className="relative mx-auto flex min-h-[760px] max-w-[1240px] items-end justify-center px-5 py-14 sm:justify-start sm:px-10 sm:py-20">
           <div className="w-full max-w-[580px] rounded-[34px] border border-white/55 bg-[#faf7f0]/94 p-7 text-center shadow-[0_30px_90px_-40px_rgba(0,0,0,0.7)] backdrop-blur-md sm:p-11">
             <p className="text-[15px] font-semibold uppercase tracking-[0.2em] text-[#9a6c50]">The location</p>
