@@ -19,8 +19,6 @@
 
 import * as React from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/lib/cn";
@@ -86,32 +84,12 @@ export function SaveTheDate({
   location: string;
   days: number;
 }) {
-  const router = useRouter();
   const reduce = useReducedMotion();
   const [people, setPeople] = React.useState(initialPeople);
   const [message, setMessage] = React.useState(initialMessage);
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<{ coming: number; total: number } | null>(null);
-  const [leaving, setLeaving] = React.useState(false);
-
-  // A yes opens the wedding website from the beginning. The acknowledgement
-  // and confetti get a moment to land, then a cream veil bridges the two pages
-  // while Next swaps them in-place. This keeps the invitation feeling like one
-  // continuous piece rather than flashing into an anchor halfway down a page.
-  React.useEffect(() => {
-    if (!done || done.coming === 0) return;
-
-    const veilTimer = window.setTimeout(() => setLeaving(true), 1_550);
-    const navigationTimer = window.setTimeout(() => {
-      router.push("/home?reply=received", { scroll: true });
-    }, 2_050);
-
-    return () => {
-      window.clearTimeout(veilTimer);
-      window.clearTimeout(navigationTimer);
-    };
-  }, [done, router]);
 
   const unanswered = people.filter((person) => person.response === null).length;
   const yesCount = people.filter((person) => person.response === "YES").length;
@@ -223,19 +201,6 @@ export function SaveTheDate({
           `absolute`, and the celebration would be trapped in a box. */}
       {done && done.coming > 0 ? <Celebration /> : null}
 
-      <AnimatePresence>
-        {leaving ? (
-          <motion.div
-            key="page-transition"
-            aria-hidden
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: reduce ? 0 : 0.55, ease: [0.4, 0, 0.2, 1] }}
-            className="pointer-events-none fixed inset-0 z-[70] bg-[#f4f0e9]"
-          />
-        ) : null}
-      </AnimatePresence>
-
       <header className="relative flex h-[72svh] min-h-[520px] max-h-[720px] items-center justify-center overflow-hidden sm:min-h-[560px] lg:h-[58svh]">
         {photo ? (
           <Image
@@ -252,20 +217,6 @@ export function SaveTheDate({
           aria-hidden
           className="absolute inset-0 bg-gradient-to-b from-[#15110e]/48 via-[#1b1713]/18 to-[#15110e]/72"
         />
-
-        <nav className="absolute left-1/2 top-4 z-20 flex w-[calc(100%-32px)] max-w-[620px] -translate-x-1/2 items-center justify-between rounded-[20px] border border-white/40 bg-[#fffdf8]/92 p-1.5 pl-4 shadow-[0_16px_46px_-30px_rgba(0,0,0,0.75)] backdrop-blur-md sm:top-6 sm:rounded-[24px] sm:pl-5">
-          <Link href="/home" className="font-display text-[19px] leading-none text-[#23362b]">
-            A<span className="px-0.5 text-[#c87958]">&</span>P
-          </Link>
-          <div className="flex items-center gap-1 text-[15px] font-medium">
-            <Link href="/home" className="hidden rounded-full px-3 py-2 text-[#596158] hover:bg-[#ede9e1] sm:block">
-              Wedding
-            </Link>
-            <a href="#reply" className="rounded-[16px] bg-[#2b4637] px-4 py-2.5 text-white hover:bg-[#1f3428]">
-              Your reply
-            </a>
-          </div>
-        </nav>
 
         <div className="relative mx-auto w-full max-w-[1120px] px-5 py-20 text-center text-white">
           <div className="mb-5 flex items-center justify-center gap-3">

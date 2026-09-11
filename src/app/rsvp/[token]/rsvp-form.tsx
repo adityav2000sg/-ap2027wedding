@@ -15,7 +15,6 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/primitives";
@@ -59,7 +58,6 @@ export function RsvpForm({
   message: string;
   alreadyReplied: boolean;
 }) {
-  const router = useRouter();
   const reduce = useReducedMotion();
   const [people, setPeople] = React.useState(initialPeople);
   const [contact, setContact] = React.useState({ phone, email });
@@ -67,19 +65,6 @@ export function RsvpForm({
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<{ coming: number; total: number } | null>(null);
-
-  // The formal invitation follows the same guest journey as the save-the-date:
-  // once at least one person accepts, open the wedding website and its event
-  // details. A decline remains on the private thank-you screen.
-  React.useEffect(() => {
-    if (!done || done.coming === 0) return;
-
-    const timer = window.setTimeout(() => {
-      router.push("/home?reply=received", { scroll: true });
-    }, 1_300);
-
-    return () => window.clearTimeout(timer);
-  }, [done, router]);
 
   function update(guestId: string, patch: Partial<RsvpPerson>) {
     setPeople((current) =>
