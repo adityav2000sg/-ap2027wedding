@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   attendanceStandings,
+  guestsNeedingARoom,
+  guestsWithoutARoom,
   computeEventGuestCounts,
   computeGuestCounts,
   roomsRequired,
@@ -381,5 +383,58 @@ describe("what a reply means for a bed", () => {
     expect(standings.get("maybe")).toBe("CONFIRMED");
     // Said no to one function, hasn't answered the other — still needs a bed.
     expect(standings.get("half-answered")).toBe("AWAITING");
+  });
+});
+
+describe("who a room is held for", () => {
+  const snapshot = () =>
+    makeSnapshot({
+      guests: [
+        makeGuest("a-placed", { tier: "A", needsAccommodation: true }),
+        makeGuest("a-waiting", { tier: "A", needsAccommodation: true }),
+        makeGuest("a-no-room-needed", { tier: "A", needsAccommodation: false }),
+        makeGuest("b-waiting", { tier: "B", needsAccommodation: true }),
+        makeGuest("c-waiting", { tier: "C", needsAccommodation: true }),
+      ],
+      stays: [
+        {
+          id: "stay-1",
+          guestId: "a-placed",
+          hotelId: "hotel-1",
+          roomId: null,
+          roomNumber: "1",
+          checkIn: TODAY,
+          checkOut: TODAY,
+        },
+      ],
+    });
+
+  it("ignores the lists that haven't been invited", () => {
+    expect(guestsNeedingARoom(snapshot()).map((g) => g.id)).toEqual([
+      "a-placed",
+      "a-waiting",
+    ]);
+    // The B-list name waiting on a room is not a gap in the plan yet.
+    expect(guestsWithoutARoom(snapshot()).map((g) => g.id)).toEqual(["a-waiting"]);
+  });
+
+  it("picks somebody up the moment they're moved onto the invited list", () => {
+    const promoted = snapshot();
+    promoted.guests = promoted.guests.map((g) =>
+      g.id === "b-waiting" ? { ...g, tier: "B" as const } : g,
+    );
+    expect(guestsWithoutARoom(promoted).map((g) => g.id)).toEqual(["a-waiting"]);
+
+    promoted.guests = promoted.guests.map((g) =>
+      g.id === "b-waiting" ? { ...g, tier: "A" as const } : g,
+    );
+    expect(guestsWithoutARoom(promoted).map((g) => g.id)).toEqual([
+      "a-waiting",
+      "b-waiting",
+    ]);
+  });
+
+  it("still answers for a tier you ask about by name", () => {
+    expect(guestsWithoutARoom(snapshot(), "B").map((g) => g.id)).toEqual(["b-waiting"]);
   });
 });

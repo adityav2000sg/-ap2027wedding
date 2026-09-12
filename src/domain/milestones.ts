@@ -11,6 +11,7 @@
 
 import { daysBetween } from "@/lib/dates";
 import type { BudgetView } from "./budget";
+import { guestsNeedingARoom } from "./guests";
 import type { AnalysedTask } from "./tasks";
 import type { WeddingSnapshot } from "./types";
 
@@ -171,7 +172,7 @@ export const MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
     description: "Everyone who needs a room has one, and every arrival has a lift.",
     sortOrder: 100,
     isMet: ({ snapshot, budget }) => {
-      const needRooms = snapshot.guests.filter((g) => g.needsAccommodation);
+      const needRooms = guestsNeedingARoom(snapshot);
       const allHoused = needRooms.every((g) =>
         snapshot.stays.some((s) => s.guestId === g.id),
       );

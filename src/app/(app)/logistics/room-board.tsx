@@ -43,6 +43,8 @@ export interface RoomOccupant {
   accessibilityNeeds: string | null;
   /** Their own answer, turned into what it means for this bed. */
   standing: RoomStanding;
+  /** For somebody with no bed: the room the rest of their household is in. */
+  householdRoom?: string | null;
 }
 
 export interface Room {
@@ -103,6 +105,21 @@ export function RoomBoard({
     while (used.has(candidate)) candidate += 1;
     return String(candidate);
   }, [rooms]);
+
+  /**
+   * People with nowhere to sleep, worst first.
+   *
+   * Somebody whose whole household is unplaced has a real hole in the plan.
+   * Somebody whose family is already in a room is a one-click tidy-up. Both
+   * belong on the list; they don't belong in the same order.
+   */
+  const waiting = React.useMemo(
+    () =>
+      [...unhoused].sort(
+        (a, b) => Number(Boolean(a.householdRoom)) - Number(Boolean(b.householdRoom)),
+      ),
+    [unhoused],
+  );
 
   const filtered = React.useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -186,7 +203,7 @@ export function RoomBoard({
             room
           </h3>
           <ul className="space-y-1">
-            {unhoused.map((person) => (
+            {waiting.map((person) => (
               <li key={person.guestId} className="flex flex-wrap items-center gap-2">
                 <Avatar
                   name={person.name}
@@ -201,6 +218,11 @@ export function RoomBoard({
                     </span>
                   ) : null}
                 </span>
+                {person.householdRoom ? (
+                  <span className="shrink-0 text-[11.5px] text-ink-muted">
+                    family in {person.householdRoom}
+                  </span>
+                ) : null}
                 <StandingMark standing={person.standing} />
                 {canEdit ? (
                   <RoomPicker

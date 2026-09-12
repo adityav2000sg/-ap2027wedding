@@ -13,7 +13,7 @@ import { daysBetween, formatMediumDate, formatMinute } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import type { BudgetView } from "./budget";
 import type { AnalysedTask } from "./tasks";
-import { roomsNeedingReview } from "./guests";
+import { guestsWithoutARoom, roomsNeedingReview } from "./guests";
 import { detectConflicts, snapshotEventVenues } from "./timeline";
 import { VENDOR_CATEGORY_LABEL, VENDOR_STATUS_TEXT } from "./impact";
 import { SEVERITY_ORDER, type Severity, type WeddingSnapshot } from "./types";
@@ -250,9 +250,8 @@ export function computeAlerts(
     });
   }
 
-  const guestsWithoutRoom = snapshot.guests.filter(
-    (g) => g.needsAccommodation && !snapshot.stays.some((s) => s.guestId === g.id),
-  );
+  // Invited guests only — a B-list name with no room is not a gap yet.
+  const guestsWithoutRoom = guestsWithoutARoom(snapshot);
   if (guestsWithoutRoom.length) {
     alerts.push({
       key: "logistics:unallocated-rooms",

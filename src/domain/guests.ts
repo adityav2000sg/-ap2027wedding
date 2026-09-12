@@ -334,10 +334,41 @@ export function attendanceStandings(snapshot: WeddingSnapshot): Map<string, Room
   return standings;
 }
 
-export function roomsRequired(snapshot: WeddingSnapshot): number {
+/**
+ * The people a room is actually held for.
+ *
+ * Tier B and C have not been invited, so no room is being kept for them.
+ * Counting them turns every room figure into a shortfall — "46 people still
+ * need a bed" when 34 of them are on a list that may never be sent — and a
+ * number that is alarming and wrong is worse than no number at all, because
+ * it teaches you to ignore the one place a real gap would show up.
+ *
+ * Nothing is stored. This is read off the tier every time, so moving somebody
+ * from B to A puts them into these counts immediately, and moving them back
+ * takes them out again — there is no separate list to keep in step.
+ */
+export function guestsNeedingARoom(
+  snapshot: WeddingSnapshot,
+  tier: GuestNode["tier"] = "A",
+): GuestNode[] {
+  return snapshot.guests.filter((guest) => guest.tier === tier && guest.needsAccommodation);
+}
+
+/** Of those, the ones with nowhere to sleep yet. */
+export function guestsWithoutARoom(
+  snapshot: WeddingSnapshot,
+  tier: GuestNode["tier"] = "A",
+): GuestNode[] {
+  const housed = new Set(snapshot.stays.map((stay) => stay.guestId));
+  return guestsNeedingARoom(snapshot, tier).filter((guest) => !housed.has(guest.id));
+}
+
+export function roomsRequired(
+  snapshot: WeddingSnapshot,
+  tier: GuestNode["tier"] = "A",
+): number {
   const perRoom = Math.max(1, snapshot.wedding.guestsPerRoom);
-  const needing = snapshot.guests.filter((g) => g.needsAccommodation).length;
-  return Math.ceil(needing / perRoom);
+  return Math.ceil(guestsNeedingARoom(snapshot, tier).length / perRoom);
 }
 
 export function roomsContracted(snapshot: WeddingSnapshot): number {

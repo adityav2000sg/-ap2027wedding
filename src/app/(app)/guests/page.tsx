@@ -43,7 +43,9 @@ function tierStats(snapshot: WeddingSnapshot, tier: GuestTier) {
     pending: counts.pending,
     notContacted: counts.notContacted,
     needAccommodation: counts.needAccommodation,
-    rooms: roomsRequired(slice),
+    // The slice is already one tier, but roomsRequired defaults to A — say
+    // which tier this panel is about so the B and C tabs don't read zero.
+    rooms: roomsRequired(slice, tier),
     children: counts.children,
     vegetarian: counts.dietary.vegetarian,
     jain: counts.dietary.jain,
@@ -62,6 +64,9 @@ export default async function GuestsPage({
   const snapshot = await loadSnapshot(viewer.weddingId);
 
   const householdById = new Map(snapshot.households.map((h) => [h.id, h]));
+  // Who already has somewhere to sleep, so the list can flag who doesn't.
+  const housedGuestIds = new Set(snapshot.stays.map((stay) => stay.guestId));
+
   const invitationsByGuest = new Map<string, Record<string, string>>();
   for (const invitation of snapshot.invitations) {
     const map = invitationsByGuest.get(invitation.guestId) ?? {};
@@ -114,6 +119,7 @@ export default async function GuestsPage({
           allergies: guest.allergies,
           accessibilityNeeds: guest.accessibilityNeeds,
           needsAccommodation: guest.needsAccommodation,
+          hasRoom: housedGuestIds.has(guest.id),
           needsTransport: guest.needsTransport,
           notes: guest.notes,
           tags: guest.tags,

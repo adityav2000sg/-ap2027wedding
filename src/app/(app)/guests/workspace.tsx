@@ -45,6 +45,8 @@ interface Guest {
   isVIP: boolean; isChild: boolean; isSenior: boolean;
   dietary: string; allergies: string | null; accessibilityNeeds: string | null;
   needsAccommodation: boolean; needsTransport: boolean;
+  /** Whether they've actually been put in a room yet. */
+  hasRoom: boolean;
   notes: string | null; tags: string[];
   tier: string;
   /** Their answer to the save-the-date, which is the only reply that exists yet. */
@@ -243,19 +245,26 @@ export function GuestsWorkspace({
   }, [filtered]);
 
   /**
-   * A bed against all 231 names is not information.
+   * A bed against all 233 names is not information.
    *
-   * Everybody on this list needs a room, so the icon marked no one out — it
-   * was a column of identical pictograms. Needs are shown only where they
-   * distinguish somebody from the rest of the list on screen; the headline
-   * figure above still carries the total.
+   * Everybody on this list needs a room, so "needs a room" marked nobody out —
+   * it was a column of identical pictograms. The fact worth a symbol is the
+   * one that isn't true of everyone: needing a room and not having been given
+   * one. That is also what makes this list answer the question it should when
+   * somebody is moved up from the B list — they arrive with no room, and say so
+   * here, without anybody having to remember to check.
    */
+  const needsARoom = React.useCallback(
+    (guest: Guest) => guest.needsAccommodation && !guest.hasRoom,
+    [],
+  );
+
   const uniform = React.useMemo(
     () => ({
-      room: filtered.length > 0 && filtered.every((guest) => guest.needsAccommodation),
+      room: filtered.length > 0 && filtered.every(needsARoom),
       transport: filtered.length > 0 && filtered.every((guest) => guest.needsTransport),
     }),
-    [filtered],
+    [filtered, needsARoom],
   );
 
   const active = guests.find((g) => g.id === openGuest) ?? null;
@@ -575,8 +584,8 @@ export function GuestsWorkspace({
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-1">
-                        {guest.needsAccommodation && !uniform.room ? (
-                          <span className="text-ink-muted"><BedIcon size={13} /></span>
+                        {needsARoom(guest) && !uniform.room ? (
+                          <span className="text-attention"><BedIcon size={13} /></span>
                         ) : null}
                         {guest.needsTransport && !uniform.transport ? (
                           <span className="text-ink-muted"><RouteIcon size={13} /></span>
@@ -882,9 +891,9 @@ export function GuestsWorkspace({
 
                       <td className="whitespace-nowrap px-4 py-1.5 text-right">
                         <span className="inline-flex gap-1">
-                          {guest.needsAccommodation && !uniform.room ? (
-                            <Tooltip content="Needs a room">
-                              <span className="text-ink-muted"><BedIcon size={13} /></span>
+                          {needsARoom(guest) && !uniform.room ? (
+                            <Tooltip content="No room assigned yet">
+                              <span className="text-attention"><BedIcon size={13} /></span>
                             </Tooltip>
                           ) : null}
                           {guest.needsTransport && !uniform.transport ? (

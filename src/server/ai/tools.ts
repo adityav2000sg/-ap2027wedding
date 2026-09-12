@@ -16,7 +16,13 @@ import "server-only";
  */
 
 import { buildBudgetView, paymentsByPayer } from "@/domain/budget";
-import { computeGuestCounts, roomsContracted, roomsRequired } from "@/domain/guests";
+import {
+  computeGuestCounts,
+  guestsNeedingARoom,
+  guestsWithoutARoom,
+  roomsContracted,
+  roomsRequired,
+} from "@/domain/guests";
 import { VENDOR_CATEGORY_LABEL, VENDOR_STATUS_TEXT } from "@/domain/impact";
 import { computeEventReadiness, computeWeddingReadiness } from "@/domain/readiness";
 import { computeAlerts } from "@/domain/risk";
@@ -522,7 +528,8 @@ export async function runTool(
       const housed = new Set(snapshot.stays.map((s) => s.guestId));
       const roomsNeeded = roomsRequired(snapshot);
       const roomsHeld = roomsContracted(snapshot);
-      const peopleNeedingARoom = snapshot.guests.filter((g) => g.needsAccommodation).length;
+      // Tier A only: rooms are not held for people who haven't been invited.
+      const peopleNeedingARoom = guestsNeedingARoom(snapshot).length;
 
       return json({
         // Units are in the field names on purpose — rooms and people are
@@ -538,9 +545,7 @@ export async function runTool(
         how_many_PEOPLE: {
           needing_a_bed: peopleNeedingARoom,
           already_in_a_room: snapshot.stays.length,
-          not_yet_placed: snapshot.guests.filter(
-            (g) => g.needsAccommodation && !housed.has(g.id),
-          ).length,
+          not_yet_placed: guestsWithoutARoom(snapshot).length,
           answer_if_asked_about_people: `${peopleNeedingARoom} people need a bed, ${snapshot.stays.length} are placed`,
         },
         travel: {

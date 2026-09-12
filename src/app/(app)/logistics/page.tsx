@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   attendanceStandings,
   guestsNeedingPickup,
+  guestsWithoutARoom,
   roomsContracted,
   roomsRequired,
 } from "@/domain/guests";
@@ -36,14 +37,29 @@ export default async function LogisticsPage({
   // What everyone's reply means for the bed they're in — or the bed they need.
   const standings = attendanceStandings(snapshot);
 
-  const needRooms = snapshot.guests.filter((g) => g.needsAccommodation);
-  const housed = new Set(snapshot.stays.map((s) => s.guestId));
-  // Somebody who has said they aren't coming doesn't need chasing for a room;
-  // leaving them in the "still need a bed" list inflates the number the couple
-  // are working to, which is the number that decides how many rooms to hold.
-  const unhoused = needRooms.filter(
-    (g) => !housed.has(g.id) && standings.get(g.id) !== "REALLOCATE",
+  // Invited guests with nowhere to sleep. Tier B and C are left out — no room
+  // is being held for a list that hasn't been sent — and so is anybody who has
+  // said they aren't coming, since neither is a bed anyone has to find.
+  const unhoused = guestsWithoutARoom(snapshot).filter(
+    (g) => standings.get(g.id) !== "REALLOCATE",
   );
+
+  /**
+   * The room the rest of somebody's household is already in.
+   *
+   * Almost everybody left without a bed is a child whose parents are placed —
+   * they were always going to sleep in that room, nobody wrote it down. Saying
+   * which room turns a list of names into one obvious click each, and leaves
+   * the genuine gaps, the people whose family has no room either, standing out.
+   */
+  const roomByHousehold = new Map<string, string>();
+  for (const stay of snapshot.stays) {
+    if (!stay.roomNumber) continue;
+    const householdId = snapshot.guests.find((g) => g.id === stay.guestId)?.householdId;
+    if (householdId && !roomByHousehold.has(householdId)) {
+      roomByHousehold.set(householdId, stay.roomNumber);
+    }
+  }
 
   const householdNameById = new Map(snapshot.households.map((h) => [h.id, h.name]));
   const hotelNameById = new Map(snapshot.hotels.map((h) => [h.id, h.name]));
@@ -169,6 +185,9 @@ export default async function LogisticsPage({
               isSenior: guest.isSenior,
               accessibilityNeeds: guest.accessibilityNeeds,
               standing: standings.get(guest.id) ?? "AWAITING",
+              householdRoom: guest.householdId
+                ? roomByHousehold.get(guest.householdId) ?? null
+                : null,
             }))}
           />
         }
