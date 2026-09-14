@@ -48,6 +48,7 @@ export function RsvpForm({
   people: initialPeople,
   phone,
   email,
+  contactGuestId,
   message: initialMessage,
   alreadyReplied,
 }: {
@@ -55,6 +56,8 @@ export function RsvpForm({
   people: RsvpPerson[];
   phone: string;
   email: string;
+  /** Whose details are in the two boxes below, so they go back to them. */
+  contactGuestId: string | null;
   message: string;
   alreadyReplied: boolean;
 }) {
@@ -93,6 +96,7 @@ export function RsvpForm({
           token,
           phone: contact.phone || undefined,
           email: contact.email || undefined,
+          contactGuestId: contactGuestId ?? undefined,
           message: message || undefined,
           people: people.map((person) => ({
             guestId: person.guestId,
@@ -106,8 +110,10 @@ export function RsvpForm({
         }),
         // Never strand somebody on "Sending…": a reply that hangs leaves them
         // unable to tell whether they have answered. Sending again is safe.
+        // Comfortably longer than the server's transaction budget, so this only
+        // fires when something is really wrong rather than merely slow.
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("timed out")), 25_000),
+          setTimeout(() => reject(new Error("timed out")), 45_000),
         ),
       ]);
 
@@ -117,7 +123,10 @@ export function RsvpForm({
       }
       setDone({ coming: result.coming, total: result.total });
     } catch {
-      setError("That didn't send. Check your connection and try again.");
+      // We do not know whether it landed, so we don't claim it didn't.
+      setError(
+        "We're not sure that got through. Do send it again — answering twice does no harm.",
+      );
     } finally {
       setPending(false);
     }

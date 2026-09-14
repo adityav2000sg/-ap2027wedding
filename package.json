@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "health": "tsx scripts/health-check.ts",
+    "rsvp:audit": "tsx scripts/rsvp-audit.ts",
     "accounts:passwords": "tsx scripts/set-account-passwords.ts",
     "accounts:provision": "tsx scripts/provision-accounts.ts",
     "fix:allocations": "tsx scripts/fix-allocations.ts",

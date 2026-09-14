@@ -3,6 +3,7 @@
  *
  *   npm run fix:households            # dry run
  *   npm run fix:households -- --apply
+ *   npm run fix:households -- --apply --force   # once links have gone out
  *
  * Three records each held two unrelated families who happen to share a name —
  * Abrol, Jain and Singh — and one held two different sets of Ahujas. Merged like
@@ -86,8 +87,49 @@ function newRsvpToken(): string {
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const force = process.argv.includes("--force");
   const planned: string[] = [];
   const problems: string[] = [];
+
+  // Splitting a household gives the people who move a brand-new link. If the
+  // old one has already gone out, theirs silently stops speaking for them: the
+  // token still resolves, to a household they are no longer in, and they get a
+  // page with somebody else's names on it or none at all.
+  //
+  // The outreach state is carried across below, so the app will go on claiming
+  // they were written to. That is exactly the combination nobody notices.
+  const alreadyOut = await db.household.findMany({
+    where: {
+      name: { in: SPLITS.map((split) => split.from) },
+      OR: [
+        { saveTheDateSentAt: { not: null } },
+        { rsvpSentAt: { not: null } },
+        { stdRepliedAt: { not: null } },
+        { rsvpRepliedAt: { not: null } },
+        { guests: { some: { stdResponse: { not: null }, archivedAt: null } } },
+      ],
+    },
+    select: { name: true, saveTheDateSentAt: true, rsvpSentAt: true },
+  });
+
+  if (alreadyOut.length > 0 && !force) {
+    console.error(
+      `\n✗ ${alreadyOut.length} of these households have already been sent a link:\n`,
+    );
+    for (const household of alreadyOut) {
+      console.error(
+        `   ${household.name} — ${household.saveTheDateSentAt ? "save-the-date" : "invitation"} already sent`,
+      );
+    }
+    console.error(
+      "\nSplitting them issues new links to whoever moves, and the link they were\n" +
+        "given stops answering for them. Re-send the new links by hand afterwards,\n" +
+        "then re-run `npm run rsvp:audit`.\n\n" +
+        "Re-run with --force once you have read that.\n",
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   // ── Splits ──────────────────────────────────────────────────────────────
   for (const split of SPLITS) {

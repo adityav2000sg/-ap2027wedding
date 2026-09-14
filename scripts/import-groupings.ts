@@ -3,10 +3,16 @@
  *
  *   npx tsx scripts/import-groupings.ts            # dry run, changes nothing
  *   npx tsx scripts/import-groupings.ts --apply
+ *   npx tsx scripts/import-groupings.ts --apply --force   # see the safety gate
  *
  * The sheet is one row per group: everybody on a row shares a room and gets one
  * invitation between them. It is also the definition of the A list — anybody on
  * it is invited, anybody not on it is not.
+ *
+ * It refuses to run at all once a save-the-date has gone out or a reply has
+ * come in, unless forced — see the safety gate. Regrouping issues new links and
+ * deletes households, and doing that underneath a guest who has already
+ * answered destroys the answer. That is not hypothetical; it has happened.
  *
  * Two things it must not touch:
  *
@@ -32,6 +38,8 @@ const SOURCE =
   process.argv.find((a) => a.startsWith("--file="))?.slice(7) ??
   path.join(process.cwd(), "prisma", "data", "save-the-date-groupings.json");
 const APPLY = process.argv.includes("--apply");
+/** Required once anything has been sent or answered. See the safety gate below. */
+const FORCE = process.argv.includes("--force");
 
 const norm = (value: string) =>
   value.trim().replace(/\s+/g, " ").toLowerCase().replace(/[.'’]/g, "");
@@ -322,6 +330,82 @@ export async function importSaveTheDateGroupings({
     console.log(moves.join("\n"));
   }
 
+  // ── The safety gate ──────────────────────────────────────────────────────
+  //
+  // Regrouping rewrites household membership, mints fresh tokens for the
+  // households it creates, and deletes the ones left empty. All of that is
+  // harmless before the save-the-dates go out and destructive afterwards: on
+  // 11th September it ran eleven seconds after a family replied, moved them
+  // into a new household, deleted the old one, and took the reply and the link
+  // that had been sent to them with it. Nobody noticed for three days.
+  //
+  // So from here on it refuses to run over anything that has already been sent
+  // or already answered, and says exactly what it would have destroyed.
+  const answeredAlready = await prisma.household.findMany({
+    where: {
+      archivedAt: null,
+      OR: [
+        { stdRepliedAt: { not: null } },
+        { rsvpRepliedAt: { not: null } },
+        { saveTheDateSentAt: { not: null } },
+        { rsvpSentAt: { not: null } },
+        { guests: { some: { stdResponse: { not: null }, archivedAt: null } } },
+        { guests: { some: { saveTheDateSentAt: { not: null }, archivedAt: null } } },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      stdRepliedAt: true,
+      saveTheDateSentAt: true,
+      rsvpSentAt: true,
+      guests: {
+        where: { archivedAt: null },
+        select: { firstName: true, lastName: true, stdResponse: true },
+      },
+    },
+  });
+
+  if (answeredAlready.length > 0) {
+    console.log(
+      `\nHouseholds that have already been written to or heard from (${answeredAlready.length}):`,
+    );
+    for (const household of answeredAlready) {
+      const replied = household.guests.filter((guest) => guest.stdResponse !== null);
+      const state = [
+        household.saveTheDateSentAt ? "save-the-date sent" : null,
+        household.rsvpSentAt ? "invitation sent" : null,
+        replied.length > 0
+          ? `${replied.length} ${replied.length === 1 ? "reply" : "replies"} (${replied
+              .map((guest) => `${guest.firstName} ${guest.stdResponse}`)
+              .join(", ")})`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      console.log(`  ${household.name} — ${state}`);
+    }
+
+    if (!FORCE) {
+      console.log(
+        "\nREFUSING TO RUN.\n\n" +
+          "Regrouping rewrites household membership, issues new links and deletes\n" +
+          "households left empty. Any link already sent to the households above would\n" +
+          "stop working, and any reply held on them would be destroyed — silently, the\n" +
+          "way one already was.\n\n" +
+          "If the groupings genuinely must change now:\n" +
+          "  1. npm run rsvp:audit           — see exactly what is at stake\n" +
+          "  2. re-run with --force          — and then audit again\n" +
+          "Replies live on in rsvp_submissions either way; that table is the record\n" +
+          "of last resort and is never deleted by anything here.",
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log("\n--force given. Proceeding over the households above.");
+  }
+
   if (!apply) {
     console.log("\nDry run. Nothing was written. Re-run with --apply to make these changes.");
     return;
@@ -466,13 +550,39 @@ export async function importSaveTheDateGroupings({
     });
 
     // Households nobody is in any more.
+    //
+    // Emptied of people, but not necessarily of history: a household that has
+    // been written to or has answered is kept whatever else happens, because
+    // deleting it is what destroyed a real reply. An empty household costs
+    // nothing to leave lying about; a deleted one costs a phone call to a
+    // relative asking whether they ever replied.
     const empty = await tx.household.findMany({
       where: { weddingId: wedding.id, guests: { none: {} } },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        stdRepliedAt: true,
+        rsvpRepliedAt: true,
+        saveTheDateSentAt: true,
+        rsvpSentAt: true,
+      },
     });
-    if (empty.length > 0) {
-      await tx.household.deleteMany({ where: { id: { in: empty.map((h) => h.id) } } });
-      console.log(`  removed ${empty.length} empty groups`);
+    const disposable = empty.filter(
+      (household) =>
+        !household.stdRepliedAt &&
+        !household.rsvpRepliedAt &&
+        !household.saveTheDateSentAt &&
+        !household.rsvpSentAt,
+    );
+    const kept = empty.length - disposable.length;
+    if (disposable.length > 0) {
+      await tx.household.deleteMany({ where: { id: { in: disposable.map((h) => h.id) } } });
+      console.log(`  removed ${disposable.length} empty groups`);
+    }
+    if (kept > 0) {
+      console.log(
+        `  kept ${kept} empty ${kept === 1 ? "group" : "groups"} that had been sent or had replied`,
+      );
     }
   });
 

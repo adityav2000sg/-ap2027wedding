@@ -116,7 +116,30 @@ export interface TierStats {
   awaiting: number;
 }
 
+/**
+ * Who the save-the-date actually asks.
+ *
+ * The mailing goes to the first wave, so the people held back are not
+ * outstanding replies — they were never asked. Counting them as awaiting is
+ * what made a family who had answered in full sit in the chase list for ever,
+ * which is indistinguishable, from the couple's side of the screen, from
+ * having lost the reply.
+ *
+ * Anyone who has already answered still counts, whatever wave they are on now:
+ * a reply is a reply, and demoting somebody afterwards must never erase it.
+ */
+function askedBySaveTheDate(
+  people: OutreachPerson[],
+  stage: "SAVE_THE_DATE" | "INVITATION",
+): OutreachPerson[] {
+  if (stage !== "SAVE_THE_DATE") return people;
+  return people.filter(
+    (person) => person.tier === "A" || person.stdResponse !== null,
+  );
+}
+
 export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
+  const stage = snapshot.wedding.invitationStage;
   const members = new Map<string, OutreachPerson[]>();
   for (const guest of snapshot.guests) {
     if (!guest.householdId) continue;
@@ -141,6 +164,7 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
       const people = (members.get(household.id) ?? []).sort((a, b) =>
         a.name.localeCompare(b.name),
       );
+      const asked = askedBySaveTheDate(people, stage);
       return {
       householdId: household.id,
       rsvpToken: household.rsvpToken,
@@ -154,15 +178,17 @@ export function outreachRows(snapshot: WeddingSnapshot): OutreachRow[] {
       ) ?? "C",
       people,
       message: household.rsvpMessage,
-      stdReply: rollUpStd(people),
-      stdYes: people.filter((p) => p.stdResponse === "YES").length,
-      stdNo: people.filter((p) => p.stdResponse === "NO").length,
+      // Rolled up over the people the mailing actually asks, never over the
+      // whole household — see `askedBySaveTheDate`.
+      stdReply: rollUpStd(asked),
+      stdYes: asked.filter((p) => p.stdResponse === "YES").length,
+      stdNo: asked.filter((p) => p.stdResponse === "NO").length,
       // The remainder, rather than a count of nulls: "no answer" is every
       // shape of absent, and an undefined slipping through as "answered" would
       // quietly mark a household replied.
       stdAwaiting:
-        people.length -
-        people.filter((p) => p.stdResponse === "YES" || p.stdResponse === "NO").length,
+        asked.length -
+        asked.filter((p) => p.stdResponse === "YES" || p.stdResponse === "NO").length,
       peopleSaveTheDateSent: people.filter((p) => p.saveTheDateSent).length,
       peopleInvitationSent: people.filter((p) => p.invitationSent).length,
       headcount: people.length,
@@ -229,7 +255,12 @@ export function outreachStats(snapshot: WeddingSnapshot): OutreachStats {
     stats.stdYes += row.stdYes;
     stats.stdNo += row.stdNo;
     stats.stdAwaiting += row.stdAwaiting;
-    if (row.stdAwaiting === 0 && row.headcount > 0) stats.stdHouseholdsReplied += 1;
+    // Answered, not merely "nothing outstanding": a household the current wave
+    // asks nobody in has no outstanding replies either, and counting it as
+    // replied would inflate the one number the couple reads as progress.
+    if (row.stdAwaiting === 0 && row.stdYes + row.stdNo > 0) {
+      stats.stdHouseholdsReplied += 1;
+    }
 
     if (row.saveTheDateSent) stats.stdSent += 1;
     else stats.stdNotSent += 1;

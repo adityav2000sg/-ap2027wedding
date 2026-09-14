@@ -18,23 +18,17 @@ import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
+import { REPLY_BY, REPLY_BY_LABEL, repliesHaveClosed } from "@/config/rsvp";
 import { formatDateRange, daysBetween } from "@/lib/dates";
-import { publicRsvpKey, publicRsvpPath, rsvpCodeFromPath } from "@/lib/rsvp-links";
+import { publicRsvpKey, publicRsvpPath } from "@/lib/rsvp-links";
 import { db } from "@/server/db";
+import { noteRsvpOpened } from "@/server/rsvp-ledger";
+import { resolveRsvpLink, rsvpAudience } from "@/server/rsvp-link";
 import { RsvpForm, type RsvpPerson } from "./rsvp-form";
 import { SaveTheDate, type StdPerson } from "./save-the-date";
 
 // The reply must reflect what was just submitted, never a cached copy.
 export const dynamic = "force-dynamic";
-
-/**
- * The date replies are needed by.
- *
- * Held in one place, as a real date and the words for it, so the deadline shown
- * on the invitation and the countdown beside it can never disagree.
- */
-const REPLY_BY = new Date("2026-10-01T00:00:00.000Z");
-const REPLY_BY_LABEL = "1st October 2026";
 
 export const metadata: Metadata = {
   // A wedding invitation has no business in a search index.
@@ -42,65 +36,13 @@ export const metadata: Metadata = {
 };
 
 async function loadInvitation(token: string) {
-  let personal = await db.guest.findUnique({
-    where: { rsvpToken: token },
-    select: {
-      id: true,
-      householdId: true,
-      firstName: true,
-      lastName: true,
-      rsvpToken: true,
-      rsvpMessage: true,
-      rsvpSubmittedAt: true,
-    },
-  });
-
-  let householdKey = personal
-    ? null
-    : await db.household.findUnique({
-        where: { rsvpToken: token },
-        select: { id: true, name: true, rsvpToken: true },
-      });
-
-  // New links expose only a 12-character private prefix. Legacy full-token
-  // links are still accepted above, then redirected to their readable alias.
-  if (!personal && !householdKey) {
-    const code = rsvpCodeFromPath(token);
-    if (!code) return null;
-
-    const [matchingPeople, matchingHouseholds] = await Promise.all([
-      db.guest.findMany({
-        where: { rsvpToken: { startsWith: code } },
-        take: 2,
-        select: {
-          id: true,
-          householdId: true,
-          firstName: true,
-          lastName: true,
-          rsvpToken: true,
-          rsvpMessage: true,
-          rsvpSubmittedAt: true,
-        },
-      }),
-      db.household.findMany({
-        where: { rsvpToken: { startsWith: code } },
-        take: 2,
-        select: { id: true, name: true, rsvpToken: true },
-      }),
-    ]);
-
-    // A collision is extraordinarily unlikely, but opening neither invitation
-    // is safer than choosing the wrong person if one ever occurs.
-    if (matchingPeople.length + matchingHouseholds.length !== 1) return null;
-    personal = matchingPeople[0] ?? null;
-    householdKey = matchingHouseholds[0] ?? null;
-  }
-
-  const householdId = personal?.householdId ?? householdKey?.id;
-  if (!householdId) return null;
+  // One resolver, shared with the action that records the reply. The page and
+  // the server must never disagree about whose link this is.
+  const link = await resolveRsvpLink(token);
+  if (!link) return null;
 
   const household = await db.household.findUnique({
-    where: { id: householdId },
+    where: { id: link.householdId },
     select: {
       id: true,
       name: true,
@@ -109,12 +51,10 @@ async function loadInvitation(token: string) {
       rsvpSubmittedAt: true,
       stdRepliedAt: true,
       guests: {
-        // A household link speaks only for ordinary group recipients. Guests
-        // with a personal token are intentionally excluded and answer through
-        // their own private link instead.
-        where: personal
-          ? { id: personal.id, archivedAt: null }
-          : { archivedAt: null, rsvpToken: null },
+        // Every live member, with the audience decided afterwards by the same
+        // function the reply is checked against. Filtering here as well was
+        // how the two came to disagree.
+        where: { archivedAt: null },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
@@ -128,6 +68,9 @@ async function loadInvitation(token: string) {
           needsAccommodation: true,
           needsTransport: true,
           tier: true,
+          rsvpToken: true,
+          rsvpMessage: true,
+          rsvpSubmittedAt: true,
           stdResponse: true,
           invitations: { select: { status: true }, take: 1 },
         },
@@ -148,10 +91,24 @@ async function loadInvitation(token: string) {
   });
 
   if (!household) return null;
+
+  const personal = link.personalGuestId
+    ? (household.guests.find((guest) => guest.id === link.personalGuestId) ?? null)
+    : null;
+
+  // The people this link may answer for — the same call the submission makes.
+  const audience = rsvpAudience({
+    stage: household.wedding.invitationStage,
+    personalGuestId: link.personalGuestId,
+    guests: household.guests,
+  });
+
   return {
     household,
     personal,
-    resolvedToken: personal?.rsvpToken ?? household.rsvpToken,
+    audience: household.guests.filter((guest) => audience.has(guest.id)),
+    resolvedToken: link.resolvedToken,
+    link,
   };
 }
 
@@ -162,8 +119,11 @@ export default async function RsvpPage({
 }) {
   const { token } = await params;
   const invitation = await loadInvitation(token);
+  // A token that matches nothing is the only thing that may 404 here. Anything
+  // past this line is a link we really sent, and a link we really sent must
+  // never show a stranger's error page.
   if (!invitation) notFound();
-  const { household, personal, resolvedToken } = invitation;
+  const { household, personal, resolvedToken, audience, link } = invitation;
 
   const invitationName = personal
     ? `${personal.firstName} ${personal.lastName}`.trim()
@@ -172,19 +132,69 @@ export default async function RsvpPage({
     redirect(publicRsvpPath(invitationName, resolvedToken));
   }
 
+  // From here the link is genuine and on its canonical address, so this is the
+  // moment it counts as opened. Best-effort and unawaited-on-failure: the
+  // funnel is worth having, never at the cost of the invitation rendering.
+  await noteRsvpOpened(link);
+
   const { wedding } = household;
-  const invitedGuests = personal
-    ? household.guests
-    : wedding.invitationStage === "SAVE_THE_DATE"
-      ? household.guests.filter((guest) => guest.tier === "A")
-      : household.guests;
-  if (invitedGuests.length === 0) notFound();
+  const invitedGuests = audience;
   const days = daysBetween(new Date(), wedding.startDate);
+
+  // A real link with nobody to ask. It happens: a family held back to a later
+  // wave, or a household whose members have all been given personal links.
+  // They opened something we sent them, so they get an invitation and a way to
+  // reach us — never the not-found page, which reads as "you were a mistake".
+  if (invitedGuests.length === 0) {
+    return (
+      <Holding
+        partnerA={wedding.partnerAName}
+        partnerB={wedding.partnerBName}
+        date={formatDateRange(wedding.startDate, wedding.endDate)}
+        location={wedding.cities.join(" or ") || "Bali, Indonesia"}
+        days={days}
+      />
+    );
+  }
 
   // Same photograph as the sign-in screen, if it's there.
   const photo = ["/brand/proposal.jpg", "/brand/hero-mandap.jpg"].find((file) =>
     existsSync(path.join(process.cwd(), "public", file)),
   );
+
+  // The date on the invitation has passed.
+  //
+  // Shown here and enforced in `submitRsvp`, from the same constant, so the
+  // form never stays up past the moment the server would refuse it. Whatever
+  // they told us is repeated back — somebody who replied in September opening
+  // this in November should be reassured, not left wondering.
+  if (repliesHaveClosed()) {
+    const answers = invitedGuests.map((guest) => {
+      const status = guest.invitations[0]?.status;
+      const answer =
+        wedding.invitationStage === "SAVE_THE_DATE"
+          ? guest.stdResponse
+          : status === "CONFIRMED"
+            ? "YES"
+            : status === "DECLINED"
+              ? "NO"
+              : null;
+      return { name: `${guest.firstName} ${guest.lastName}`.trim(), answer };
+    });
+
+    return (
+      <RepliesClosed
+        photo={photo ?? null}
+        answers={answers}
+        partnerA={wedding.partnerAName}
+        partnerB={wedding.partnerBName}
+        date={formatDateRange(wedding.startDate, wedding.endDate)}
+        location={wedding.cities.join(" or ") || "Bali, Indonesia"}
+        days={days}
+        closedOn={REPLY_BY_LABEL}
+      />
+    );
+  }
 
   const people: RsvpPerson[] = invitedGuests.map((guest) => {
     const status = guest.invitations[0]?.status;
@@ -317,6 +327,7 @@ export default async function RsvpPage({
               people={people}
               phone={contact?.phone ?? ""}
               email={contact?.email ?? ""}
+              contactGuestId={contact?.id ?? null}
               message={personal?.rsvpMessage ?? household.rsvpMessage ?? ""}
               alreadyReplied={personal ? personal.rsvpSubmittedAt !== null : household.rsvpSubmittedAt !== null}
             />
@@ -327,6 +338,204 @@ export default async function RsvpPage({
           </p>
         )}
 
+      </div>
+    </main>
+  );
+}
+
+/**
+ * A real invitation with nothing to ask yet.
+ *
+ * Reached by a link we genuinely sent whose audience is currently empty — a
+ * household held back to a later wave, or one where everybody replies on their
+ * own personal link. The old behaviour here was `notFound()`, which told a
+ * guest holding a link from the couple that they did not exist.
+ *
+ * It says the true thing instead: we know who you are, there is nothing to
+ * answer at this moment, and we will be in touch.
+ */
+function Holding({
+  partnerA,
+  partnerB,
+  date,
+  location,
+  days,
+}: {
+  partnerA: string;
+  partnerB: string;
+  date: string;
+  location: string;
+  days: number;
+}) {
+  return (
+    <main className="grid min-h-dvh place-items-center bg-canvas px-5 py-16">
+      <div className="w-full max-w-[520px] text-center">
+        <p className="eyebrow">The wedding of</p>
+        <h1 className="mt-3 font-script text-[46px] leading-tight text-ink sm:text-[64px]">
+          {partnerA}
+          <span className="mx-3 text-saffron-soft">&</span>
+          {partnerB}
+        </h1>
+        <p className="mt-4 text-[15px] text-ink-soft">
+          {date}
+          <span className="mx-2 opacity-50">·</span>
+          {location}
+        </p>
+        {days > 0 ? (
+          <p className="mt-1.5 text-[13px] text-ink-muted">{days} days to go</p>
+        ) : null}
+
+        <p className="mx-auto mt-8 max-w-sm rounded-2xl border border-line bg-surface p-6 text-[14px] leading-relaxed text-ink-soft">
+          Your link works — there's simply nothing for you to answer just yet.
+          We'll be in touch with the details very soon. If you were expecting a
+          form here, do message us and we'll sort it out straight away.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * The list has closed.
+ *
+ * Shown once the date on the invitation has passed, in place of the form, and
+ * refused by the server at the same instant so the two can never disagree.
+ *
+ * The tone is the point. A guest who is late is almost always a guest who has
+ * been busy, ill, or travelling, and they are about to feel caught out — so the
+ * page does not scold, does not say "expired", and does not present a dead end.
+ * It says the numbers have gone to the hotel, repeats back whatever they told
+ * us so nobody is left guessing, and asks them to message Avantika and Prateek,
+ * who can and will still say yes.
+ */
+function RepliesClosed({
+  photo,
+  answers,
+  partnerA,
+  partnerB,
+  date,
+  location,
+  days,
+  closedOn,
+}: {
+  photo: string | null;
+  answers: { name: string; answer: "YES" | "NO" | null }[];
+  partnerA: string;
+  partnerB: string;
+  date: string;
+  location: string;
+  days: number;
+  closedOn: string;
+}) {
+  const replied = answers.filter((person) => person.answer !== null);
+  const coming = answers.filter((person) => person.answer === "YES");
+  const everyoneAnswered = replied.length === answers.length && answers.length > 0;
+
+  return (
+    <main className="min-h-dvh bg-canvas">
+      <header className="relative overflow-hidden border-b border-line">
+        {photo ? (
+          <>
+            <Image
+              src={photo}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-[62%_center]"
+            />
+            <div aria-hidden className="absolute inset-0 bg-[#2a1c14]/35" />
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-gradient-to-t from-[#1a1310]/85 via-[#1a1310]/30 to-[#1a1310]/25"
+            />
+          </>
+        ) : null}
+
+        <div className="relative mx-auto max-w-[680px] px-5 py-14 text-center sm:py-20">
+          <p
+            className={`eyebrow ${photo ? "text-white/70" : ""}`}
+            style={photo ? { color: "rgba(255,255,255,0.72)" } : undefined}
+          >
+            The wedding of
+          </p>
+
+          <h1
+            className={`mt-3 font-script text-[46px] leading-tight sm:text-[76px] ${
+              photo ? "text-white" : "text-ink"
+            }`}
+            style={photo ? { textShadow: "0 2px 24px rgba(0,0,0,0.45)" } : undefined}
+          >
+            {partnerA}
+            <span className="mx-3 text-saffron-soft">&</span>
+            {partnerB}
+          </h1>
+
+          <p className={`mt-4 text-[15px] ${photo ? "text-white/85" : "text-ink-soft"}`}>
+            {date}
+            <span className="mx-2 opacity-50">·</span>
+            {location}
+          </p>
+
+          {days > 0 ? (
+            <p className={`mt-1.5 text-[13px] ${photo ? "text-white/65" : "text-ink-muted"}`}>
+              {days} days to go
+            </p>
+          ) : null}
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-[680px] px-5 py-10 sm:py-14">
+        <div className="rounded-2xl border border-line bg-surface p-7 text-center shadow-raised">
+          <p className="eyebrow">Replies closed on {closedOn}</p>
+
+          <h2 className="mt-3 font-display text-[24px] text-ink">
+            {everyoneAnswered ? "We have your reply" : "The list has gone to Bali"}
+          </h2>
+
+          <p className="mx-auto mt-3 max-w-md text-[14.5px] leading-relaxed text-ink-soft">
+            {everyoneAnswered
+              ? "Thank you — the final numbers are with the hotel, and everything you need for the week will follow nearer the time."
+              : "We've sent the final numbers to the hotel, so the form has closed. If you haven't had a chance to reply, or something has changed, do message Avantika and Prateek directly — we would far rather hear from you late than not at all."}
+          </p>
+
+          {replied.length > 0 ? (
+            <div className="mx-auto mt-6 max-w-sm rounded-xl border border-line bg-surface-soft px-4 py-3 text-left">
+              <p className="eyebrow mb-2">What we have</p>
+              <ul className="space-y-1">
+                {answers.map((person) => (
+                  <li
+                    key={person.name}
+                    className="flex items-center justify-between gap-3 text-[13.5px]"
+                  >
+                    <span className="text-ink-soft">{person.name}</span>
+                    <span
+                      className={
+                        person.answer === "YES"
+                          ? "text-positive"
+                          : person.answer === "NO"
+                            ? "text-ink-muted"
+                            : "text-ink-faint"
+                      }
+                    >
+                      {person.answer === "YES"
+                        ? "Coming"
+                        : person.answer === "NO"
+                          ? "Can't make it"
+                          : "No reply"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {coming.length > 0 ? (
+            <p className="mt-6 font-script text-[26px] text-ink">
+              We can’t wait to see you there
+            </p>
+          ) : null}
+        </div>
       </div>
     </main>
   );

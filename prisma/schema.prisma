@@ -308,6 +308,12 @@ model Household {
   notes                 String?
   rsvpMessage           String?
   rsvpSubmittedAt       DateTime?
+  /// When the link was first and last opened, and how often. The gap between
+  /// "sent" and "opened" is a delivery problem; the gap between "opened" and
+  /// "replied" is a form problem. They need different chasing.
+  rsvpOpenedAt          DateTime?
+  rsvpLastOpenedAt      DateTime?
+  rsvpOpenCount         Int              @default(0)
   archivedAt            DateTime?
   createdAt             DateTime         @default(now())
 
@@ -346,6 +352,10 @@ model Guest {
   /// partner never overwrites the other's response.
   rsvpMessage        String?
   rsvpSubmittedAt    DateTime?
+  /// The same funnel as the household's, for people on a personal link.
+  rsvpOpenedAt       DateTime?
+  rsvpLastOpenedAt   DateTime?
+  rsvpOpenCount      Int               @default(0)
   /// Set when this person specifically was sent one, independent of the
   /// household roll-up — most invitations here go to a phone, not a letterbox.
   saveTheDateSentAt  DateTime?
@@ -1454,6 +1464,69 @@ enum InvitationStage {
 enum SaveTheDateResponse {
   YES
   NO
+}
+
+/// What became of one attempt to reply.
+enum RsvpSubmissionOutcome {
+  /// The answers were matched to real people and written.
+  RECORDED
+  /// The link resolved to nobody — rotated, deleted, or never real.
+  LINK_NOT_FOUND
+  /// The link is real but replies are switched off.
+  REPLIES_CLOSED
+  /// The link is real but they answered after the date replies were due.
+  /// Kept apart from REPLIES_CLOSED: a switch somebody flipped and a date that
+  /// ran out want different chasing — this one is a guest to ring back.
+  DEADLINE_PASSED
+  /// The link is real but the current wave asks nobody in it.
+  NOBODY_TO_ANSWER_FOR
+  /// The link is real but named somebody it does not speak for.
+  NAMES_NOT_MATCHED
+  /// The payload never passed validation.
+  INVALID_PAYLOAD
+  /// Matched fine, then the write failed.
+  WRITE_FAILED
+}
+
+/// Every attempt to answer an invitation, kept forever.
+///
+/// This table is the one that must never be wrong. It is written outside the
+/// transaction that records the reply, so a submission that is rejected, or one
+/// whose write blows up halfway, still leaves a trace that somebody tried.
+///
+/// It deliberately holds NO foreign keys. A reply has to outlive the household
+/// it was made against — regrouping the guest list is a routine thing to do and
+/// has already destroyed one real reply. The names and the raw payload are
+/// snapshotted as text and JSON so the answer is readable, and replayable, even
+/// if every row it pointed at is gone.
+model RsvpSubmission {
+  id             String                @id @default(cuid())
+  /// Null only when the token matched nothing, so there is no wedding to blame.
+  weddingId      String?
+  /// Exactly what arrived in the URL or the form — never normalised.
+  token          String
+  outcome        RsvpSubmissionOutcome
+  /// Unlinked on purpose: the row survives the household being deleted.
+  householdId    String?
+  householdName  String?
+  /// Set when a personal link was used.
+  guestId        String?
+  guestName      String?
+  /// Which mailing was out at the time; the same link means different things.
+  stage          InvitationStage?
+  /// The answers as submitted, before anything was matched or dropped.
+  payload        Json
+  /// Names as they were resolved, so the reply reads without a join.
+  summary        String?
+  /// Why it was refused, when it was.
+  error          String?
+  createdAt      DateTime              @default(now())
+
+  @@index([createdAt])
+  @@index([householdId])
+  @@index([guestId])
+  @@index([outcome])
+  @@map("rsvp_submissions")
 }
 
 enum ActivitySource {

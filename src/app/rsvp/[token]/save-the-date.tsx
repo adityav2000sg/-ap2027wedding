@@ -30,11 +30,16 @@ import { submitRsvp } from "@/server/actions/rsvp";
  *
  * A reply that hangs is worse than one that fails: the guest has no idea
  * whether they have answered, and the button that would tell them is disabled.
- * If nothing comes back in twenty-five seconds we treat it as failed and hand
- * the form back. The request may still land — a reply overwrites, so a
- * duplicate costs nothing.
+ * If nothing comes back we treat it as failed and hand the form back. The
+ * request may still land — a reply overwrites, so a duplicate costs nothing.
+ *
+ * Comfortably longer than the server's own transaction budget, so this fires
+ * only when something is genuinely wrong. A household of eight on hotel wifi
+ * can take a while, and giving up first tells them their reply failed while it
+ * is in the middle of succeeding — which is how somebody ends up answering
+ * twice, or not at all.
  */
-const SEND_TIMEOUT_MS = 25_000;
+const SEND_TIMEOUT_MS = 45_000;
 
 function withTimeout<T>(work: Promise<T>): Promise<T> {
   return Promise.race([
@@ -184,9 +189,12 @@ export function SaveTheDate({
       setDone({ coming: result.coming, total: result.total });
     } catch {
       // A dropped connection, a phone that slept mid-send, a server that never
-      // answered. Whatever it was, the guest gets told and gets the button
-      // back — sending twice is harmless, because a reply overwrites.
-      setError("That didn't send. Check your connection and try again.");
+      // answered. We genuinely do not know whether it landed, so we say so
+      // rather than asserting it failed — and sending again is harmless,
+      // because a reply overwrites.
+      setError(
+        "We're not sure that got through. Do send it again — answering twice does no harm.",
+      );
     } finally {
       setPending(false);
     }
