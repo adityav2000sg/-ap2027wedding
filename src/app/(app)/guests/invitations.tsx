@@ -446,7 +446,11 @@ export function Invitations({
                   {/* A household can be both: partners who each answer for
                       themselves, and relatives who share the family link. Show
                       whichever of the two exists, rather than only the first. */}
-                  <span className="flex shrink-0 items-center gap-1.5">
+                  {/* Fixed width and right-aligned. "Copy link", "Group link"
+                      and "2 personal links" are three different widths, and
+                      letting this cell size itself dragged every column after
+                      it left or right by row. */}
+                  <span className="flex w-[150px] shrink-0 items-center justify-end gap-1.5">
                     {hasGroupRecipients ? (
                       <CopyLink
                         token={row.rsvpToken}
@@ -462,7 +466,7 @@ export function Invitations({
                   </span>
 
                   <div className="flex items-center gap-4">
-                    <Labelled label="Save the date">
+                    <Labelled label="Save the date" width="w-[88px]">
                       <SentToggle
                         sent={row.saveTheDateSent}
                         busy={busy === `${row.householdId}:saveTheDate`}
@@ -478,7 +482,7 @@ export function Invitations({
                         }
                       />
                     </Labelled>
-                    <Labelled label="Invitation">
+                    <Labelled label="Invitation" width="w-[72px]">
                       <SentToggle
                         sent={row.invitationSent}
                         busy={busy === `${row.householdId}:invitation`}
@@ -495,7 +499,7 @@ export function Invitations({
                       />
                     </Labelled>
                     {savingTheDate ? (
-                      <Labelled label="Replied">
+                      <Labelled label="Replied" width="w-[104px]">
                         <StdReplyBadge
                           reply={row.stdReply}
                           yes={row.stdYes}
@@ -509,7 +513,7 @@ export function Invitations({
                         two "coming?" controls on one row that meant different
                         things; a reply taken by phone is recorded against the
                         person, on the guest list, where the answer lives. */}
-                    <Labelled label="Coming?" hidden={savingTheDate}>
+                    <Labelled label="Coming?" hidden={savingTheDate} width="w-[104px]">
                       <div className="flex items-center gap-1">
                         <ReplyButton
                           active={row.reply === "YES"}
@@ -714,19 +718,30 @@ function PersonRow({
   );
 }
 
-/** A tiny caption above a control, so the ticks aren't a guessing game. */
+/**
+ * One column of the row, with its heading above it.
+ *
+ * The width is fixed rather than taken from the contents, because the contents
+ * are exactly what varies: a household with a personal link, or one that has
+ * answered, is wider than one that hasn't, and letting each row size itself
+ * meant no two rows agreed where "save the date" was. Down a list of 249 that
+ * reads as a broken table — the eye can't run down a column that moves.
+ */
 function Labelled({
   label,
   hidden,
+  width = "w-[84px]",
   children,
 }: {
   label: string;
   hidden?: boolean;
+  /** Wide enough for the longest thing this column can say. */
+  width?: string;
   children: React.ReactNode;
 }) {
   if (hidden) return null;
   return (
-    <div className="flex flex-col items-center gap-0.5">
+    <div className={cn("flex shrink-0 flex-col items-center gap-0.5", width)}>
       <span className="text-[9.5px] uppercase tracking-[0.08em] text-ink-faint">
         {label}
       </span>
@@ -858,8 +873,13 @@ function StdReplyBadge({
   headcount: number;
 }) {
   if (reply === "AWAITING") {
+    // A badge, like every other answer in this column. As plain text it sat a
+    // pixel or two off the badges above and below it, and read as a different
+    // kind of thing when it's the commonest answer on the page.
     return (
-      <span className="text-[11.5px] text-ink-muted">Not yet</span>
+      <Badge size="xs" variant="neutral">
+        Not yet
+      </Badge>
     );
   }
   if (reply === "PARTIAL") {
@@ -878,9 +898,18 @@ function StdReplyBadge({
       </Badge>
     );
   }
+  // A no is a real answer and needs to look like one. Grey made it a twin of
+  // "Not yet", which is the opposite state — nothing to chase versus everything
+  // to chase — and those are the two you most need to tell apart at a glance.
   return (
-    <Badge size="xs" variant={reply === "YES" ? "positive" : "neutral"}>
-      {reply === "YES" ? (headcount > 1 ? "All coming" : "Said yes") : "Said no"}
+    <Badge size="xs" variant={reply === "YES" ? "positive" : "critical"}>
+      {reply === "YES"
+        ? headcount > 1
+          ? "All coming"
+          : "Said yes"
+        : headcount > 1
+          ? "None coming"
+          : "Said no"}
     </Badge>
   );
 }
