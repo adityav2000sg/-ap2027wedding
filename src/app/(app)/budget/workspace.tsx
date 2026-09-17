@@ -783,17 +783,24 @@ function PayerBoard({
                     {share.name}
                   </span>
                   <span className="block text-[11.5px] text-ink-muted">
-                    {share.lineCount} {share.lineCount === 1 ? "line" : "lines"}
-                    {share.sharePercent > 0 ? ` · ${Math.round(share.sharePercent)}% of the wedding` : ""}
-                    {share.paid > 0 ? ` · ${formatCompactMoney(share.paid, currency)} paid` : ""}
+                    {unclaimed
+                      ? `${share.lineCount} ${share.lineCount === 1 ? "line" : "lines"} nobody has claimed`
+                      : share.lineCount === 0
+                        ? "Nothing assigned to them on the budget yet"
+                        : `${share.lineCount} ${share.lineCount === 1 ? "line" : "lines"} assigned` +
+                          ` · ${formatCompactMoney(share.carrying, currency)}` +
+                          (share.sharePercent > 0
+                            ? ` · ${Math.round(share.sharePercent)}% of the wedding`
+                            : "")}
                     {share.scheduled > 0
                       ? ` · ${formatCompactMoney(share.scheduled, currency)} scheduled`
                       : ""}
                   </span>
                 </span>
 
-                {/* Paid against taken-on, so the gap is visible without doing
-                    the subtraction in your head. */}
+                {/* Paid against assigned, so the gap is visible without doing
+                    the subtraction in your head. Only when there is something
+                    assigned to compare against. */}
                 {share.carrying > 0 ? (
                   <span className="hidden w-32 shrink-0 sm:block">
                     <SegmentBar
@@ -810,6 +817,13 @@ function PayerBoard({
                   </span>
                 ) : null}
 
+                {/* The headline number.
+                    For a person it is money they have actually handed over —
+                    that is what "who's paying" is asking, and showing what they
+                    had been assigned instead meant somebody who had just paid
+                    S$15,385 was headlined "S$0". The unclaimed row is the one
+                    exception: nobody has paid it, and its whole point is how
+                    much is still nobody's. */}
                 <span className="shrink-0 text-right">
                   <span
                     className={cn(
@@ -817,11 +831,19 @@ function PayerBoard({
                       unclaimed ? "text-ink-muted" : "text-ink",
                     )}
                   >
-                    {formatCompactMoney(share.carrying, currency)}
+                    {formatCompactMoney(
+                      unclaimed ? share.carrying : share.paid,
+                      currency,
+                    )}
                   </span>
                   <span className="mt-1 block text-[11px] text-ink-muted">
-                    {unclaimed ? "unassigned" : "carrying"}
+                    {unclaimed ? "unassigned" : "paid so far"}
                   </span>
+                  {!unclaimed && share.carrying > 0 ? (
+                    <span className="tabular mt-0.5 block text-[11px] text-ink-faint">
+                      of {formatCompactMoney(share.carrying, currency)}
+                    </span>
+                  ) : null}
                 </span>
 
                 <span className="shrink-0 text-ink-faint">
@@ -838,8 +860,9 @@ function PayerBoard({
                 >
                   {share.lines.length === 0 ? (
                     <li className="py-2.5 text-[12.5px] text-ink-muted">
-                      Nothing on the budget — but payments have been logged
-                      against them.
+                      The amount above is payments they&rsquo;ve made. Tag budget
+                      lines to them under <strong className="font-medium">By
+                      category</strong> and those will be listed here too.
                     </li>
                   ) : (
                     share.lines.map((line) => (

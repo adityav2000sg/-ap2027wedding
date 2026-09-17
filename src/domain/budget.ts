@@ -642,6 +642,12 @@ export function spendByPayer(view: BudgetView, snapshot: WeddingSnapshot): Payer
     .sort((a, b) => {
       if (a.payerId === null) return 1;
       if (b.payerId === null) return -1;
-      return b.carrying - a.carrying;
+      // Whichever of the two numbers is bigger for that person, because both
+      // eras of this wedding need to sort sensibly: today almost nothing is
+      // assigned and real payments are the only fact, and later the assignments
+      // will dwarf what has actually been handed over. Sorting on `carrying`
+      // alone put the one person who had actually paid for something at the
+      // bottom of the list, under a heading that said "who's paying".
+      return Math.max(b.carrying, b.paid) - Math.max(a.carrying, a.paid);
     });
 }

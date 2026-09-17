@@ -189,6 +189,42 @@ describe("who is paying for what", () => {
     expect(byName(list, "Ajay Mehan")!.sharePercent).toBe(25);
   });
 
+  it("puts somebody who has actually paid above somebody with nothing", () => {
+    // The state that shipped wrong: nothing assigned to anyone, one real
+    // payment. Sorting on what people were carrying put the only person who
+    // had paid for anything at the bottom of "who's paying".
+    const snapshot = makeSnapshot({
+      payers: PARENTS,
+      budgetItems: [makeBudgetItem({ id: "a", payerId: null, contractedAmount: 333_000 })],
+      payments: [
+        makePayment({ id: "p1", payerId: "payer-ajay", amount: 15_385, status: "PAID" }),
+      ],
+    });
+
+    const list = shares(snapshot);
+    expect(list[0].name).toBe("Ajay Mehan");
+    expect(list[0].paid).toBe(15_385);
+    // And the unclaimed pile is still last, however much larger it is.
+    expect(list.at(-1)!.payerId).toBeNull();
+    expect(list.at(-1)!.carrying).toBe(333_000);
+  });
+
+  it("still ranks by what people carry once the budget is assigned", () => {
+    const snapshot = makeSnapshot({
+      payers: PARENTS,
+      budgetItems: [
+        makeBudgetItem({ id: "a", payerId: "payer-dheeraj", contractedAmount: 500_000 }),
+        makeBudgetItem({ id: "b", payerId: "payer-ajay", contractedAmount: 20_000 }),
+      ],
+      payments: [
+        makePayment({ id: "p1", payerId: "payer-ajay", amount: 20_000, status: "PAID" }),
+      ],
+    });
+
+    // Dheeraj has paid nothing but carries far more, so he leads.
+    expect(shares(snapshot)[0].name).toBe("Dheeraj Chowdhry");
+  });
+
   it("leaves out a parent who is carrying nothing", () => {
     const snapshot = makeSnapshot({
       payers: PARENTS,
