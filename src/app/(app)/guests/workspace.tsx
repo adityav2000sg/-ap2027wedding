@@ -18,6 +18,13 @@ import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { BedIcon, CheckIcon, ChevronRightIcon, RouteIcon, SearchIcon } from "@/components/ui/icons";
 import { GUEST_RELATIONSHIPS } from "@/config/guest-relationships";
+import {
+  groupGuestRows,
+  matchesSentFilter,
+  nextSort,
+  sortGuestRows,
+  type SortKey,
+} from "@/domain/guest-list";
 import { formatTimeAgo } from "@/lib/dates";
 import { publicRsvpPath } from "@/lib/rsvp-links";
 import {
@@ -69,32 +76,6 @@ interface Guest {
 
 const RSVP_CYCLE = ["NOT_INVITED", "PENDING", "CONFIRMED", "TENTATIVE", "DECLINED"] as const;
 
-/**
- * What the list is ordered by.
- *
- * "household" is the list as a wedding list — families together, alphabetical —
- * and is what you want when you're working down it name by name. The other
- * three are what you want when you're watching replies come in, and they can't
- * keep the families together: a household whose four members answered across
- * three weeks has no one place to sit in a list ordered by when people replied.
- * So any sort but the first flattens the grouping, and the household name moves
- * into the row itself so nothing is lost.
- */
-type SortKey = "household" | "name" | "sent" | "replied";
-
-/**
- * Which way a column points the first time you click it.
- *
- * Names read forwards. Dates read backwards: the reason to sort by "replied" is
- * almost always to see this morning's answers, not the first one from a year
- * ago.
- */
-const SORT_DEFAULT_DIR: Record<SortKey, "asc" | "desc"> = {
-  household: "asc",
-  name: "asc",
-  sent: "desc",
-  replied: "desc",
-};
 
 /**
  * Whose list somebody is on.
@@ -271,13 +252,7 @@ export function GuestsWorkspace({
       })
       .filter((guest) => guest.tier === activeTier)
       .filter((guest) => !side || guest.side === side)
-      .filter((guest) =>
-        sentFilter === ""
-          ? true
-          : sentFilter === "sent"
-            ? guest.saveTheDateSent
-            : !guest.saveTheDateSent,
-      )
+      .filter((guest) => matchesSentFilter(guest, sentFilter))
       .filter((guest) =>
         !q ||
         `${guest.firstName} ${guest.lastName}`.toLowerCase().includes(q) ||
@@ -286,73 +261,11 @@ export function GuestsWorkspace({
   }, [guests, filter, side, sentFilter, query, activeTier, showSaveTheDate]);
 
   const toggleSort = React.useCallback((key: SortKey) => {
-    setSort((current) =>
-      current.key === key
-        ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
-        : { key, dir: SORT_DEFAULT_DIR[key] },
-    );
+    setSort((current) => nextSort(current, key));
   }, []);
 
-  const sorted = React.useMemo(() => {
-    const rows = [...filtered];
-    const flip = sort.dir === "asc" ? 1 : -1;
-    const byName = (a: Guest, b: Guest) =>
-      `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`);
-
-    /**
-     * A date we don't have is not an early date.
-     *
-     * Sorting a null as zero drops everybody who hasn't replied into "oldest
-     * first", which is precisely the list you were trying to see — the people
-     * still to answer would bury the earliest answers. So the undated sink to
-     * the bottom whichever way the column points, and sort by name among
-     * themselves so the tail is still something you can read down.
-     */
-    const byDate = (of: (guest: Guest) => number | null) => (a: Guest, b: Guest) => {
-      const left = of(a);
-      const right = of(b);
-      if (left === null && right === null) return byName(a, b);
-      if (left === null) return 1;
-      if (right === null) return -1;
-      return left === right ? byName(a, b) : (left - right) * flip;
-    };
-
-    switch (sort.key) {
-      case "name":
-        rows.sort((a, b) => byName(a, b) * flip);
-        break;
-      case "sent":
-        rows.sort(byDate((guest) => guest.sentAt));
-        break;
-      case "replied":
-        rows.sort(byDate((guest) => guest.repliedAt));
-        break;
-      default:
-        // Households do their own ordering below, on the household's name.
-        break;
-    }
-    return rows;
-  }, [filtered, sort]);
-
-  /**
-   * The list as it's actually laid out: a heading and its rows.
-   *
-   * A wedding list is families, not individuals, so by default it groups by
-   * household. Every other ordering is one flat run with no headings — see
-   * `SortKey`.
-   */
-  const sections = React.useMemo<[string | null, Guest[]][]>(() => {
-    if (sort.key !== "household") return [[null, sorted]];
-    const map = new Map<string, Guest[]>();
-    for (const guest of sorted) {
-      const key = guest.householdName ?? "No household";
-      const list = map.get(key) ?? [];
-      list.push(guest);
-      map.set(key, list);
-    }
-    const entries = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    return sort.dir === "desc" ? entries.reverse() : entries;
-  }, [sorted, sort]);
+  const sorted = React.useMemo(() => sortGuestRows(filtered, sort), [filtered, sort]);
+  const sections = React.useMemo(() => groupGuestRows(sorted, sort), [sorted, sort]);
 
   /**
    * A bed against all 233 names is not information.

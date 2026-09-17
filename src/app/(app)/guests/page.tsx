@@ -4,6 +4,7 @@ import { computeGuestCounts, roomsRequired, saveTheDateCounts } from "@/domain/g
 import { outreachByTier, outreachRows, outreachStats } from "@/domain/outreach";
 import type { GuestTier, WeddingSnapshot } from "@/domain/types";
 import { getViewer } from "@/server/auth";
+import { db } from "@/server/db";
 import { loadSnapshot } from "@/server/snapshot";
 import { GuestsWorkspace } from "./workspace";
 
@@ -86,6 +87,35 @@ export default async function GuestsPage({
   const saveTheDateStage = snapshot.wedding.invitationStage === "SAVE_THE_DATE";
 
   /**
+   * When each save-the-date answer actually arrived, from the activity log.
+   *
+   * The guest and household columns can't answer this on their own. A household
+   * link only stamps `stdRepliedAt` once *everybody* in that house has replied,
+   * so a family half-way through has answers on record and no date against
+   * them; and a reply taken over the phone and typed in by hand stamps nothing
+   * on the guest at all.
+   *
+   * The activity log has both, because both write an entry the moment the
+   * answer is recorded — `std_replied`, pointing at the guest when we know who
+   * answered and at the household when the family link spoke for them. It is
+   * the only place the two routes meet.
+   *
+   * One narrow query, newest first, and the first row wins.
+   */
+  const replyLog = await db.activityLog.findMany({
+    where: { weddingId: viewer.weddingId, action: "std_replied" },
+    select: { entityType: true, entityId: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const loggedGuestReply = new Map<string, number>();
+  const loggedHouseholdReply = new Map<string, number>();
+  for (const entry of replyLog) {
+    if (!entry.entityId) continue;
+    const into = entry.entityType === "guest" ? loggedGuestReply : loggedHouseholdReply;
+    if (!into.has(entry.entityId)) into.set(entry.entityId, entry.createdAt.getTime());
+  }
+
+  /**
    * When somebody answered, as far as we can tell.
    *
    * There is no single column for this, because a reply arrives by one of two
@@ -110,8 +140,18 @@ export default async function GuestsPage({
 
     if (saveTheDateStage) {
       if (guest.stdResponse === null) return { at: null, whose: "guest" };
+
+      // Dated to this person where anything knows who answered: their own
+      // entry in the log, or their own reply on a personal link.
+      const logged = loggedGuestReply.get(guest.id) ?? null;
+      if (logged !== null) return { at: logged, whose: "guest" };
       if (own !== null) return { at: own, whose: "guest" };
-      const shared = household?.stdRepliedAt?.getTime() ?? null;
+
+      // Otherwise the family link spoke for them, and the date is the family's.
+      const shared =
+        (guest.householdId ? loggedHouseholdReply.get(guest.householdId) : undefined) ??
+        household?.stdRepliedAt?.getTime() ??
+        null;
       return { at: shared, whose: shared === null ? "guest" : "household" };
     }
 
