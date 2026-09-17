@@ -188,6 +188,9 @@ export interface GuestNode {
   stdResponse: "YES" | "NO" | null;
   /// Their own note, when they answered on a personal link.
   rsvpMessage: string | null;
+  /// When they answered on a personal link. Household replies leave this null —
+  /// the timestamp for those is `stdRepliedAt` on the household.
+  rsvpSubmittedAt: Date | null;
   /// How likely they are to come, 1–5, from the original guest list.
   attendanceScore: number | null;
   needsTransport: boolean;

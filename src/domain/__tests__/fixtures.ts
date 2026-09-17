@@ -53,6 +53,7 @@ export function makeGuest(id: string, overrides: Partial<GuestNode> = {}): Guest
     tier: "A" as const,
     stdResponse: null,
     rsvpMessage: null,
+    rsvpSubmittedAt: null,
     attendanceScore: 5,
     phone: null,
     email: null,

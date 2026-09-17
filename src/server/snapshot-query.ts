@@ -214,6 +214,7 @@ export async function fetchSnapshot(
         tier: g.tier,
         stdResponse: g.stdResponse,
         rsvpMessage: g.rsvpMessage,
+        rsvpSubmittedAt: g.rsvpSubmittedAt,
         attendanceScore: g.attendanceScore,
         needsTransport: g.needsTransport,
         notes: g.notes,

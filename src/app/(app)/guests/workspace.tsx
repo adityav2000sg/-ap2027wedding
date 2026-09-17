@@ -18,6 +18,7 @@ import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { BedIcon, CheckIcon, ChevronRightIcon, RouteIcon, SearchIcon } from "@/components/ui/icons";
 import { GUEST_RELATIONSHIPS } from "@/config/guest-relationships";
+import { formatTimeAgo } from "@/lib/dates";
 import { publicRsvpPath } from "@/lib/rsvp-links";
 import {
   archiveGuest,
@@ -53,10 +54,47 @@ interface Guest {
   stdResponse: "YES" | "NO" | null;
   /** Whether the save-the-date has actually gone to them. */
   saveTheDateSent: boolean;
+  /** When it went, in milliseconds. Null when it hasn't. */
+  sentAt: number | null;
+  /**
+   * When they answered, in milliseconds — null when they haven't, and also
+   * null for the households part-way through replying, where an answer is on
+   * record but the date it arrived isn't. Sorting puts both at the bottom.
+   */
+  repliedAt: number | null;
+  /** True when that date is the household's, not this person's. See `RepliedAt`. */
+  repliedAtIsHousehold: boolean;
   rsvp: Record<string, string>;
 }
 
 const RSVP_CYCLE = ["NOT_INVITED", "PENDING", "CONFIRMED", "TENTATIVE", "DECLINED"] as const;
+
+/**
+ * What the list is ordered by.
+ *
+ * "household" is the list as a wedding list — families together, alphabetical —
+ * and is what you want when you're working down it name by name. The other
+ * three are what you want when you're watching replies come in, and they can't
+ * keep the families together: a household whose four members answered across
+ * three weeks has no one place to sit in a list ordered by when people replied.
+ * So any sort but the first flattens the grouping, and the household name moves
+ * into the row itself so nothing is lost.
+ */
+type SortKey = "household" | "name" | "sent" | "replied";
+
+/**
+ * Which way a column points the first time you click it.
+ *
+ * Names read forwards. Dates read backwards: the reason to sort by "replied" is
+ * almost always to see this morning's answers, not the first one from a year
+ * ago.
+ */
+const SORT_DEFAULT_DIR: Record<SortKey, "asc" | "desc"> = {
+  household: "asc",
+  name: "asc",
+  sent: "desc",
+  replied: "desc",
+};
 
 /**
  * Whose list somebody is on.
@@ -169,6 +207,14 @@ export function GuestsWorkspace({
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState(initialFilter ?? "all");
   const [side, setSide] = React.useState(initialSide ?? "");
+  // Whether the save-the-date has gone out, asked as its own question. It cuts
+  // across the reply filters — "sent, and still no answer" is the list somebody
+  // actually chases from, and neither filter alone describes it.
+  const [sentFilter, setSentFilter] = React.useState<"" | "sent" | "unsent">("");
+  const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>({
+    key: "household",
+    dir: "asc",
+  });
   const [openGuest, setOpenGuest] = React.useState<string | null>(initialGuest);
   const [savingCell, setSavingCell] = React.useState<string | null>(null);
   const [cellMenu, setCellMenu] = React.useState<{ guestId: string; eventId: string } | null>(null);
@@ -226,23 +272,87 @@ export function GuestsWorkspace({
       .filter((guest) => guest.tier === activeTier)
       .filter((guest) => !side || guest.side === side)
       .filter((guest) =>
+        sentFilter === ""
+          ? true
+          : sentFilter === "sent"
+            ? guest.saveTheDateSent
+            : !guest.saveTheDateSent,
+      )
+      .filter((guest) =>
         !q ||
         `${guest.firstName} ${guest.lastName}`.toLowerCase().includes(q) ||
         (guest.householdName ?? "").toLowerCase().includes(q),
       );
-  }, [guests, filter, side, query, activeTier, showSaveTheDate]);
+  }, [guests, filter, side, sentFilter, query, activeTier, showSaveTheDate]);
 
-  // Group by household — a wedding list is families, not individuals.
-  const grouped = React.useMemo(() => {
+  const toggleSort = React.useCallback((key: SortKey) => {
+    setSort((current) =>
+      current.key === key
+        ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: SORT_DEFAULT_DIR[key] },
+    );
+  }, []);
+
+  const sorted = React.useMemo(() => {
+    const rows = [...filtered];
+    const flip = sort.dir === "asc" ? 1 : -1;
+    const byName = (a: Guest, b: Guest) =>
+      `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`);
+
+    /**
+     * A date we don't have is not an early date.
+     *
+     * Sorting a null as zero drops everybody who hasn't replied into "oldest
+     * first", which is precisely the list you were trying to see — the people
+     * still to answer would bury the earliest answers. So the undated sink to
+     * the bottom whichever way the column points, and sort by name among
+     * themselves so the tail is still something you can read down.
+     */
+    const byDate = (of: (guest: Guest) => number | null) => (a: Guest, b: Guest) => {
+      const left = of(a);
+      const right = of(b);
+      if (left === null && right === null) return byName(a, b);
+      if (left === null) return 1;
+      if (right === null) return -1;
+      return left === right ? byName(a, b) : (left - right) * flip;
+    };
+
+    switch (sort.key) {
+      case "name":
+        rows.sort((a, b) => byName(a, b) * flip);
+        break;
+      case "sent":
+        rows.sort(byDate((guest) => guest.sentAt));
+        break;
+      case "replied":
+        rows.sort(byDate((guest) => guest.repliedAt));
+        break;
+      default:
+        // Households do their own ordering below, on the household's name.
+        break;
+    }
+    return rows;
+  }, [filtered, sort]);
+
+  /**
+   * The list as it's actually laid out: a heading and its rows.
+   *
+   * A wedding list is families, not individuals, so by default it groups by
+   * household. Every other ordering is one flat run with no headings — see
+   * `SortKey`.
+   */
+  const sections = React.useMemo<[string | null, Guest[]][]>(() => {
+    if (sort.key !== "household") return [[null, sorted]];
     const map = new Map<string, Guest[]>();
-    for (const guest of filtered) {
+    for (const guest of sorted) {
       const key = guest.householdName ?? "No household";
       const list = map.get(key) ?? [];
       list.push(guest);
       map.set(key, list);
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filtered]);
+    const entries = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    return sort.dir === "desc" ? entries.reverse() : entries;
+  }, [sorted, sort]);
 
   /**
    * A bed against all 233 names is not information.
@@ -526,6 +636,34 @@ export function GuestsWorkspace({
           <option value="BRIDE">Bride's side</option>
           <option value="GROOM">Groom's side</option>
         </Select>
+        <Select
+          value={sentFilter}
+          onChange={(e) => setSentFilter(e.target.value as "" | "sent" | "unsent")}
+          className="h-7 w-auto text-[12.5px]"
+          aria-label="Filter by whether the save-the-date has gone out"
+        >
+          <option value="">Sent or not</option>
+          <option value="sent">Save-the-date sent</option>
+          <option value="unsent">Not sent yet</option>
+        </Select>
+        <Select
+          value={`${sort.key}:${sort.dir}`}
+          onChange={(e) => {
+            const [key, dir] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
+            setSort({ key, dir });
+          }}
+          className="h-7 w-auto text-[12.5px]"
+          aria-label="Sort the list"
+        >
+          <option value="household:asc">Households A–Z</option>
+          <option value="household:desc">Households Z–A</option>
+          <option value="name:asc">Name A–Z</option>
+          <option value="name:desc">Name Z–A</option>
+          <option value="replied:desc">Latest reply first</option>
+          <option value="replied:asc">Earliest reply first</option>
+          <option value="sent:desc">Most recently sent</option>
+          <option value="sent:asc">Sent longest ago</option>
+        </Select>
         <span className="tabular ml-auto text-[12px] text-ink-muted">
           {filtered.length} shown
         </span>
@@ -543,14 +681,16 @@ export function GuestsWorkspace({
             name column, which on a 375px screen leaves each guest legible only
             by scrolling sideways one function at a time. */}
         <div className="sm:hidden">
-          {grouped.map(([householdName, householdGuests]) => (
-            <div key={householdName} className="mb-4">
-              <p className="mb-1.5 text-[12px] font-medium text-ink-soft">
-                {householdName}
-                <span className="tabular ml-1.5 text-ink-faint">
-                  {householdGuests.length}
-                </span>
-              </p>
+          {sections.map(([householdName, householdGuests]) => (
+            <div key={householdName ?? "all"} className="mb-4">
+              {householdName !== null ? (
+                <p className="mb-1.5 text-[12px] font-medium text-ink-soft">
+                  {householdName}
+                  <span className="tabular ml-1.5 text-ink-faint">
+                    {householdGuests.length}
+                  </span>
+                </p>
+              ) : null}
               <div className="overflow-hidden rounded-xl border border-line">
                 {householdGuests.map((guest, index) => (
                   <div
@@ -576,7 +716,11 @@ export function GuestsWorkspace({
                         </span>
                         <span className="mt-0.5 flex items-center gap-1.5">
                           <SideTag side={guest.side} />
-                          {guest.relationship ? (
+                          {householdName === null && guest.householdName ? (
+                            <span className="truncate text-[11.5px] text-ink-faint">
+                              {guest.householdName}
+                            </span>
+                          ) : guest.relationship ? (
                             <span className="truncate text-[11.5px] text-ink-faint">
                               {guest.relationship}
                             </span>
@@ -694,21 +838,36 @@ export function GuestsWorkspace({
                 {/* Content-width, so the answer sits beside the name instead
                     of an acre away at the far edge of a wide screen. The slack
                     goes to the last column, where icons can drift. */}
-                <th className="sticky left-0 z-10 bg-surface px-4 py-2.5 text-left text-[11.5px] font-medium text-ink-muted">
-                  Guest
-                </th>
+                {/* Sorts by name. Grouping by household is a different kind of
+                    choice — it changes the shape of the list, not the order of
+                    one column — so it lives in the sort menu above. */}
+                <SortHeader
+                  label="Guest"
+                  sortKey="name"
+                  sort={sort}
+                  onSort={toggleSort}
+                  className="sticky left-0 z-10 bg-surface px-4 py-2.5"
+                />
                 {singleRsvp ? (
                   // The working row: has it gone to them, what did they say,
                   // and can we reach them. Tier lives in the guest's own panel
                   // now — a three-way toggle against 231 identical answers was
                   // noise — and this is what the empty half of the row was for.
                   <>
-                    <th className="w-px whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
-                      Save-the-date
-                    </th>
-                    <th className="w-px whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
-                      {showSaveTheDate ? "Replied" : "Coming?"}
-                    </th>
+                    <SortHeader
+                      label="Save-the-date"
+                      sortKey="sent"
+                      sort={sort}
+                      onSort={toggleSort}
+                      className="w-px whitespace-nowrap"
+                    />
+                    <SortHeader
+                      label={showSaveTheDate ? "Replied" : "Coming?"}
+                      sortKey="replied"
+                      sort={sort}
+                      onSort={toggleSort}
+                      className="w-px whitespace-nowrap"
+                    />
                     <th className="w-full whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-medium text-ink-muted">
                       Contact
                     </th>
@@ -731,19 +890,21 @@ export function GuestsWorkspace({
               </tr>
             </thead>
             <tbody>
-              {grouped.map(([householdName, householdGuests]) => (
-                <React.Fragment key={householdName}>
-                  <tr>
-                    <td
-                      colSpan={(singleRsvp ? 3 : events.length) + 2}
-                      className="sticky left-0 bg-surface px-4 pb-1 pt-4 text-[12px] font-medium text-ink-soft"
-                    >
-                      {householdName}
-                      <span className="tabular ml-2 font-normal text-ink-faint">
-                        {householdGuests.length}
-                      </span>
-                    </td>
-                  </tr>
+              {sections.map(([householdName, householdGuests]) => (
+                <React.Fragment key={householdName ?? "all"}>
+                  {householdName !== null ? (
+                    <tr>
+                      <td
+                        colSpan={(singleRsvp ? 3 : events.length) + 2}
+                        className="sticky left-0 bg-surface px-4 pb-1 pt-4 text-[12px] font-medium text-ink-soft"
+                      >
+                        {householdName}
+                        <span className="tabular ml-2 font-normal text-ink-faint">
+                          {householdGuests.length}
+                        </span>
+                      </td>
+                    </tr>
+                  ) : null}
                   {householdGuests.map((guest) => (
                     <tr key={guest.id} className="group border-b border-line-soft">
                       <td className="sticky left-0 z-10 bg-surface py-1.5 pl-4 pr-3 group-hover:bg-surface-sunken">
@@ -770,7 +931,12 @@ export function GuestsWorkspace({
                               />
                             </span>
                             <span className="block truncate text-[10.5px] text-ink-muted">
-                              {guest.relationship ?? guest.city ?? ""}
+                              {/* With the household headings gone, the family
+                                  name has to travel with the person, or a list
+                                  sorted by reply date is 249 strangers. */}
+                              {householdName === null && guest.householdName
+                                ? guest.householdName
+                                : (guest.relationship ?? guest.city ?? "")}
                               {guest.isChild ? " · Child" : ""}
                             </span>
                           </span>
@@ -782,12 +948,14 @@ export function GuestsWorkspace({
                         <td className="w-px whitespace-nowrap px-2 py-1.5">
                           <SentChip
                             sent={guest.saveTheDateSent}
+                            sentAt={guest.sentAt}
                             canEdit={canEdit}
                             busy={savingCell === `${guest.id}:sent`}
                             onClick={() => setSent(guest.id, !guest.saveTheDateSent)}
                           />
                         </td>
                         <td className="w-px whitespace-nowrap px-2 py-1.5">
+                          <span className="inline-flex items-center gap-2">
                           <Select
                             value={
                               showSaveTheDate
@@ -815,6 +983,8 @@ export function GuestsWorkspace({
                               ),
                             )}
                           </Select>
+                          <RepliedAt at={guest.repliedAt} household={guest.repliedAtIsHousehold} />
+                          </span>
                         </td>
                         <td className="w-full px-2 py-1.5">
                           {guest.phone || guest.email ? (
@@ -1004,13 +1174,83 @@ function RsvpDot({ status }: { status: string }) {
  * the list you are looking at when you finish — the same toggle the invitation
  * board has, on the page you are already on.
  */
+/**
+ * A column heading you can sort by.
+ *
+ * The arrow only appears on the column actually doing the sorting. A row of
+ * permanent up-down chevrons across every heading turns the header into a
+ * control panel, and this table's headings are mostly there to say what the
+ * cells under them mean.
+ */
+function SortHeader({
+  label, sortKey, sort, onSort, className,
+}: {
+  label: React.ReactNode;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: "asc" | "desc" };
+  onSort(key: SortKey): void;
+  className?: string;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th
+      className={cn("px-2 py-2 text-left text-[11.5px] font-medium", className)}
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          "inline-flex items-center gap-1 rounded transition-colors",
+          active ? "text-ink" : "text-ink-muted hover:text-ink",
+        )}
+      >
+        {label}
+        <span
+          aria-hidden
+          className={cn("text-[9px] leading-none", active ? "opacity-100" : "opacity-0")}
+        >
+          {sort.dir === "asc" ? "▲" : "▼"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+/**
+ * When the answer came in.
+ *
+ * Small, grey and beside the answer rather than under it, so the rows keep
+ * their height. Absent where we genuinely don't know: a household part-way
+ * through replying has answers on record and no date to put against them, and
+ * a dash is the honest thing to show. See `Guest.repliedAt`.
+ */
+function RepliedAt({ at, household }: { at: number | null; household: boolean }) {
+  if (at === null) return null;
+  const when = new Date(at);
+  return (
+    <span
+      className="whitespace-nowrap text-[10.5px] text-ink-faint"
+      title={
+        household
+          ? `${when.toLocaleString()} — when this household finished replying`
+          : when.toLocaleString()
+      }
+    >
+      {formatTimeAgo(when)}
+    </span>
+  );
+}
+
 function SentChip({
   sent,
+  sentAt,
   canEdit,
   busy,
   onClick,
 }: {
   sent: boolean;
+  sentAt?: number | null;
   canEdit: boolean;
   busy: boolean;
   onClick(): void;
@@ -1021,6 +1261,7 @@ function SentChip({
       disabled={!canEdit || busy}
       onClick={onClick}
       aria-pressed={sent}
+      title={sent && sentAt ? `Sent ${formatTimeAgo(new Date(sentAt))}` : undefined}
       className={cn(
         "inline-flex min-h-[26px] items-center gap-1.5 rounded-lg border px-2 text-[11.5px] transition-colors",
         sent

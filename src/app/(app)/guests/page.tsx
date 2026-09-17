@@ -68,10 +68,58 @@ export default async function GuestsPage({
   const housedGuestIds = new Set(snapshot.stays.map((stay) => stay.guestId));
 
   const invitationsByGuest = new Map<string, Record<string, string>>();
+  // The firmest per-event timestamp we hold for each guest, which is what an
+  // invitation-stage reply is dated by.
+  const invitationRepliedAt = new Map<string, number>();
   for (const invitation of snapshot.invitations) {
     const map = invitationsByGuest.get(invitation.guestId) ?? {};
     map[invitation.eventId] = invitation.status;
     invitationsByGuest.set(invitation.guestId, map);
+
+    if (invitation.respondedAt) {
+      const at = invitation.respondedAt.getTime();
+      const held = invitationRepliedAt.get(invitation.guestId);
+      if (held === undefined || at > held) invitationRepliedAt.set(invitation.guestId, at);
+    }
+  }
+
+  const saveTheDateStage = snapshot.wedding.invitationStage === "SAVE_THE_DATE";
+
+  /**
+   * When somebody answered, as far as we can tell.
+   *
+   * There is no single column for this, because a reply arrives by one of two
+   * routes. On a personal link it lands on the guest, dated exactly. On a
+   * household link it lands on the household, and is only dated once everybody
+   * in that household has answered — so a family half-way through replying has
+   * a recorded answer and no date for it yet.
+   *
+   * So this returns the best date it has and says whose it is. A household's
+   * date is shown against everybody in it — the household is the unit that
+   * replies, and it's the only date we hold — but it's marked as the
+   * household's so four identical timestamps down a family don't read as a bug.
+   * Where there is no date at all, it returns null rather than inventing one,
+   * and the list sorts those last: the point of ordering by this column is to
+   * see who answered this morning, and a guessed date defeats that.
+   */
+  function repliedAt(
+    guest: (typeof snapshot.guests)[number],
+  ): { at: number | null; whose: "guest" | "household" } {
+    const household = guest.householdId ? householdById.get(guest.householdId) : null;
+    const own = guest.rsvpSubmittedAt?.getTime() ?? null;
+
+    if (saveTheDateStage) {
+      if (guest.stdResponse === null) return { at: null, whose: "guest" };
+      if (own !== null) return { at: own, whose: "guest" };
+      const shared = household?.stdRepliedAt?.getTime() ?? null;
+      return { at: shared, whose: shared === null ? "guest" : "household" };
+    }
+
+    const perEvent = invitationRepliedAt.get(guest.id) ?? null;
+    if (perEvent !== null) return { at: perEvent, whose: "guest" };
+    if (own !== null) return { at: own, whose: "guest" };
+    const shared = household?.rsvpRepliedAt?.getTime() ?? null;
+    return { at: shared, whose: shared === null ? "guest" : "household" };
   }
 
   return (
@@ -108,6 +156,16 @@ export default async function GuestsPage({
           tier: guest.tier,
           stdResponse: guest.stdResponse,
           saveTheDateSent: guest.saveTheDateSentAt !== null,
+          // Dates cross to the client as plain milliseconds: the list sorts on
+          // them far more often than it prints them.
+          sentAt:
+            guest.saveTheDateSentAt?.getTime() ??
+            household?.saveTheDateSentAt?.getTime() ??
+            null,
+          ...(() => {
+            const when = repliedAt(guest);
+            return { repliedAt: when.at, repliedAtIsHousehold: when.whose === "household" };
+          })(),
           city: guest.city,
           country: guest.country,
           phone: guest.phone,
