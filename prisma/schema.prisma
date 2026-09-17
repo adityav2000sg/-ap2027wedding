@@ -674,6 +674,11 @@ model BudgetItem {
   costModel   CostModel  @default(FIXED)
   guestBasis  GuestBasis @default(CONFIRMED_PLUS_PENDING)
   currency    String     @default("INR")
+  /// Who is bearing this cost. Two families are splitting this wedding and the
+  /// question "what am I actually on the hook for?" is asked of the budget far
+  /// more often than of any individual payment — so it is answered on the line,
+  /// months before a single payment against it exists.
+  payerId     String?
 
   /// What we set aside for this line.
   allocatedAmount Decimal  @default(0) @db.Decimal(14, 2)
@@ -699,12 +704,14 @@ model BudgetItem {
   category BudgetCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   event    Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
   vendor   Vendor?        @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  payer    Payer?         @relation(fields: [payerId], references: [id], onDelete: SetNull)
 
   payments  Payment[]
   tasks     Task[]
   snapshots ForecastSnapshot[]
 
   @@index([weddingId, categoryId])
+  @@index([weddingId, payerId])
   @@map("budget_items")
 }
 
@@ -716,8 +723,9 @@ model Payer {
   kind      String @default("person")
   sortOrder Int    @default(0)
 
-  wedding  Wedding   @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-  payments Payment[]
+  wedding     Wedding      @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  payments    Payment[]
+  budgetItems BudgetItem[]
 
   @@unique([weddingId, name])
   @@map("payers")

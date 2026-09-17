@@ -97,6 +97,7 @@ export function makeBudgetItem(
     description: null,
     eventId: null,
     vendorId: null,
+    payerId: null,
     costModel: "FIXED",
     guestBasis: "CONFIRMED_PLUS_PENDING",
     currency: "INR",

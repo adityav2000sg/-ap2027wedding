@@ -69,6 +69,10 @@ const itemSchema = z.object({
   description: optionalString.optional(),
   eventId: optionalId.optional(),
   vendorId: optionalId.optional(),
+  /// Who is bearing this cost. Null is a real answer — "nobody has said yet" —
+  /// and the budget screen counts it, because an unclaimed cost is the one
+  /// worth arguing about early.
+  payerId: optionalId.optional(),
   costModel: z.enum(COST_MODELS).default("FIXED"),
   guestBasis: z.enum(GUEST_BASES).default("CONFIRMED_PLUS_PENDING"),
   currency: z.string().length(3).default("INR"),
@@ -101,6 +105,7 @@ export async function createBudgetItem(input: unknown) {
         description: data.description ?? null,
         eventId: data.eventId ?? null,
         vendorId: data.vendorId ?? null,
+        payerId: data.payerId ?? null,
         costModel: data.costModel,
         guestBasis: data.guestBasis,
         currency: data.currency,

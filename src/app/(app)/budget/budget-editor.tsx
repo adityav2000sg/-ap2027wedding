@@ -18,6 +18,9 @@ import { currencySymbol, CURRENCY_CODES, CURRENCIES } from "@/lib/money";
 import { Sheet } from "@/components/ui/overlays";
 import { Button } from "@/components/ui/primitives";
 import { FormField, Input, Select, Textarea } from "@/components/ui/form";
+import { FileIcon } from "@/components/ui/icons";
+import { Uploader } from "@/components/media/uploader";
+import { unlinkMedia } from "@/server/actions/media";
 import {
   createBudgetItem,
   updateBudgetItem,
@@ -34,6 +37,7 @@ export interface EditableItem {
   description: string | null;
   eventId: string | null;
   vendorId: string | null;
+  payerId: string | null;
   costModel: string;
   guestBasis: string;
   currency: string;
@@ -45,6 +49,18 @@ export interface EditableItem {
   quoteAmount: number | null;
   negotiatedAmount: number | null;
   contractedAmount: number | null;
+  /** Quotes, invoices and receipts already filed against this line. */
+  attachments: BudgetAttachment[];
+}
+
+/** One file filed against a budget line. */
+export interface BudgetAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+  previewUrl: string | null;
 }
 
 export interface EditableCategory {
@@ -93,6 +109,7 @@ export function BudgetEditor({
   categories,
   events,
   vendors,
+  payers,
   baseCurrency,
 }: {
   intent: EditorIntent | null;
@@ -100,6 +117,8 @@ export function BudgetEditor({
   categories: Option[];
   events: Option[];
   vendors: Option[];
+  /** Who can be on the hook for a line — the parents footing the bills. */
+  payers: Option[];
   baseCurrency: string;
 }) {
   const router = useRouter();
@@ -151,6 +170,7 @@ export function BudgetEditor({
             categories={categories}
             events={events}
             vendors={vendors}
+            payers={payers}
             baseCurrency={baseCurrency}
             pending={pending}
             error={error}
@@ -224,7 +244,7 @@ export function BudgetEditor({
 // ───────────────────────────────────────────────────────────────── Item form
 
 function ItemForm({
-  item, defaultCategoryId, categories, events, vendors, baseCurrency,
+  item, defaultCategoryId, categories, events, vendors, payers, baseCurrency,
   pending, error, onCancel, onSubmit,
 }: {
   item: EditableItem | null;
@@ -232,6 +252,7 @@ function ItemForm({
   categories: Option[];
   events: Option[];
   vendors: Option[];
+  payers: Option[];
   baseCurrency: string;
   pending: boolean;
   error: string | null;
@@ -260,6 +281,7 @@ function ItemForm({
       description: str("description"),
       eventId: str("eventId"),
       vendorId: str("vendorId"),
+      payerId: str("payerId"),
       currency,
       costModel,
       guestBasis: str("guestBasis") || "CONFIRMED_PLUS_PENDING",
@@ -381,6 +403,36 @@ function ItemForm({
           </Select>
         </FormField>
       </div>
+
+      {/* Who is bearing it. Left deliberately blank by default — "not yet
+          decided" is the honest answer for most lines for most of a year, and
+          a dropdown that quietly defaults to somebody puts words in a
+          parent's mouth. */}
+      <FormField
+        label="Who's paying for this?"
+        htmlFor="bi-payer"
+        hint="Leave blank until it's been agreed — unclaimed lines are listed together on the budget."
+      >
+        <Select id="bi-payer" name="payerId" defaultValue={item?.payerId ?? ""}>
+          <option value="">Not yet decided</option>
+          {payers.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </Select>
+      </FormField>
+
+      {/* Paperwork.
+          Only on a line that already exists — a file has to be attached to
+          something, and a line being typed has no id yet. Saving first and
+          attaching second is one extra click; inventing an id up front to avoid
+          it would leave orphaned uploads whenever somebody changed their mind. */}
+      {item ? (
+        <Attachments itemId={item.id} initial={item.attachments} />
+      ) : (
+        <p className="rounded-xl border border-dashed border-line-strong bg-surface-soft px-3.5 py-2.5 text-[12px] text-ink-muted">
+          Save this line and you can attach the quote, invoice or receipt to it.
+        </p>
+      )}
 
       {/* Firm numbers — override the model as they land. */}
       <div className="rounded-xl border border-line bg-surface-soft">
@@ -565,6 +617,119 @@ function CategoryForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * The paperwork for one budget line.
+ *
+ * Quotes, invoices and receipts, filed against the cost they belong to rather
+ * than into a general documents pile where finding the caterer's third revised
+ * quote means remembering what it was called.
+ *
+ * Files land in the same library as everything else — this only adds the link —
+ * so anything attached here still shows up under Documents, and removing it
+ * here detaches it without deleting the file.
+ */
+function Attachments({
+  itemId,
+  initial,
+}: {
+  itemId: string;
+  initial: BudgetAttachment[];
+}) {
+  const [files, setFiles] = React.useState<BudgetAttachment[]>(initial);
+  const [removing, setRemoving] = React.useState<string | null>(null);
+
+  async function detach(mediaId: string) {
+    setRemoving(mediaId);
+    try {
+      await unlinkMedia(mediaId, "budgetItem", itemId);
+      setFiles((current) => current.filter((file) => file.id !== mediaId));
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-line bg-surface-soft p-3.5">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <span className="eyebrow">Quotes &amp; receipts</span>
+        {files.length > 0 ? (
+          <span className="text-[11.5px] text-ink-muted">
+            {files.length} {files.length === 1 ? "file" : "files"}
+          </span>
+        ) : null}
+      </div>
+
+      {files.length > 0 ? (
+        <ul className="mb-3 space-y-1.5">
+          {files.map((file) => (
+            <li
+              key={file.id}
+              className="flex items-center gap-2.5 rounded-lg border border-line bg-surface px-2.5 py-1.5"
+            >
+              {file.previewUrl ? (
+                // A thumbnail of the actual page beats a generic file glyph
+                // when you are looking for one quote among four.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={file.previewUrl}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded object-cover"
+                />
+              ) : (
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-surface-sunken text-ink-muted">
+                  <FileIcon size={13} />
+                </span>
+              )}
+
+              <a
+                href={file.url}
+                target="_blank"
+                rel="noreferrer"
+                className="min-w-0 flex-1 truncate text-[12.5px] text-ink-soft underline-offset-2 hover:text-ink hover:underline"
+              >
+                {file.filename}
+              </a>
+
+              <button
+                type="button"
+                onClick={() => void detach(file.id)}
+                disabled={removing === file.id}
+                aria-label={`Remove ${file.filename} from this line`}
+                className="shrink-0 rounded-lg px-1.5 py-1 text-[11.5px] text-ink-faint transition-colors hover:text-critical disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <Uploader
+        entityType="budgetItem"
+        entityId={itemId}
+        role="reference"
+        accept="image/*,application/pdf"
+        label={files.length > 0 ? "Add another" : "Attach a quote or receipt"}
+        hint="PDFs and photos. Also filed under Documents."
+        compact
+        onUploaded={(uploaded) =>
+          setFiles((current) => [
+            ...current,
+            ...uploaded.map((media) => ({
+              id: media.id,
+              filename: media.filename,
+              mimeType: media.mimeType,
+              sizeBytes: media.sizeBytes,
+              url: media.url,
+              previewUrl: media.mimeType.startsWith("image/") ? media.thumbUrl : null,
+            })),
+          ])
+        }
+      />
+    </div>
   );
 }
 

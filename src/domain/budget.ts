@@ -40,6 +40,8 @@ export interface ItemForecast {
   categoryId: string;
   eventId: string | null;
   vendorId: string | null;
+  /// Who is bearing this line, if anyone has said.
+  payerId: string | null;
   currency: string;
   /** In the item's own currency, before conversion. */
   nativeForecast: number;
@@ -195,6 +197,7 @@ export function computeItemForecast(
     categoryId: item.categoryId,
     eventId: item.eventId,
     vendorId: item.vendorId,
+    payerId: item.payerId,
     currency: item.currency,
     nativeForecast: round2(nativeForecast),
     allocated,
@@ -482,4 +485,135 @@ export function worstVariances(view: BudgetView, limit = 5): CategoryForecast[] 
 
 function sum(values: number[]): number {
   return round2(values.reduce((total, value) => total + value, 0));
+}
+
+// ──────────────────────────────────────────────────────── Who is paying what
+
+/** One person's share of the wedding, and what it is made of. */
+export interface PayerShare {
+  payerId: string | null;
+  name: string;
+  /** "person" | "family" | "other" — null when nobody has been named. */
+  kind: string | null;
+  /**
+   * What they have taken on: every budget line tagged to them, at its current
+   * forecast. This is the number somebody means when they ask what they are in
+   * for, and it exists long before any money moves.
+   */
+  carrying: number;
+  /** Of that, actually handed over. */
+  paid: number;
+  /** Scheduled, but not yet paid. */
+  scheduled: number;
+  /** Still to find. Never negative: paying early doesn't create a surplus. */
+  outstanding: number;
+  /** How many lines they are carrying. */
+  lineCount: number;
+  /** What it goes on, biggest first — the "and for what" of the question. */
+  lines: {
+    itemId: string;
+    name: string;
+    categoryName: string;
+    forecast: number;
+    paid: number;
+  }[];
+  /** Their share of everything anybody is carrying, as a percentage. */
+  sharePercent: number;
+}
+
+/**
+ * Who is paying how much, and for what.
+ *
+ * Two numbers, because two different questions get asked and running them
+ * together starts arguments. *Carrying* comes from the budget line: what
+ * somebody has agreed to cover, knowable a year out. *Paid* comes from the
+ * payments, which is money that has actually left an account.
+ *
+ * Paid is attributed to the payment's own payer where one is set, and falls
+ * back to whoever is carrying the line. That distinction is not pedantry: when
+ * a cost Dheeraj is covering is settled on Namrita's card because she was the
+ * one standing at the counter, both things are true, and the screen should say
+ * so rather than quietly picking one of them.
+ *
+ * Unclaimed lines come back too, under a null payer and sorted last. An
+ * unclaimed cost is a conversation nobody has had yet, which makes it the most
+ * useful row on the screen — but it is a prompt, not a person.
+ */
+export function spendByPayer(view: BudgetView, snapshot: WeddingSnapshot): PayerShare[] {
+  const { converter } = view;
+  const payerById = new Map(snapshot.payers.map((payer) => [payer.id, payer]));
+  const categoryName = new Map(
+    snapshot.categories.map((category) => [category.id, category.name]),
+  );
+
+  const UNCLAIMED = " unclaimed";
+  const shares = new Map<string, PayerShare>();
+
+  const shareFor = (payerId: string | null): PayerShare => {
+    const key = payerId ?? UNCLAIMED;
+    const existing = shares.get(key);
+    if (existing) return existing;
+    const payer = payerId ? payerById.get(payerId) : undefined;
+    const fresh: PayerShare = {
+      payerId,
+      // A payer can be deleted while lines still point at them. Saying so is
+      // better than a blank, which reads as "nobody" and is a different fact.
+      name: payerId ? (payer?.name ?? "Someone since removed") : "Not yet decided",
+      kind: payer?.kind ?? null,
+      carrying: 0,
+      paid: 0,
+      scheduled: 0,
+      outstanding: 0,
+      lineCount: 0,
+      lines: [],
+      sharePercent: 0,
+    };
+    shares.set(key, fresh);
+    return fresh;
+  };
+
+  // What each person has taken on, from the budget lines.
+  for (const item of view.items) {
+    const share = shareFor(item.payerId);
+    share.carrying = round2(share.carrying + item.forecast);
+    share.lineCount += 1;
+    share.lines.push({
+      itemId: item.itemId,
+      name: item.name,
+      categoryName: categoryName.get(item.categoryId) ?? "Uncategorised",
+      forecast: item.forecast,
+      paid: item.paid,
+    });
+  }
+
+  // What each person has actually paid, from the payments themselves.
+  const lineOwner = new Map(view.items.map((item) => [item.itemId, item.payerId]));
+  for (const payment of snapshot.payments) {
+    if (payment.status === "CANCELLED") continue;
+    const attributed =
+      payment.payerId ??
+      (payment.budgetItemId ? (lineOwner.get(payment.budgetItemId) ?? null) : null);
+    const share = shareFor(attributed);
+    const amount = converter.toBase(payment.amount, payment.currency);
+    if (payment.status === "PAID") share.paid = round2(share.paid + amount);
+    else share.scheduled = round2(share.scheduled + amount);
+  }
+
+  const everything = round2(
+    [...shares.values()].reduce((total, share) => total + share.carrying, 0),
+  );
+
+  return [...shares.values()]
+    .map((share) => ({
+      ...share,
+      outstanding: round2(Math.max(0, share.carrying - share.paid)),
+      sharePercent: round2(safeRatio(share.carrying, everything) * 100),
+      lines: [...share.lines].sort((a, b) => b.forecast - a.forecast),
+    }))
+    .filter((share) => share.lineCount > 0 || share.paid > 0 || share.scheduled > 0)
+    .sort((a, b) => {
+      if (a.payerId === null) return 1;
+      if (b.payerId === null) return -1;
+      return b.carrying - a.carrying;
+    });
 }

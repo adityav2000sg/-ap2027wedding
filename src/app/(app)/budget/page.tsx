@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 
-import { buildBudgetView, paymentsByPayer } from "@/domain/budget";
+import { buildBudgetView, paymentsByPayer, spendByPayer } from "@/domain/budget";
 import { getViewer } from "@/server/auth";
 import { db } from "@/server/db";
+import { variantUrl } from "@/server/media";
 import { loadSnapshot } from "@/server/snapshot";
 import { BudgetWorkspace } from "./workspace";
 
@@ -30,6 +31,46 @@ export default async function BudgetPage({
   const snapshot = await loadSnapshot(viewer.weddingId);
   const budget = buildBudgetView(snapshot, viewer.displayCurrency);
   const currency = viewer.displayCurrency;
+  const payerShares = spendByPayer(budget, snapshot);
+
+  // Quotes, invoices and receipts attached to budget lines. Loaded in full
+  // rather than counted: a wedding has a few dozen of these, and fetching them
+  // on demand would mean a spinner inside a drawer that is already open.
+  const attachmentLinks = await db.mediaLink.findMany({
+    where: { entityType: "budgetItem", media: { archivedAt: null } },
+    orderBy: { sortOrder: "asc" },
+    select: {
+      entityId: true,
+      media: {
+        select: {
+          id: true,
+          filename: true,
+          mimeType: true,
+          sizeBytes: true,
+          storageKey: true,
+          derivatives: true,
+        },
+      },
+    },
+  });
+  const attachmentsByItem = new Map<
+    string,
+    { id: string; filename: string; mimeType: string; sizeBytes: number; url: string; previewUrl: string | null }[]
+  >();
+  for (const link of attachmentLinks) {
+    const list = attachmentsByItem.get(link.entityId) ?? [];
+    list.push({
+      id: link.media.id,
+      filename: link.media.filename,
+      mimeType: link.media.mimeType,
+      sizeBytes: link.media.sizeBytes,
+      url: variantUrl(link.media, "original"),
+      previewUrl: link.media.mimeType.startsWith("image/")
+        ? variantUrl(link.media, "thumb")
+        : null,
+    });
+    attachmentsByItem.set(link.entityId, list);
+  }
 
   const history = await db.forecastSnapshot.findMany({
     where: { weddingId: viewer.weddingId, budgetItemId: null },
@@ -72,6 +113,9 @@ export default async function BudgetPage({
           isVariable: item.isVariable,
           quantity: item.quantity,
           paid: item.paid,
+          payerId: item.payerId,
+          payerName: item.payerId ? payerById.get(item.payerId) ?? null : null,
+          attachments: attachmentsByItem.get(item.itemId)?.length ?? 0,
           vendorName: item.vendorId ? vendorById.get(item.vendorId) ?? null : null,
           eventName: item.eventId ? eventById.get(item.eventId) ?? null : null,
           nativeCurrency: item.currency,
@@ -86,6 +130,7 @@ export default async function BudgetPage({
               description: raw.description,
               eventId: raw.eventId,
               vendorId: raw.vendorId,
+              payerId: raw.payerId,
               costModel: raw.costModel,
               guestBasis: raw.guestBasis,
               currency: raw.currency,
@@ -97,6 +142,7 @@ export default async function BudgetPage({
               quoteAmount: raw.quoteAmount,
               negotiatedAmount: raw.negotiatedAmount,
               contractedAmount: raw.contractedAmount,
+              attachments: attachmentsByItem.get(item.itemId) ?? [],
             };
           })(),
         })),
@@ -127,6 +173,12 @@ export default async function BudgetPage({
             new Date(payment.dueDate) < snapshot.today,
         }))}
       payers={paymentsByPayer(snapshot, budget.converter)}
+      payerShares={payerShares}
+      // Only the people, not the two family units: the parents are who the
+      // couple asked to be able to tag, and a four-item list stays a glance.
+      payerOptions={snapshot.payers
+        .filter((payer) => payer.kind === "person")
+        .map((payer) => ({ id: payer.id, name: payer.name }))}
       history={history.map((point) => ({
         forecast: Number(point.forecastTotal),
         reason: point.reason,

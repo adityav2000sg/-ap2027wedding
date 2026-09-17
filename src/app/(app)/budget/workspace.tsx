@@ -19,8 +19,19 @@ import { Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitive
 import { Sheet, Tooltip } from "@/components/ui/overlays";
 import { FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { AnimatedNumber, Sparkline } from "@/components/ui/motion";
-import { PlusIcon, PencilIcon } from "@/components/ui/icons";
-import { archivePayment, markPaymentPaid, updatePayment } from "@/server/actions/budget";
+import {
+  PlusIcon,
+  PencilIcon,
+  PaperclipIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from "@/components/ui/icons";
+import {
+  archivePayment,
+  markPaymentPaid,
+  updateBudgetItem,
+  updatePayment,
+} from "@/server/actions/budget";
 import { useRouter } from "next/navigation";
 import { BudgetEditor, type EditorIntent, type EditableItem } from "./budget-editor";
 import { InlineAmount } from "./inline-amount";
@@ -30,8 +41,25 @@ interface Item {
   id: string; name: string; allocated: number; forecast: number; variance: number;
   source: string; explanation: string; isVariable: boolean; quantity: number | null;
   paid: number; vendorName: string | null; eventName: string | null;
+  payerId: string | null; payerName: string | null;
+  /** How many files are attached to this line. */
+  attachments: number;
   nativeCurrency: string; nativeForecast: number;
   edit: EditableItem | null;
+}
+
+/** One person's share of the wedding, as the budget screen shows it. */
+interface PayerShare {
+  payerId: string | null;
+  name: string;
+  kind: string | null;
+  carrying: number;
+  paid: number;
+  scheduled: number;
+  outstanding: number;
+  lineCount: number;
+  lines: { itemId: string; name: string; categoryName: string; forecast: number; paid: number }[];
+  sharePercent: number;
 }
 interface Category {
   id: string; name: string; tone: string; allocated: number; allocatedNative: number;
@@ -59,7 +87,8 @@ const PAYMENT_VARIANT: Record<string, "neutral" | "info" | "attention" | "positi
 };
 
 export function BudgetWorkspace({
-  finance, categories, payments, payers, history, drivers, currency,
+  finance, categories, payments, payers, payerShares, payerOptions,
+  history, drivers, currency,
   canEdit, canPay, initialView, events, vendors, baseCurrency,
 }: {
   finance: {
@@ -70,6 +99,10 @@ export function BudgetWorkspace({
   categories: Category[];
   payments: Payment[];
   payers: { payerId: string | null; name: string; paid: number; upcoming: number }[];
+  /** What each parent is carrying and has paid, and what it goes on. */
+  payerShares: PayerShare[];
+  /** Who a line can be tagged to. */
+  payerOptions: { id: string; name: string }[];
   history: { forecast: number; reason: string; at: string }[];
   drivers: { guests: number; rooms: number; households: number };
   currency: string;
@@ -105,6 +138,24 @@ export function BudgetWorkspace({
   const [paying, setPaying] = React.useState<string | null>(null);
   /** The payment whose details are open for editing. */
   const [editing, setEditing] = React.useState<Payment | null>(null);
+
+  /**
+   * Tagging a budget line to whoever is covering it, from the row.
+   *
+   * Set straight from the dropdown rather than behind the edit drawer: the
+   * whole point of this was to go down sixteen existing lines and say who has
+   * which, and opening a form for each of them is how that job doesn't happen.
+   */
+  const [taggingLine, setTaggingLine] = React.useState<string | null>(null);
+  async function assignLinePayer(itemId: string, payerId: string) {
+    setTaggingLine(itemId);
+    try {
+      await updateBudgetItem({ id: itemId, payerId: payerId || "" });
+      router.refresh();
+    } finally {
+      setTaggingLine(null);
+    }
+  }
 
   /**
    * Who paid, set from the row itself.
@@ -186,6 +237,13 @@ export function BudgetWorkspace({
         <Figure label="Contingency left" value={formatCompactMoney(finance.contingencyRemaining, currency)} tone={finance.contingencyRemaining === 0 ? "rose" : undefined} />
         <Figure label="Allocated" value={formatCompactMoney(finance.allocated, currency)} />
       </div>
+
+      {/* Who is paying for what — top-line, above the categories, because on a
+          wedding two families are splitting this is the first question asked
+          and the last one anybody could previously answer. */}
+      {payerShares.length > 0 ? (
+        <PayerBoard shares={payerShares} currency={currency} />
+      ) : null}
 
       {/* Forecast history */}
       {history.length > 2 ? (
@@ -401,6 +459,47 @@ export function BudgetWorkspace({
                             </Badge>
                           </Tooltip>
 
+                          {/* Who's covering it. A plain select on the row, so
+                              going down the list and assigning them is one
+                              pass rather than sixteen dialogs. */}
+                          {canEdit ? (
+                            <select
+                              value={item.payerId ?? ""}
+                              disabled={taggingLine === item.id}
+                              aria-label={`Who's paying for ${item.name}`}
+                              onChange={(e) => void assignLinePayer(item.id, e.target.value)}
+                              className={cn(
+                                "h-7 shrink-0 rounded-lg border bg-surface px-2 text-[11.5px] transition-colors",
+                                item.payerId
+                                  ? "border-line text-ink-soft"
+                                  : "border-dashed border-line-strong text-ink-faint",
+                                taggingLine === item.id && "opacity-50",
+                              )}
+                            >
+                              <option value="">Who&rsquo;s paying?</option>
+                              {payerOptions.map((payer) => (
+                                <option key={payer.id} value={payer.id}>
+                                  {payer.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : item.payerName ? (
+                            <Badge size="xs" variant="neutral" className="shrink-0">
+                              {item.payerName}
+                            </Badge>
+                          ) : null}
+
+                          {item.attachments > 0 ? (
+                            <Tooltip
+                              content={`${item.attachments} ${item.attachments === 1 ? "file" : "files"} attached`}
+                            >
+                              <span className="flex shrink-0 items-center gap-1 text-[11px] text-ink-muted">
+                                <PaperclipIcon size={11} />
+                                {item.attachments}
+                              </span>
+                            </Tooltip>
+                          ) : null}
+
                           <InlineAmount
                             item={item.edit}
                             source={item.source}
@@ -604,10 +703,173 @@ export function BudgetWorkspace({
           categories={categories.map((c) => ({ id: c.id, name: c.name }))}
           events={events}
           vendors={vendors}
+          payers={payerOptions}
           baseCurrency={baseCurrency}
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Who is paying for what.
+ *
+ * Two families are splitting this wedding, so "how much am I in for, and what
+ * for?" is the question the budget gets asked most and could previously answer
+ * least. It sits above the categories because it is the headline, not a
+ * drill-down.
+ *
+ * Each person shows two numbers that are deliberately not the same thing:
+ * *carrying* is what they have agreed to cover, which exists a year before any
+ * money moves; *paid* is what has actually left an account. Expanding a row
+ * gives the "for what" — their lines, biggest first.
+ *
+ * Costs nobody has claimed get a row of their own, last and visibly unlike the
+ * others. It is the row that starts the useful conversation.
+ */
+function PayerBoard({
+  shares,
+  currency,
+}: {
+  shares: PayerShare[];
+  currency: string;
+}) {
+  const [open, setOpen] = React.useState<string | null>(null);
+  const reduce = useReducedMotion();
+  const claimed = shares.filter((share) => share.payerId !== null);
+  const totalPaid = claimed.reduce((sum, share) => sum + share.paid, 0);
+
+  return (
+    <section className="mb-8 border-y border-line py-5">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="eyebrow">Who&rsquo;s paying</h2>
+        <p className="text-[12.5px] text-ink-muted">
+          {totalPaid > 0
+            ? `${formatMoney(totalPaid, currency)} handed over so far`
+            : "Nothing paid yet — these are what each person has taken on"}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {shares.map((share) => {
+          const key = share.payerId ?? "unclaimed";
+          const isOpen = open === key;
+          const unclaimed = share.payerId === null;
+
+          return (
+            <div
+              key={key}
+              className={cn(
+                "rounded-xl border transition-colors",
+                unclaimed
+                  ? "border-dashed border-line-strong bg-surface-soft"
+                  : "border-line bg-surface",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : key)}
+                aria-expanded={isOpen}
+                className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-left"
+              >
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      "block truncate text-[14px]",
+                      unclaimed ? "text-ink-muted" : "text-ink",
+                    )}
+                  >
+                    {share.name}
+                  </span>
+                  <span className="block text-[11.5px] text-ink-muted">
+                    {share.lineCount} {share.lineCount === 1 ? "line" : "lines"}
+                    {share.sharePercent > 0 ? ` · ${Math.round(share.sharePercent)}% of the wedding` : ""}
+                    {share.paid > 0 ? ` · ${formatCompactMoney(share.paid, currency)} paid` : ""}
+                    {share.scheduled > 0
+                      ? ` · ${formatCompactMoney(share.scheduled, currency)} scheduled`
+                      : ""}
+                  </span>
+                </span>
+
+                {/* Paid against taken-on, so the gap is visible without doing
+                    the subtraction in your head. */}
+                {share.carrying > 0 ? (
+                  <span className="hidden w-32 shrink-0 sm:block">
+                    <SegmentBar
+                      height={6}
+                      segments={[
+                        { value: share.paid, tone: "olive", label: "Paid" },
+                        {
+                          value: Math.max(0, share.carrying - share.paid),
+                          tone: unclaimed ? "slate" : "saffron",
+                          label: "Still to pay",
+                        },
+                      ]}
+                    />
+                  </span>
+                ) : null}
+
+                <span className="shrink-0 text-right">
+                  <span
+                    className={cn(
+                      "tabular block font-display text-[19px] leading-none",
+                      unclaimed ? "text-ink-muted" : "text-ink",
+                    )}
+                  >
+                    {formatCompactMoney(share.carrying, currency)}
+                  </span>
+                  <span className="mt-1 block text-[11px] text-ink-muted">
+                    {unclaimed ? "unassigned" : "carrying"}
+                  </span>
+                </span>
+
+                <span className="shrink-0 text-ink-faint">
+                  {isOpen ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+                </span>
+              </button>
+
+              {isOpen ? (
+                <motion.ul
+                  initial={reduce ? false : { opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                  className="overflow-hidden border-t border-line-soft px-4 pb-3"
+                >
+                  {share.lines.length === 0 ? (
+                    <li className="py-2.5 text-[12.5px] text-ink-muted">
+                      Nothing on the budget — but payments have been logged
+                      against them.
+                    </li>
+                  ) : (
+                    share.lines.map((line) => (
+                      <li
+                        key={line.itemId}
+                        className="flex items-center gap-3 border-b border-line-soft py-2 last:border-b-0"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12.5px] text-ink-soft">
+                            {line.name}
+                          </span>
+                          <span className="block text-[11px] text-ink-muted">
+                            {line.categoryName}
+                            {line.paid > 0
+                              ? ` · ${formatCompactMoney(line.paid, currency)} paid`
+                              : ""}
+                          </span>
+                        </span>
+                        <span className="tabular shrink-0 text-[12.5px] text-ink">
+                          {formatCompactMoney(line.forecast, currency)}
+                        </span>
+                      </li>
+                    ))
+                  )}
+                </motion.ul>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

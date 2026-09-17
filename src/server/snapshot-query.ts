@@ -283,6 +283,7 @@ export async function fetchSnapshot(
         description: i.description,
         eventId: i.eventId,
         vendorId: i.vendorId,
+        payerId: i.payerId,
         costModel: i.costModel,
         guestBasis: i.guestBasis,
         currency: i.currency,

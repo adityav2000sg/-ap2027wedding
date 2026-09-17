@@ -258,6 +258,8 @@ export interface BudgetItemNode {
   description: string | null;
   eventId: string | null;
   vendorId: string | null;
+  /// Who is bearing this cost, if anyone has said yet.
+  payerId: string | null;
   costModel: CostModel;
   guestBasis: GuestBasis;
   currency: string;

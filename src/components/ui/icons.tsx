@@ -59,6 +59,9 @@ export const HangerIcon = (p: IconProps) => (
 export const FileIcon = (p: IconProps) => (
   <Icon {...p}><path d="M9 1.5H4.5a1.5 1.5 0 00-1.5 1.5v10a1.5 1.5 0 001.5 1.5h7a1.5 1.5 0 001.5-1.5V5.5L9 1.5z" /><path d="M9 1.5V5.5h4" /></Icon>
 );
+export const PaperclipIcon = (p: IconProps) => (
+  <Icon {...p}><path d="M12.5 7.5l-5 5a3 3 0 01-4.2-4.2l6-6a2 2 0 012.9 2.9l-6 6a1 1 0 01-1.4-1.4l5.3-5.3" /></Icon>
+);
 export const SparkIcon = (p: IconProps) => (
   <Icon {...p}><path d="M8 1.5l1.5 4L13.5 7l-4 1.5L8 12.5 6.5 8.5 2.5 7l4-1.5L8 1.5z" /><path d="M12.8 11.2l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6.6-1.5z" /></Icon>
 );
