@@ -121,9 +121,10 @@ export function BudgetWorkspace({
   const paymentContext: PaymentContext = React.useMemo(
     () => ({
       vendors,
-      payers: payers
-        .filter((p): p is typeof p & { payerId: string } => Boolean(p.payerId))
-        .map((p) => ({ id: p.payerId, name: p.name })),
+      // Everyone who can pay, not just everyone who already has. Deriving this
+      // from existing payments meant the dropdown was empty until a payment had
+      // a payer, which is the one thing the dropdown is for.
+      payers: payerOptions,
       budgetItems: categories.flatMap((category) =>
         category.items.map((item) => ({
           id: item.edit?.id ?? item.id,
@@ -132,7 +133,7 @@ export function BudgetWorkspace({
       ),
       baseCurrency,
     }),
-    [vendors, payers, categories, baseCurrency],
+    [vendors, payerOptions, categories, baseCurrency],
   );
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [paying, setPaying] = React.useState<string | null>(null);

@@ -489,6 +489,34 @@ function sum(values: number[]): number {
 
 // ──────────────────────────────────────────────────────── Who is paying what
 
+/**
+ * Who can be picked as a payer.
+ *
+ * Read from the payers table, which sounds too obvious to need saying — but
+ * this was previously derived from the payers who already *had* payments, and
+ * that cannot work. With nothing yet assigned the list came back empty, so the
+ * dropdown offered nobody, so nothing could ever be assigned. The first tag was
+ * unreachable, on the payment row and on the new-payment form alike.
+ *
+ * The people are the answer to "who's paying" — the parents footing the bills.
+ * A group payer is offered only when something already points at it, so an
+ * existing assignment keeps its label instead of rendering as a blank option.
+ */
+export function payerPickerOptions(
+  snapshot: WeddingSnapshot,
+): { id: string; name: string }[] {
+  const inUse = new Set(
+    [
+      ...snapshot.payments.map((payment) => payment.payerId),
+      ...snapshot.budgetItems.map((item) => item.payerId),
+    ].filter((id): id is string => Boolean(id)),
+  );
+
+  return snapshot.payers
+    .filter((payer) => payer.kind === "person" || inUse.has(payer.id))
+    .map((payer) => ({ id: payer.id, name: payer.name }));
+}
+
 /** One person's share of the wedding, and what it is made of. */
 export interface PayerShare {
   payerId: string | null;

@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 
-import { buildBudgetView, paymentsByPayer, spendByPayer } from "@/domain/budget";
+import {
+  buildBudgetView,
+  payerPickerOptions,
+  paymentsByPayer,
+  spendByPayer,
+} from "@/domain/budget";
 import { getViewer } from "@/server/auth";
 import { db } from "@/server/db";
 import { variantUrl } from "@/server/media";
@@ -174,11 +179,17 @@ export default async function BudgetPage({
         }))}
       payers={paymentsByPayer(snapshot, budget.converter)}
       payerShares={payerShares}
-      // Only the people, not the two family units: the parents are who the
-      // couple asked to be able to tag, and a four-item list stays a glance.
-      payerOptions={snapshot.payers
-        .filter((payer) => payer.kind === "person")
-        .map((payer) => ({ id: payer.id, name: payer.name }))}
+      // Who can be tagged, read from the payers table itself.
+      //
+      // This used to be derived from the payers who already had payments, which
+      // cannot work: with nothing yet assigned the list is empty, so the
+      // dropdown offers nobody, so nothing can ever be assigned. The first tag
+      // was unreachable on both the payment row and the new-payment form.
+      //
+      // The four parents are the answer to "who's paying"; the two family units
+      // are kept only if something already points at them, so an existing
+      // assignment still has a label instead of showing blank.
+      payerOptions={payerPickerOptions(snapshot)}
       history={history.map((point) => ({
         forecast: Number(point.forecastTotal),
         reason: point.reason,

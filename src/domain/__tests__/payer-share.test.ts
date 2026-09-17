@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildBudgetView, spendByPayer } from "../budget";
+import { buildBudgetView, payerPickerOptions, spendByPayer } from "../budget";
 import { makeBudgetItem, makeSnapshot } from "./fixtures";
 import type { PaymentNode, WeddingSnapshot } from "../types";
 
@@ -198,5 +198,76 @@ describe("who is paying for what", () => {
     });
 
     expect(byName(shares(snapshot), "Namrita Chowdhry")).toBeUndefined();
+  });
+});
+
+/**
+ * The dropdown that lets anybody be tagged in the first place.
+ *
+ * This shipped broken: the list of people you could pick was built from the
+ * people who already had payments against them, so with nothing assigned it was
+ * empty, and nothing could ever be assigned. The screenshot that found it was a
+ * dropdown whose only option was "Nobody tagged".
+ */
+describe("who can be picked as a payer", () => {
+  const FAMILIES = [
+    { id: "payer-chowdhrys", name: "Chowdhry Family", kind: "family" },
+    { id: "payer-mehans", name: "Mehan Family", kind: "family" },
+  ];
+
+  it("offers the parents before anybody has been tagged at all", () => {
+    const snapshot = makeSnapshot({
+      payers: PARENTS,
+      budgetItems: [makeBudgetItem({ id: "a", payerId: null })],
+      payments: [],
+    });
+
+    expect(payerPickerOptions(snapshot).map((option) => option.name)).toEqual([
+      "Namrita Chowdhry",
+      "Dheeraj Chowdhry",
+      "Ajay Mehan",
+    ]);
+  });
+
+  it("offers them even when payments exist with nobody assigned", () => {
+    // Exactly the state that produced the empty dropdown.
+    const snapshot = makeSnapshot({
+      payers: PARENTS,
+      payments: [makePayment({ id: "p1", amount: 15_400, payerId: null, status: "PAID" })],
+    });
+
+    expect(payerPickerOptions(snapshot)).toHaveLength(3);
+  });
+
+  it("leaves out the family groups nobody is using", () => {
+    const snapshot = makeSnapshot({ payers: [...PARENTS, ...FAMILIES] });
+
+    expect(payerPickerOptions(snapshot).map((option) => option.name)).not.toContain(
+      "Chowdhry Family",
+    );
+  });
+
+  it("keeps a family group that something still points at", () => {
+    // Otherwise the select would hold a value with no matching option and show
+    // blank, which reads as "nobody" — a different fact from what was recorded.
+    const snapshot = makeSnapshot({
+      payers: [...PARENTS, ...FAMILIES],
+      payments: [makePayment({ id: "p1", payerId: "payer-mehans", amount: 1000 })],
+    });
+
+    expect(payerPickerOptions(snapshot).map((option) => option.name)).toContain(
+      "Mehan Family",
+    );
+  });
+
+  it("keeps a group a budget line still points at", () => {
+    const snapshot = makeSnapshot({
+      payers: [...PARENTS, ...FAMILIES],
+      budgetItems: [makeBudgetItem({ id: "a", payerId: "payer-chowdhrys" })],
+    });
+
+    expect(payerPickerOptions(snapshot).map((option) => option.name)).toContain(
+      "Chowdhry Family",
+    );
   });
 });
