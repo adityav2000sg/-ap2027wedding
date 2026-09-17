@@ -13,7 +13,9 @@
  * Database health is a separate question, answered at /api/health?db=1 for when
  * you actually want to ask it. Email configuration is answered at
  * /api/health?email=1 — reporting only whether things are set and whether Resend
- * accepts the key, never the values themselves.
+ * accepts the key, never the values themselves. File storage is answered at
+ * /api/health?storage=1, which is how you find out that uploads are landing on a
+ * disk the next deploy will throw away.
  */
 
 import { NextResponse } from "next/server";
@@ -25,6 +27,15 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const wantsDb = params.has("db");
   const wantsEmail = params.has("email");
+  const wantsStorage = params.has("storage");
+
+  if (wantsStorage) {
+    const storage = await storageStatus();
+    return NextResponse.json(
+      { ok: storage.missingFiles === 0, service: "wedding-os", storage },
+      { status: storage.missingFiles === 0 ? 200 : 503 },
+    );
+  }
 
   if (wantsEmail) {
     return NextResponse.json({ ok: true, service: "wedding-os", email: await emailStatus() });
@@ -112,6 +123,71 @@ async function emailStatus() {
       domain === null ? null : verified.some((d) => d.name?.toLowerCase() === domain);
   } catch {
     status.resend = "unreachable";
+  }
+
+  return status;
+}
+
+/**
+ * Why the photographs aren't showing.
+ *
+ * Uploads are two halves: a row in Postgres and bytes on a disk. The row is
+ * durable; the bytes are only as durable as the directory they went into. With
+ * STORAGE_DIR unset the directory is the application's own working copy, which
+ * a container rebuilds from the image on every deploy — so the pictures vanish
+ * while every record of them survives, and the app renders a blur placeholder
+ * with nothing behind it.
+ *
+ * That failure is invisible from the outside: each individual image is a 404
+ * inside an <img>, and nothing is logged in a way anyone goes looking for. This
+ * counts the two halves against each other and says plainly when they disagree.
+ *
+ * Reports paths and counts, never file contents.
+ */
+async function storageStatus() {
+  const { access, constants } = await import("node:fs/promises");
+  const path = await import("node:path");
+
+  const configured = process.env.STORAGE_DIR ?? null;
+  const root = configured ? path.resolve(configured) : path.join(process.cwd(), "storage");
+
+  const status = {
+    /** Null means nobody chose a directory, so uploads are wherever the app runs. */
+    storageDir: configured,
+    resolvedRoot: root,
+    /** The whole problem in one field: a path inside the deployment is ephemeral. */
+    persistent: configured !== null && !root.startsWith(process.cwd()),
+    writable: false,
+    assetsRecorded: 0,
+    filesPresent: 0,
+    missingFiles: 0,
+    /** A handful of examples, enough to recognise the pattern without dumping the table. */
+    sampleMissing: [] as string[],
+  };
+
+  try {
+    await access(root, constants.W_OK);
+    status.writable = true;
+  } catch {
+    status.writable = false;
+  }
+
+  try {
+    const { db } = await import("@/server/db");
+    const assets = await db.mediaAsset.findMany({ select: { storageKey: true } });
+    status.assetsRecorded = assets.length;
+
+    for (const asset of assets) {
+      try {
+        await access(path.join(root, asset.storageKey), constants.R_OK);
+        status.filesPresent += 1;
+      } catch {
+        status.missingFiles += 1;
+        if (status.sampleMissing.length < 5) status.sampleMissing.push(asset.storageKey);
+      }
+    }
+  } catch (error) {
+    return { ...status, error: error instanceof Error ? error.message : String(error) };
   }
 
   return status;

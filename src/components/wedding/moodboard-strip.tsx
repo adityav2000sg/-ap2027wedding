@@ -14,6 +14,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { Uploader } from "@/components/media/uploader";
+import { MediaImage } from "@/components/media/media-image";
 import { useRouter } from "next/navigation";
 
 export interface StripImage {
@@ -88,21 +89,15 @@ export function MoodboardStrip({
             className="group relative aspect-square overflow-hidden rounded-lg bg-surface-sunken"
           >
             <Link href="/moodboard" className="block h-full w-full">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <MediaImage
                 src={image.url}
                 alt={image.caption ?? ""}
-                loading="lazy"
+                blurData={image.blurData}
                 className={cn(
                   "h-full w-full object-cover",
                   "transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
                   "group-hover:scale-[1.06]",
                 )}
-                style={
-                  image.blurData
-                    ? { backgroundImage: `url(${image.blurData})`, backgroundSize: "cover" }
-                    : undefined
-                }
               />
             </Link>
           </motion.div>

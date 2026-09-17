@@ -9,6 +9,7 @@ import { formatLongDate, formatMinute, toISODate } from "@/lib/dates";
 import { formatCompactMoney } from "@/lib/money";
 import { cn, toneClasses } from "@/lib/cn";
 import { Badge, EmptyState } from "@/components/ui/primitives";
+import { MediaImage } from "@/components/media/media-image";
 import { getViewer } from "@/server/auth";
 import { db } from "@/server/db";
 import { variantUrl } from "@/server/media";
@@ -115,11 +116,9 @@ export default async function EventsPage() {
 
                 {cover ? (
                   <div className="pointer-events-none relative z-10 h-24 w-full shrink-0 overflow-hidden rounded-lg bg-surface-sunken sm:h-20 sm:w-28">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <MediaImage
                       src={cover}
                       alt=""
-                      loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105"
                     />
                   </div>

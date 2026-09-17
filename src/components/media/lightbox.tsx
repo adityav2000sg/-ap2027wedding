@@ -14,7 +14,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { Badge, Button } from "@/components/ui/primitives";
 import { Input } from "@/components/ui/form";
-import { CloseIcon, DownloadIcon, TrashIcon } from "@/components/ui/icons";
+import { CloseIcon, DownloadIcon, ImageIcon, TrashIcon } from "@/components/ui/icons";
 
 export interface LightboxImage {
   id: string;
@@ -56,11 +56,17 @@ export function Lightbox({
 
   const [draftCaption, setDraftCaption] = React.useState("");
   const [direction, setDirection] = React.useState(0);
+  /** Set when the file behind the current image turns out not to be there. */
+  const [missing, setMissing] = React.useState(false);
   const touchStart = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     if (image) setDraftCaption(image.caption ?? "");
   }, [image?.id, image?.caption, image]);
+
+  // Each image gets judged on its own: paging off a missing one shouldn't carry
+  // the verdict to the next.
+  React.useEffect(() => setMissing(false), [image?.id]);
 
   const go = React.useCallback(
     (delta: number) => {
@@ -190,17 +196,38 @@ export function Lightbox({
 
             <AnimatePresence mode="wait" custom={direction} initial={false}>
               {image ? (
-                <motion.img
-                  key={image.id}
-                  src={image.largeUrl ?? image.url}
-                  alt={image.caption ?? image.filename}
-                  custom={direction}
-                  initial={reduce ? false : { opacity: 0, x: direction * 24, scale: 0.985 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={reduce ? { opacity: 0 } : { opacity: 0, x: direction * -24, scale: 0.985 }}
-                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                  className="max-h-full max-w-full rounded-lg object-contain shadow-overlay"
-                />
+                missing ? (
+                  // The record survived and the file didn't. Full-screen is
+                  // where that's least excusable, so it gets a sentence rather
+                  // than the browser's torn-page glyph.
+                  <motion.div
+                    key={`${image.id}-missing`}
+                    initial={reduce ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col items-center gap-2 px-6 text-center text-ink-faint"
+                  >
+                    <ImageIcon size={28} />
+                    <p className="text-[13px]">This image is missing from the server.</p>
+                    <p className="max-w-xs text-[11.5px] leading-relaxed">
+                      {image.filename} is still on record, but the file itself
+                      isn&apos;t there to show.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.img
+                    key={image.id}
+                    src={image.largeUrl ?? image.url}
+                    alt={image.caption ?? image.filename}
+                    custom={direction}
+                    initial={reduce ? false : { opacity: 0, x: direction * 24, scale: 0.985 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={reduce ? { opacity: 0 } : { opacity: 0, x: direction * -24, scale: 0.985 }}
+                    transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                    onError={() => setMissing(true)}
+                    className="max-h-full max-w-full rounded-lg object-contain shadow-overlay"
+                  />
+                )
               ) : null}
             </AnimatePresence>
 

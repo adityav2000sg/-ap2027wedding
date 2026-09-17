@@ -28,6 +28,7 @@ import {
   updateOutfit,
 } from "@/server/actions/wardrobe";
 import { setCoverMedia } from "@/server/actions/media";
+import { MediaImage } from "@/components/media/media-image";
 
 interface Image {
   id: string; role: string; thumbUrl: string; largeUrl: string;
@@ -196,11 +197,9 @@ export function WardrobeLookbook({
                       >
                         <div className="relative mb-3 aspect-[3/4] overflow-hidden rounded-xl bg-surface-sunken">
                           {cover ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <MediaImage
                               src={cover.thumbUrl}
                               alt={outfit.outfitType}
-                              loading="lazy"
                               className="h-full w-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
                             />
                           ) : (
@@ -289,11 +288,9 @@ export function WardrobeLookbook({
                             onClick={() => setLightbox({ images: item.images, index: 0 })}
                             className="block h-full w-full"
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
+                            <MediaImage
                               src={cover.thumbUrl}
                               alt={item.name}
-                              loading="lazy"
                               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                             />
                           </button>
@@ -413,8 +410,7 @@ function OutfitSheet({
                 onClick={() => onOpenImage(outfit.images, index)}
                 className="block h-full w-full"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <MediaImage
                   src={image.thumbUrl}
                   alt={image.caption ?? outfit.outfitType}
                   className="h-full w-full object-cover transition-transform duration-400 group-hover:scale-[1.04]"

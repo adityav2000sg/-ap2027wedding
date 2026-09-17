@@ -30,6 +30,7 @@ import {
   upsertContract,
 } from "@/server/actions/vendors";
 import { ImpactDrawer, useImpactFlow } from "@/components/wedding/impact-drawer";
+import { MediaImage } from "@/components/media/media-image";
 
 interface Quote {
   id: string; label: string; amount: number; currency: string;
@@ -269,11 +270,9 @@ export function VendorDetail({
                   onClick={() => setLightboxIndex(index)}
                   className="group aspect-square overflow-hidden rounded-lg bg-surface-sunken"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <MediaImage
                     src={image.url}
                     alt={image.name}
-                    loading="lazy"
                     className="h-full w-full object-cover transition-transform duration-400 group-hover:scale-[1.05]"
                   />
                 </button>

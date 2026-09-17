@@ -19,6 +19,7 @@ import { Input, Select } from "@/components/ui/form";
 import { DownloadIcon, FileIcon, LockIcon, SearchIcon } from "@/components/ui/icons";
 import { Uploader } from "@/components/media/uploader";
 import { Lightbox } from "@/components/media/lightbox";
+import { MediaImage } from "@/components/media/media-image";
 
 interface Item {
   id: string; title: string; filename: string; kind: string; mimeType: string;
@@ -147,11 +148,9 @@ export function DocumentsLibrary({
                           onClick={() => setLightboxIndex(imageIndex)}
                           className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-surface-sunken"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
+                          <MediaImage
                             src={item.previewUrl}
                             alt=""
-                            loading="lazy"
                             className="h-full w-full object-cover transition-transform duration-400 group-hover:scale-105"
                           />
                         </button>

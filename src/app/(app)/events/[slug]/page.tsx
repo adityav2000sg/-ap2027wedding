@@ -19,6 +19,7 @@ import { loadSnapshot } from "@/server/snapshot";
 import { EventRunOfShow } from "./run-of-show";
 import { EditEventButton } from "../event-editor";
 import { buildEditorContext } from "../editor-context";
+import { MediaImage } from "@/components/media/media-image";
 
 export default async function EventPage({
   params,
@@ -350,11 +351,9 @@ export default async function EventPage({
                     href={`/moodboard?board=${board.id}`}
                     className="group aspect-square overflow-hidden rounded-lg bg-surface-sunken"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <MediaImage
                       src={variantUrl(item.media, "thumb")}
                       alt={item.caption ?? ""}
-                      loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   </Link>

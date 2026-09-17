@@ -57,6 +57,19 @@ export async function GET(
   try {
     body = await getStorage().get(key);
   } catch {
+    // The row exists and the file doesn't. That only happens when the directory
+    // the bytes went into is not the directory we're now reading from — almost
+    // always an unset STORAGE_DIR, so the upload landed in the container's own
+    // working copy and the next deploy rebuilt it away.
+    //
+    // Worth a line in the log, because from the browser's side this is a silent
+    // 404 inside an <img> and the page just renders a broken picture. See
+    // /api/health?storage=1 for the whole picture rather than one file's worth.
+    console.error(
+      `[media] recorded asset has no file on disk: ${key} (storage root: ${
+        process.env.STORAGE_DIR ?? `${process.cwd()}/storage (not persistent)`
+      })`,
+    );
     return new NextResponse("Not found", { status: 404 });
   }
 

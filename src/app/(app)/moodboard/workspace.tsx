@@ -19,6 +19,7 @@ import { FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { CheckIcon, PlusIcon, TagIcon, TrashIcon } from "@/components/ui/icons";
 import { Uploader } from "@/components/media/uploader";
 import { Lightbox } from "@/components/media/lightbox";
+import { MediaImage } from "@/components/media/media-image";
 import {
   addExistingMediaToBoard,
   createMoodboard,
@@ -273,11 +274,9 @@ export function MoodboardWorkspace({
                         className="block w-full"
                         aria-label={item.caption ?? `Open ${item.filename}`}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <MediaImage
                           src={item.thumbUrl}
                           alt={item.caption ?? ""}
-                          loading="lazy"
                           className="w-full transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
                         />
                       </button>

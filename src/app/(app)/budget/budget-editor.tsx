@@ -21,6 +21,7 @@ import { FormField, Input, Select, Textarea } from "@/components/ui/form";
 import { FileIcon } from "@/components/ui/icons";
 import { Uploader } from "@/components/media/uploader";
 import { unlinkMedia } from "@/server/actions/media";
+import { MediaImage } from "@/components/media/media-image";
 import {
   createBudgetItem,
   updateBudgetItem,
@@ -672,8 +673,7 @@ function Attachments({
               {file.previewUrl ? (
                 // A thumbnail of the actual page beats a generic file glyph
                 // when you are looking for one quote among four.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <MediaImage
                   src={file.previewUrl}
                   alt=""
                   className="h-7 w-7 shrink-0 rounded object-cover"
