@@ -28,7 +28,8 @@
     "fix:households": "tsx scripts/split-households.ts",
     "import:tiers": "tsx scripts/import-tiers.ts",
     "import:groupings": "tsx scripts/import-groupings.ts",
-    "tasks:reset-owners": "tsx scripts/reset-task-owners.ts"
+    "tasks:reset-owners": "tsx scripts/reset-task-owners.ts",
+    "tasks:reset": "tsx scripts/reset-tasks.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
