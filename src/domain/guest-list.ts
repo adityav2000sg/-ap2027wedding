@@ -258,3 +258,105 @@ export function summariseGuestRows(
     rooms: Math.ceil(needARoom / Math.max(1, guestsPerRoom)),
   };
 }
+
+// ────────────────────────────────────────────────────────────── Filtering
+
+/** Answers. A guest is exactly one of these, so choosing several means "or". */
+export type ReplyFilter = "confirmed" | "pending" | "declined" | "not-contacted";
+
+/** Attributes. Independent of the answer and of each other, so these mean "and". */
+export type NeedFilter = "accommodation" | "vip";
+
+/**
+ * Whose list somebody is on.
+ *
+ * "" is everybody. "BOTH" is its own answer and not the absence of one — the
+ * couples and relatives who belong to both families — which the old control
+ * could not express at all: it offered "Both sides" meaning "don't filter",
+ * so the one label that looked like it selected mutual guests was the one that
+ * selected everybody.
+ */
+export type SideFilter = "" | "BOTH" | "BRIDE" | "GROOM";
+
+export interface GuestFilters {
+  reply: ReadonlySet<ReplyFilter>;
+  needs: ReadonlySet<NeedFilter>;
+}
+
+export const NO_GUEST_FILTERS: GuestFilters = {
+  reply: new Set<ReplyFilter>(),
+  needs: new Set<NeedFilter>(),
+};
+
+export function anyGuestFilter(filters: GuestFilters): boolean {
+  return filters.reply.size > 0 || filters.needs.size > 0;
+}
+
+/** Everything a filter looks at. */
+export interface GuestFilterable {
+  stdResponse: "YES" | "NO" | null;
+  needsAccommodation: boolean;
+  isVIP: boolean;
+  rsvp: Record<string, string>;
+}
+
+function matchesReply(
+  row: GuestFilterable,
+  which: ReplyFilter,
+  stage: "SAVE_THE_DATE" | "INVITATION",
+): boolean {
+  const statuses = Object.values(row.rsvp);
+  if (stage === "SAVE_THE_DATE") {
+    switch (which) {
+      case "confirmed": return row.stdResponse === "YES";
+      case "pending": return row.stdResponse === null;
+      case "declined": return row.stdResponse === "NO";
+      case "not-contacted": return statuses.every((s) => s === "NOT_INVITED");
+    }
+  }
+  switch (which) {
+    case "confirmed": return statuses.includes("CONFIRMED");
+    case "pending": return statuses.some((s) => s === "PENDING");
+    case "declined":
+      return (
+        statuses.length > 0 &&
+        statuses.includes("DECLINED") &&
+        statuses.every((s) => s === "DECLINED" || s === "NOT_INVITED")
+      );
+    case "not-contacted": return statuses.every((s) => s === "NOT_INVITED");
+  }
+}
+
+/**
+ * Whether a guest survives the chips.
+ *
+ * Two kinds of chip, and they combine differently on purpose. Answers are one
+ * group and mean *or*, because nobody is both a yes and a no and requiring both
+ * would always return nothing — picking "said yes" and "said no" asks for
+ * everybody who has answered either way, which is a real question. Needs are
+ * separate toggles and mean *and*, because "a VIP who still has no room" is the
+ * list somebody is actually trying to build.
+ *
+ * An empty group is not a filter. Nothing selected is everybody.
+ */
+export function matchesGuestFilters(
+  row: GuestFilterable,
+  filters: GuestFilters,
+  stage: "SAVE_THE_DATE" | "INVITATION",
+): boolean {
+  if (filters.reply.size > 0) {
+    let any = false;
+    for (const which of filters.reply) {
+      if (matchesReply(row, which, stage)) {
+        any = true;
+        break;
+      }
+    }
+    if (!any) return false;
+  }
+
+  if (filters.needs.has("accommodation") && !row.needsAccommodation) return false;
+  if (filters.needs.has("vip") && !row.isVIP) return false;
+
+  return true;
+}

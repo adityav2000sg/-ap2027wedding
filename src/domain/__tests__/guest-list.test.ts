@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  anyGuestFilter,
   groupGuestRows,
+  matchesGuestFilters,
+  NO_GUEST_FILTERS,
+  type GuestFilters,
+  type NeedFilter,
+  type ReplyFilter,
   sortInvitationRows,
   summariseGuestRows,
   matchesSentFilter,
@@ -377,5 +383,100 @@ describe("ordering the invitations list", () => {
       }
     }
     expect(rows.map((r) => r.name)).toEqual(before);
+  });
+});
+
+
+function guest(over: Partial<Parameters<typeof matchesGuestFilters>[0]> = {}) {
+  return {
+    stdResponse: null,
+    needsAccommodation: false,
+    isVIP: false,
+    rsvp: {},
+    ...over,
+  };
+}
+
+function filters(reply: ReplyFilter[] = [], needs: NeedFilter[] = []): GuestFilters {
+  return { reply: new Set(reply), needs: new Set(needs) };
+}
+
+const STD = "SAVE_THE_DATE" as const;
+const INVITE = "INVITATION" as const;
+
+describe("combining filters", () => {
+  it("shows everybody when nothing is selected", () => {
+    expect(anyGuestFilter(NO_GUEST_FILTERS)).toBe(false);
+    expect(matchesGuestFilters(guest(), NO_GUEST_FILTERS, STD)).toBe(true);
+    expect(matchesGuestFilters(guest({ isVIP: true }), NO_GUEST_FILTERS, STD)).toBe(true);
+  });
+
+  /**
+   * The reason answers are "or". Nobody is both a yes and a no, so requiring
+   * both would always return nothing — while "everybody who has answered
+   * either way" is a question people actually ask.
+   */
+  it("treats two answers as either, not both", () => {
+    const yes = guest({ stdResponse: "YES" });
+    const no = guest({ stdResponse: "NO" });
+    const silent = guest({ stdResponse: null });
+    const either = filters(["confirmed", "declined"]);
+
+    expect(matchesGuestFilters(yes, either, STD)).toBe(true);
+    expect(matchesGuestFilters(no, either, STD)).toBe(true);
+    expect(matchesGuestFilters(silent, either, STD)).toBe(false);
+  });
+
+  it("treats two needs as both, not either", () => {
+    const both = filters([], ["accommodation", "vip"]);
+    expect(matchesGuestFilters(guest({ needsAccommodation: true, isVIP: true }), both, STD)).toBe(true);
+    expect(matchesGuestFilters(guest({ needsAccommodation: true, isVIP: false }), both, STD)).toBe(false);
+    expect(matchesGuestFilters(guest({ needsAccommodation: false, isVIP: true }), both, STD)).toBe(false);
+  });
+
+  it("requires an answer AND a need when both groups are used", () => {
+    const vipWhoSaidYes = filters(["confirmed"], ["vip"]);
+    expect(matchesGuestFilters(guest({ stdResponse: "YES", isVIP: true }), vipWhoSaidYes, STD)).toBe(true);
+    expect(matchesGuestFilters(guest({ stdResponse: "YES", isVIP: false }), vipWhoSaidYes, STD)).toBe(false);
+    expect(matchesGuestFilters(guest({ stdResponse: "NO", isVIP: true }), vipWhoSaidYes, STD)).toBe(false);
+  });
+
+  it("reads the save-the-date answer at save-the-date stage", () => {
+    const yes = filters(["confirmed"]);
+    // Their per-event invitations say nothing yet, and must not be consulted.
+    const row = guest({ stdResponse: "YES", rsvp: { e1: "PENDING" } });
+    expect(matchesGuestFilters(row, yes, STD)).toBe(true);
+    expect(matchesGuestFilters(row, yes, INVITE)).toBe(false);
+  });
+
+  it("reads per-event answers at invitation stage", () => {
+    expect(matchesGuestFilters(guest({ rsvp: { e1: "CONFIRMED" } }), filters(["confirmed"]), INVITE)).toBe(true);
+    expect(matchesGuestFilters(guest({ rsvp: { e1: "PENDING" } }), filters(["pending"]), INVITE)).toBe(true);
+    expect(
+      matchesGuestFilters(
+        guest({ rsvp: { e1: "DECLINED", e2: "NOT_INVITED" } }),
+        filters(["declined"]),
+        INVITE,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not call somebody declined when they are coming to one thing", () => {
+    const row = guest({ rsvp: { e1: "DECLINED", e2: "CONFIRMED" } });
+    expect(matchesGuestFilters(row, filters(["declined"]), INVITE)).toBe(false);
+    expect(matchesGuestFilters(row, filters(["confirmed"]), INVITE)).toBe(true);
+  });
+
+  it("selecting every answer is the same as selecting none", () => {
+    const all = filters(["confirmed", "pending", "declined"]);
+    for (const response of ["YES", "NO", null] as const) {
+      expect(matchesGuestFilters(guest({ stdResponse: response }), all, STD)).toBe(true);
+    }
+  });
+
+  it("knows when anything is selected at all", () => {
+    expect(anyGuestFilter(filters(["confirmed"]))).toBe(true);
+    expect(anyGuestFilter(filters([], ["vip"]))).toBe(true);
+    expect(anyGuestFilter(filters())).toBe(false);
   });
 });

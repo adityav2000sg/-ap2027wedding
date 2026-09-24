@@ -19,8 +19,14 @@ import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/fo
 import { BedIcon, CheckIcon, ChevronRightIcon, RouteIcon, SearchIcon } from "@/components/ui/icons";
 import { GUEST_RELATIONSHIPS } from "@/config/guest-relationships";
 import {
+  anyGuestFilter,
   groupGuestRows,
+  matchesGuestFilters,
   matchesSentFilter,
+  type GuestFilters,
+  type NeedFilter,
+  type ReplyFilter,
+  type SideFilter,
   nextSort,
   sortGuestRows,
   summariseGuestRows,
@@ -190,8 +196,24 @@ export function GuestsWorkspace({
   const router = useRouter();
   const reduce = useReducedMotion();
   const [query, setQuery] = React.useState("");
-  const [filter, setFilter] = React.useState(initialFilter ?? "all");
-  const [side, setSide] = React.useState(initialSide ?? "");
+  // Two groups, combining differently on purpose — see `matchesGuestFilters`.
+  // A link into this page still carries one answer, which seeds the reply group.
+  const [reply, setReply] = React.useState<Set<ReplyFilter>>(() => {
+    const seed = initialFilter as ReplyFilter | null;
+    const known: ReplyFilter[] = ["confirmed", "pending", "declined", "not-contacted"];
+    return new Set(seed && known.includes(seed) ? [seed] : []);
+  });
+  const [needs, setNeeds] = React.useState<Set<NeedFilter>>(() => {
+    const seed = initialFilter as NeedFilter | null;
+    const known: NeedFilter[] = ["accommodation", "vip"];
+    return new Set(seed && known.includes(seed) ? [seed] : []);
+  });
+  const [side, setSide] = React.useState<SideFilter>(() => {
+    // A ?side= anybody can type. An unrecognised one would otherwise match
+    // nobody and look like an empty guest list.
+    const known: SideFilter[] = ["", "BOTH", "BRIDE", "GROOM"];
+    return known.includes(initialSide as SideFilter) ? (initialSide as SideFilter) : "";
+  });
   // Whether the save-the-date has gone out, asked as its own question. It cuts
   // across the reply filters — "sent, and still no answer" is the list somebody
   // actually chases from, and neither filter alone describes it.
@@ -233,6 +255,9 @@ export function GuestsWorkspace({
    * them rewrite the totals would leave "said yes" sitting over "said yes 30,
    * not yet 0" — true, and no longer telling you anything.
    */
+  const filters = React.useMemo<GuestFilters>(() => ({ reply, needs }), [reply, needs]);
+  const filtering = anyGuestFilter(filters);
+
   const population = React.useMemo(() => {
     const q = query.toLowerCase().trim();
     return guests
@@ -251,36 +276,13 @@ export function GuestsWorkspace({
     [population, guestsPerRoom],
   );
 
-  const filtered = React.useMemo(() => {
-    return population
-      .filter((guest) => {
-        const answered = Object.values(guest.rsvp);
-        if (showSaveTheDate) {
-          switch (filter) {
-            case "confirmed": return guest.stdResponse === "YES";
-            case "pending": return guest.stdResponse === null;
-            case "declined": return guest.stdResponse === "NO";
-            case "accommodation": return guest.needsAccommodation;
-            case "vip": return guest.isVIP;
-            case "not-contacted": return answered.every((s) => s === "NOT_INVITED");
-            default: return true;
-          }
-        }
-        switch (filter) {
-          case "confirmed": return answered.includes("CONFIRMED");
-          case "pending":
-            return answered.some((s) => s === "PENDING");
-          case "declined":
-            return answered.length > 0 && answered.every((s) => s === "DECLINED" || s === "NOT_INVITED")
-              && answered.includes("DECLINED");
-          case "not-contacted":
-            return answered.every((s) => s === "NOT_INVITED");
-          case "accommodation": return guest.needsAccommodation;
-          case "vip": return guest.isVIP;
-          default: return true;
-        }
-      });
-  }, [population, filter, showSaveTheDate]);
+  const filtered = React.useMemo(
+    () =>
+      population.filter((guest) =>
+        matchesGuestFilters(guest, filters, showSaveTheDate ? "SAVE_THE_DATE" : "INVITATION"),
+      ),
+    [population, filters, showSaveTheDate],
+  );
 
   /**
    * Says which slice the figures are counting, when it isn't everybody.
@@ -295,9 +297,25 @@ export function GuestsWorkspace({
         ? `${base} · Chowdhry`
         : side === "GROOM"
           ? `${base} · Mehan`
-          : base,
+          : side === "BOTH"
+            ? `${base} · on both lists`
+            : base,
     [side],
   );
+
+  function toggleIn<T>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) {
+    setter((current) => {
+      const next = new Set(current);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
+  const clearFilters = React.useCallback(() => {
+    setReply(new Set());
+    setNeeds(new Set());
+  }, []);
 
   const toggleSort = React.useCallback((key: SortKey) => {
     setSort((current) => nextSort(current, key));
@@ -552,40 +570,79 @@ export function GuestsWorkspace({
         }
       />
 
-      {/* Filters */}
+      {/* Filters.
+
+          Two groups that combine differently — answers are "or", needs are
+          "and" — so they are drawn as two groups with a rule between them
+          rather than as one undifferentiated row of pills that would give no
+          hint that picking two does different things depending which two. */}
       <div className="pill-row mb-4 items-center">
-        {[
-          { key: "all", label: "Everyone" },
+        <FilterChip active={!filtering} onClick={clearFilters}>
+          Everyone
+        </FilterChip>
+
+        <span className="mx-0.5 h-4 w-px shrink-0 bg-line" aria-hidden />
+
+        {([
           { key: "confirmed", label: showSaveTheDate ? "Said yes" : "Coming" },
           { key: "pending", label: showSaveTheDate ? "Not yet" : "Awaiting" },
           { key: "declined", label: showSaveTheDate ? "Said no" : "Not coming" },
-          ...(showSaveTheDate ? [] : [{ key: "not-contacted", label: "Not invited yet" }]),
-          { key: "accommodation", label: "Need a room" },
-          { key: "vip", label: "VIP" },
-        ].map((f) => (
-          <button
+          ...(showSaveTheDate
+            ? []
+            : [{ key: "not-contacted" as const, label: "Not invited yet" }]),
+        ] as { key: ReplyFilter; label: string }[]).map((f) => (
+          <FilterChip
             key={f.key}
-            type="button"
-            onClick={() => setFilter(f.key)}
-            className={cn(
-              "rounded-lg border px-2.5 py-1 text-[12.5px] transition-colors",
-              filter === f.key
-                ? "border-saffron/30 bg-saffron-soft text-saffron"
-                : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
-            )}
+            active={reply.has(f.key)}
+            onClick={() => toggleIn(setReply, f.key)}
           >
             {f.label}
-          </button>
+          </FilterChip>
         ))}
-        <Select
-          value={side}
-          onChange={(e) => setSide(e.target.value)}
-          className="h-7 w-auto text-[12.5px]"
-        >
-          <option value="">Both sides</option>
-          <option value="BRIDE">Bride's side</option>
-          <option value="GROOM">Groom's side</option>
-        </Select>
+
+        <span className="mx-0.5 h-4 w-px shrink-0 bg-line" aria-hidden />
+
+        {([
+          { key: "accommodation", label: "Need a room" },
+          { key: "vip", label: "VIP" },
+        ] as { key: NeedFilter; label: string }[]).map((f) => (
+          <FilterChip
+            key={f.key}
+            active={needs.has(f.key)}
+            onClick={() => toggleIn(setNeeds, f.key)}
+          >
+            {f.label}
+          </FilterChip>
+        ))}
+
+        {/* Whose list. "Both" is an answer here, not the absence of one: the
+            people who belong to both families. It used to read "Both sides" and
+            mean "don't filter", so the one option that looked like it found
+            them was the one that found everybody. */}
+        <span className="inline-flex items-center gap-0.5 rounded-lg border border-line p-0.5">
+          {([
+            { value: "", label: "All" },
+            { value: "BOTH", label: "Mutual" },
+            { value: "BRIDE", label: "Chowdhry" },
+            { value: "GROOM", label: "Mehan" },
+          ] as { value: SideFilter; label: string }[]).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setSide(option.value)}
+              aria-pressed={side === option.value}
+              className={cn(
+                "rounded-md px-2 py-1 text-[12px] transition-colors",
+                side === option.value
+                  ? "bg-ink text-canvas"
+                  : "text-ink-muted hover:bg-surface-sunken hover:text-ink",
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </span>
+
         <Select
           value={sentFilter}
           onChange={(e) => setSentFilter(e.target.value as "" | "sent" | "unsent")}
@@ -623,7 +680,18 @@ export function GuestsWorkspace({
       {filtered.length === 0 ? (
         <EmptyState
           title="Nobody matches"
-          description="Try a different filter, or clear the search."
+          description={
+            filtering
+              ? "Filters stack, so a narrow combination can match nobody. Clear them, or drop one."
+              : "Try a different side, or clear the search."
+          }
+          action={
+            filtering ? (
+              <Button size="sm" variant="secondary" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            ) : undefined
+          }
         />
       ) : (
         <>
@@ -1223,6 +1291,38 @@ function SentChip({
     >
       {sent ? <CheckIcon size={10} /> : null}
       {sent ? "Sent" : "Not sent"}
+    </button>
+  );
+}
+
+/**
+ * A filter chip that can be on at the same time as its neighbours.
+ *
+ * Drawn as a toggle rather than a tab, and carries `aria-pressed`, because
+ * these no longer behave like tabs: several can be on, and a control that
+ * looks like a radio but acts like a checkbox teaches the wrong thing on the
+ * first click.
+ */
+function FilterChip({
+  active, onClick, children,
+}: {
+  active: boolean;
+  onClick(): void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-lg border px-2.5 py-1 text-[12.5px] transition-colors",
+        active
+          ? "border-saffron/30 bg-saffron-soft text-saffron"
+          : "border-line-strong text-ink-soft hover:border-ink-faint hover:text-ink",
+      )}
+    >
+      {children}
     </button>
   );
 }
