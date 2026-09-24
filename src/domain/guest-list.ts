@@ -67,6 +67,33 @@ function byName(a: GuestListRow, b: GuestListRow): number {
 }
 
 /**
+ * Order by a date, with everything undated last.
+ *
+ * The one rule both lists need and neither can get from a plain comparator: a
+ * date we don't have is not an early date. Sorting a null as zero drops
+ * everybody who hasn't replied into "earliest first", which is precisely the
+ * list you were trying to see. So the undated sink to the bottom whichever way
+ * the column points, and fall back to the tiebreak among themselves so the tail
+ * is still something you can read down.
+ */
+export function sortByDate<T>(
+  rows: readonly T[],
+  of: (row: T) => number | null,
+  dir: "asc" | "desc",
+  tiebreak: (a: T, b: T) => number,
+): T[] {
+  const flip = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const left = of(a);
+    const right = of(b);
+    if (left === null && right === null) return tiebreak(a, b);
+    if (left === null) return 1;
+    if (right === null) return -1;
+    return left === right ? tiebreak(a, b) : (left - right) * flip;
+  });
+}
+
+/**
  * Order the list. Returns a new array; the input is left alone.
  *
  * A date we don't have is not an early date. Sorting a null as zero drops
@@ -79,32 +106,42 @@ function byName(a: GuestListRow, b: GuestListRow): number {
  * household name, and doing it twice would be one of them lying.
  */
 export function sortGuestRows<T extends GuestListRow>(rows: readonly T[], sort: GuestSort): T[] {
-  const out = [...rows];
   const flip = sort.dir === "asc" ? 1 : -1;
-
-  const byDate = (of: (row: T) => number | null) => (a: T, b: T) => {
-    const left = of(a);
-    const right = of(b);
-    if (left === null && right === null) return byName(a, b);
-    if (left === null) return 1;
-    if (right === null) return -1;
-    return left === right ? byName(a, b) : (left - right) * flip;
-  };
-
   switch (sort.key) {
     case "name":
-      out.sort((a, b) => byName(a, b) * flip);
-      break;
+      return [...rows].sort((a, b) => byName(a, b) * flip);
     case "sent":
-      out.sort(byDate((row) => row.sentAt));
-      break;
+      return sortByDate(rows, (row) => row.sentAt, sort.dir, byName);
     case "replied":
-      out.sort(byDate((row) => row.repliedAt));
-      break;
+      return sortByDate(rows, (row) => row.repliedAt, sort.dir, byName);
     default:
-      break;
+      return [...rows];
   }
-  return out;
+}
+
+/** A household on the invitations list. Ordered by the same rules, on one name. */
+export interface InvitationSortable {
+  name: string;
+  sentAt: number | null;
+  repliedAt: number | null;
+}
+
+export type InvitationSortKey = "name" | "sent" | "replied";
+
+export function sortInvitationRows<T extends InvitationSortable>(
+  rows: readonly T[],
+  sort: { key: InvitationSortKey; dir: "asc" | "desc" },
+): T[] {
+  const byHousehold = (a: T, b: T) => a.name.localeCompare(b.name);
+  const flip = sort.dir === "asc" ? 1 : -1;
+  switch (sort.key) {
+    case "sent":
+      return sortByDate(rows, (row) => row.sentAt, sort.dir, byHousehold);
+    case "replied":
+      return sortByDate(rows, (row) => row.repliedAt, sort.dir, byHousehold);
+    default:
+      return [...rows].sort((a, b) => byHousehold(a, b) * flip);
+  }
 }
 
 /**

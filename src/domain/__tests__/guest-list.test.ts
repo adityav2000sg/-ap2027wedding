@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   groupGuestRows,
+  sortInvitationRows,
   summariseGuestRows,
   matchesSentFilter,
   nextSort,
@@ -299,5 +300,82 @@ describe("counting the list you are looking at", () => {
     expect(summary.declined).toBe(1);
     expect(summary.pending).toBe(1);
     expect(summary.notContacted).toBe(1);
+  });
+});
+
+
+function household(name: string, over: { sentAt?: number | null; repliedAt?: number | null } = {}) {
+  return { name, sentAt: BASE, repliedAt: null, ...over };
+}
+
+/**
+ * The invitations tab is the one read to see what came in overnight, and it was
+ * alphabetical only — so this morning's reply sat somewhere in the middle of
+ * the As with nothing to distinguish it.
+ */
+describe("ordering the invitations list", () => {
+  it("is alphabetical by household by default", () => {
+    const rows = [household("Lamba"), household("Arora"), household("Chowdhry")];
+    expect(sortInvitationRows(rows, { key: "name", dir: "asc" }).map((r) => r.name))
+      .toEqual(["Arora", "Chowdhry", "Lamba"]);
+    expect(sortInvitationRows(rows, { key: "name", dir: "desc" }).map((r) => r.name))
+      .toEqual(["Lamba", "Chowdhry", "Arora"]);
+  });
+
+  it("puts the household that replied most recently first", () => {
+    const rows = [
+      household("Arora", { repliedAt: BASE + 2 * DAY }),
+      household("Lamba", { repliedAt: BASE + 9 * DAY }),
+      household("Chowdhry", { repliedAt: BASE + 5 * DAY }),
+    ];
+    expect(sortInvitationRows(rows, { key: "replied", dir: "desc" }).map((r) => r.name))
+      .toEqual(["Lamba", "Chowdhry", "Arora"]);
+  });
+
+  it("keeps households that have not replied at the bottom, both ways", () => {
+    const rows = [
+      household("Aaa", { repliedAt: null }),
+      household("Bbb", { repliedAt: BASE + DAY }),
+      household("Ccc", { repliedAt: BASE + 6 * DAY }),
+    ];
+    for (const dir of ["asc", "desc"] as const) {
+      const sorted = sortInvitationRows(rows, { key: "replied", dir });
+      expect(sorted[sorted.length - 1].name).toBe("Aaa");
+    }
+  });
+
+  it("falls back to the household name when two replied at the same moment", () => {
+    const together = BASE + 3 * DAY;
+    const rows = [
+      household("Zaveri", { repliedAt: together }),
+      household("Anand", { repliedAt: together }),
+    ];
+    expect(sortInvitationRows(rows, { key: "replied", dir: "desc" }).map((r) => r.name))
+      .toEqual(["Anand", "Zaveri"]);
+  });
+
+  it("orders by when the save-the-date went, never-sent last", () => {
+    const rows = [
+      household("Aaa", { sentAt: null }),
+      household("Bbb", { sentAt: BASE }),
+      household("Ccc", { sentAt: BASE + 4 * DAY }),
+    ];
+    expect(sortInvitationRows(rows, { key: "sent", dir: "desc" }).map((r) => r.name))
+      .toEqual(["Ccc", "Bbb", "Aaa"]);
+  });
+
+  it("leaves the input alone and loses nobody", () => {
+    const rows = [
+      household("Bbb", { repliedAt: BASE }),
+      household("Aaa", { repliedAt: null }),
+      household("Ccc", { repliedAt: BASE + DAY }),
+    ];
+    const before = rows.map((r) => r.name);
+    for (const key of ["name", "sent", "replied"] as const) {
+      for (const dir of ["asc", "desc"] as const) {
+        expect(sortInvitationRows(rows, { key, dir })).toHaveLength(3);
+      }
+    }
+    expect(rows.map((r) => r.name)).toEqual(before);
   });
 });

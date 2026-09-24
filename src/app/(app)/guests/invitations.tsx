@@ -18,9 +18,11 @@ import { motion, useReducedMotion } from "motion/react";
 
 import { CANONICAL_SITE_ORIGIN } from "@/config/site";
 import { cn } from "@/lib/cn";
+import { formatTimeAgo } from "@/lib/dates";
 import { publicRsvpPath } from "@/lib/rsvp-links";
+import { sortInvitationRows, type InvitationSortKey } from "@/domain/guest-list";
 import { Badge, Button, EmptyState, SegmentBar } from "@/components/ui/primitives";
-import { Input } from "@/components/ui/form";
+import { Input, Select } from "@/components/ui/form";
 import { CheckIcon, ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
 import {
   setGuestContact,
@@ -69,6 +71,10 @@ export interface InvitationRow {
   stdAwaiting: number;
   /** The note left with the household's reply. */
   message: string | null;
+  /** When the save-the-date went to this household, in milliseconds. */
+  sentAt: number | null;
+  /** When anybody in it last replied. Null when nobody has, or nothing dated it. */
+  repliedAt: number | null;
 }
 
 export interface InvitationStats {
@@ -140,6 +146,13 @@ export function Invitations({
   const [tierFilter, setTierFilter] = React.useState<Tier | "">("A");
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [busy, setBusy] = React.useState<string | null>(null);
+  // Alphabetical is right for working down the list one family at a time, and
+  // useless once replies start arriving — the answer that came in this morning
+  // is somewhere in the middle of the As.
+  const [sort, setSort] = React.useState<{ key: InvitationSortKey; dir: "asc" | "desc" }>({
+    key: "name",
+    dir: "asc",
+  });
 
   const filtered = React.useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -178,6 +191,8 @@ export function Invitations({
           row.people.some((p) => p.name.toLowerCase().includes(q)),
       );
   }, [rows, filter, tierFilter, query, savingTheDate]);
+
+  const ordered = React.useMemo(() => sortInvitationRows(filtered, sort), [filtered, sort]);
 
   const displayStats = React.useMemo<InvitationStats>(() => {
     if (!tierFilter) return stats;
@@ -377,6 +392,22 @@ export function Invitations({
             {f.label}
           </button>
         ))}
+        <Select
+          value={`${sort.key}:${sort.dir}`}
+          onChange={(e) => {
+            const [key, dir] = e.target.value.split(":") as [InvitationSortKey, "asc" | "desc"];
+            setSort({ key, dir });
+          }}
+          className="h-8 w-auto text-[12.5px]"
+          aria-label="Sort the households"
+        >
+          <option value="name:asc">Households A–Z</option>
+          <option value="name:desc">Households Z–A</option>
+          <option value="replied:desc">Latest reply first</option>
+          <option value="replied:asc">Earliest reply first</option>
+          <option value="sent:desc">Most recently messaged</option>
+          <option value="sent:asc">Messaged longest ago</option>
+        </Select>
         <div className="relative w-full sm:ml-auto sm:w-56">
           <SearchIcon
             size={14}
@@ -398,7 +429,7 @@ export function Invitations({
         />
       ) : (
         <div className="border-t border-line">
-          {filtered.map((row, index) => {
+          {ordered.map((row, index) => {
             const open = expanded.has(row.householdId);
             const personalLinks = row.people.filter((person) => person.rsvpToken).length;
             const hasGroupRecipients = row.people.some((person) => !person.rsvpToken);
@@ -505,6 +536,14 @@ export function Invitations({
                           yes={row.stdYes}
                           headcount={row.headcount}
                         />
+                        {row.repliedAt !== null ? (
+                          <span
+                            className="whitespace-nowrap text-[10px] text-ink-faint"
+                            title={new Date(row.repliedAt).toLocaleString()}
+                          >
+                            {formatTimeAgo(new Date(row.repliedAt))}
+                          </span>
+                        ) : null}
                       </Labelled>
                     ) : null}
 

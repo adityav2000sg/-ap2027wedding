@@ -162,6 +162,30 @@ export default async function GuestsPage({
     return { at: shared, whose: shared === null ? "guest" : "household" };
   }
 
+  const guestById = new Map(snapshot.guests.map((guest) => [guest.id, guest]));
+
+  /**
+   * When a household last replied.
+   *
+   * The latest answer from anybody in it, not the first — the invitations list
+   * is read to see who has come in since you last looked, and a family where
+   * three replied in June and the fourth this morning belongs at the top of
+   * that list, not back in June.
+   *
+   * Falls back to the household's own logged reply for the case where the
+   * family link answered and nothing is recorded against the individuals.
+   */
+  function householdRepliedAt(people: { guestId: string }[], householdId: string): number | null {
+    let latest: number | null = null;
+    for (const person of people) {
+      const guest = guestById.get(person.guestId);
+      if (!guest) continue;
+      const when = repliedAt(guest).at;
+      if (when !== null && (latest === null || when > latest)) latest = when;
+    }
+    return latest ?? loggedHouseholdReply.get(householdId) ?? null;
+  }
+
   return (
     <GuestsWorkspace
       canEdit={viewer.permissions.has("guests.edit")}
@@ -255,6 +279,8 @@ export default async function GuestsPage({
         stdNo: row.stdNo,
         stdAwaiting: row.stdAwaiting,
         message: row.message,
+        sentAt: row.saveTheDateSentAt?.getTime() ?? null,
+        repliedAt: householdRepliedAt(row.people, row.householdId),
       }))}
       invitationStats={outreachStats(snapshot)}
       invitationTiers={outreachByTier(snapshot)}
