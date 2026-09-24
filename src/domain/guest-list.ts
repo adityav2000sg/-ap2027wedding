@@ -130,3 +130,94 @@ export function groupGuestRows<T extends GuestListRow>(
   const entries = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   return sort.dir === "desc" ? entries.reverse() : entries;
 }
+
+/** Everything the figures above the list are counted from. */
+export interface GuestListCountable {
+  householdId: string | null;
+  stdResponse: "YES" | "NO" | null;
+  saveTheDateSent: boolean;
+  needsAccommodation: boolean;
+  /** Per-event invitation statuses, keyed by event id. */
+  rsvp: Record<string, string>;
+}
+
+export interface GuestListSummary {
+  onTheList: number;
+  households: number;
+  sent: number;
+  yes: number;
+  no: number;
+  awaiting: number;
+  confirmed: number;
+  pending: number;
+  declined: number;
+  notContacted: number;
+  needARoom: number;
+  rooms: number;
+}
+
+/**
+ * The figures above the list, counted from the list itself.
+ *
+ * They used to come from the server, counted over the whole wave, so narrowing
+ * to one side of the family moved every row on screen and not one number above
+ * them — "231 on the list" over a list of 118. A heading that contradicts what
+ * it is heading is worse than no heading.
+ *
+ * Counted here from whatever rows are passed in, which lets the caller decide
+ * what "the list" means. It should mean the population — the side, the wave,
+ * the search, whether the save-the-date has gone — and not the reply filter,
+ * which picks *within* that population: filtering to "said yes" and then
+ * reading "said yes 30, not yet 0, said no 0" tells you nothing you didn't
+ * just ask for, and throws away the denominator that made 30 mean something.
+ */
+export function summariseGuestRows(
+  rows: readonly GuestListCountable[],
+  guestsPerRoom: number,
+): GuestListSummary {
+  let sent = 0;
+  let yes = 0;
+  let no = 0;
+  let confirmed = 0;
+  let pending = 0;
+  let declined = 0;
+  let notContacted = 0;
+  let needARoom = 0;
+  // Somebody with no household is their own party of one, or the count would
+  // read as fewer invitations than there are.
+  const households = new Set<string>();
+
+  for (const row of rows) {
+    households.add(row.householdId ?? `solo:${households.size}`);
+    if (row.saveTheDateSent) sent += 1;
+    if (row.stdResponse === "YES") yes += 1;
+    if (row.stdResponse === "NO") no += 1;
+    if (row.needsAccommodation) needARoom += 1;
+
+    const statuses = Object.values(row.rsvp);
+    if (statuses.includes("CONFIRMED")) confirmed += 1;
+    if (statuses.some((s) => s === "PENDING")) pending += 1;
+    if (statuses.length > 0 && statuses.includes("DECLINED")
+      && statuses.every((s) => s === "DECLINED" || s === "NOT_INVITED")) {
+      declined += 1;
+    }
+    if (statuses.every((s) => s === "NOT_INVITED")) notContacted += 1;
+  }
+
+  return {
+    onTheList: rows.length,
+    households: households.size,
+    sent,
+    yes,
+    no,
+    awaiting: rows.length - yes - no,
+    confirmed,
+    pending,
+    declined,
+    notContacted,
+    needARoom,
+    // Sharing a room is only possible within the group being counted, so this
+    // is the rooms that slice needs — not its share of a wedding-wide total.
+    rooms: Math.ceil(needARoom / Math.max(1, guestsPerRoom)),
+  };
+}

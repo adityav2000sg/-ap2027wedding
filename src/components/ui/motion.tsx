@@ -28,15 +28,23 @@ export function AnimatedNumber({
   format,
   duration = 1100,
   className,
+  startAt,
 }: {
   value: number;
   format?: (value: number) => string;
   duration?: number;
   className?: string;
+  /**
+   * Where the very first animation starts. Left out, the number simply appears
+   * and only animates when it later changes — right for a figure that was
+   * already on screen before this component mounted. Set to 0 for one that
+   * should be seen arriving.
+   */
+  startAt?: number;
 }) {
   const reduce = useReducedMotion();
-  const [display, setDisplay] = React.useState(value);
-  const fromRef = React.useRef(value);
+  const [display, setDisplay] = React.useState(startAt ?? value);
+  const fromRef = React.useRef(startAt ?? value);
   const frameRef = React.useRef<number | undefined>(undefined);
 
   React.useEffect(() => {

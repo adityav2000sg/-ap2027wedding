@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { computeGuestCounts, roomsRequired, saveTheDateCounts } from "@/domain/guests";
+import { computeGuestCounts, roomsRequired } from "@/domain/guests";
 import { outreachByTier, outreachRows, outreachStats } from "@/domain/outreach";
 import type { GuestTier, WeddingSnapshot } from "@/domain/types";
 import { getViewer } from "@/server/auth";
@@ -166,6 +166,7 @@ export default async function GuestsPage({
     <GuestsWorkspace
       canEdit={viewer.permissions.has("guests.edit")}
       currency={viewer.displayCurrency}
+      guestsPerRoom={snapshot.wedding.guestsPerRoom}
       initialFilter={params.rsvp ?? null}
       initialEvent={params.event ?? null}
       initialGuest={params.guest ?? null}
@@ -258,7 +259,6 @@ export default async function GuestsPage({
       invitationStats={outreachStats(snapshot)}
       invitationTiers={outreachByTier(snapshot)}
       invitationStage={snapshot.wedding.invitationStage}
-      saveTheDate={saveTheDateCounts(snapshot)}
       rsvpEnabled={snapshot.wedding.rsvpEnabled}
       singleRsvp={snapshot.wedding.singleRsvp}
     />

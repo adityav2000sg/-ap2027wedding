@@ -23,8 +23,10 @@ import {
   matchesSentFilter,
   nextSort,
   sortGuestRows,
+  summariseGuestRows,
   type SortKey,
 } from "@/domain/guest-list";
+import { AnimatedNumber } from "@/components/ui/motion";
 import { formatTimeAgo } from "@/lib/dates";
 import { publicRsvpPath } from "@/lib/rsvp-links";
 import {
@@ -159,7 +161,8 @@ const DIET_LABEL: Record<string, string> = {
 
 export function GuestsWorkspace({
   guests, households, events, statsByTier, canEdit, currency, rsvpEnabled, singleRsvp,
-  invitationStage, saveTheDate,
+  guestsPerRoom,
+  invitationStage,
   invitations, invitationStats, invitationTiers,
   initialFilter, initialEvent, initialGuest, initialSide,
 }: {
@@ -170,11 +173,12 @@ export function GuestsWorkspace({
   statsByTier: Record<Tier, Record<string, number>>;
   canEdit: boolean;
   currency: string;
+  /** How many share a room, so a narrowed list can say what it needs. */
+  guestsPerRoom: number;
   rsvpEnabled: boolean;
   singleRsvp: boolean;
   /** Which mailing is out — it decides which answer this page is about. */
   invitationStage: "SAVE_THE_DATE" | "INVITATION";
-  saveTheDate: { asked: number; sent: number; yes: number; no: number; awaiting: number };
   invitations: InvitationRow[];
   invitationStats: InvitationStats;
   invitationTiers: TierStat[];
@@ -220,9 +224,35 @@ export function GuestsWorkspace({
     router.refresh();
   });
 
-  const filtered = React.useMemo(() => {
+  /**
+   * The list you have narrowed to, before the reply chips pick within it.
+   *
+   * The figures and the bar above the list are counted from this, so the side,
+   * the wave, the search and the save-the-date filter all move them. The reply
+   * chips deliberately do not: they are a view of this population, and letting
+   * them rewrite the totals would leave "said yes" sitting over "said yes 30,
+   * not yet 0" — true, and no longer telling you anything.
+   */
+  const population = React.useMemo(() => {
     const q = query.toLowerCase().trim();
     return guests
+      .filter((guest) => guest.tier === activeTier)
+      .filter((guest) => !side || guest.side === side)
+      .filter((guest) => matchesSentFilter(guest, sentFilter))
+      .filter((guest) =>
+        !q ||
+        `${guest.firstName} ${guest.lastName}`.toLowerCase().includes(q) ||
+        (guest.householdName ?? "").toLowerCase().includes(q),
+      );
+  }, [guests, side, sentFilter, query, activeTier]);
+
+  const live = React.useMemo(
+    () => summariseGuestRows(population, guestsPerRoom),
+    [population, guestsPerRoom],
+  );
+
+  const filtered = React.useMemo(() => {
+    return population
       .filter((guest) => {
         const answered = Object.values(guest.rsvp);
         if (showSaveTheDate) {
@@ -249,16 +279,25 @@ export function GuestsWorkspace({
           case "vip": return guest.isVIP;
           default: return true;
         }
-      })
-      .filter((guest) => guest.tier === activeTier)
-      .filter((guest) => !side || guest.side === side)
-      .filter((guest) => matchesSentFilter(guest, sentFilter))
-      .filter((guest) =>
-        !q ||
-        `${guest.firstName} ${guest.lastName}`.toLowerCase().includes(q) ||
-        (guest.householdName ?? "").toLowerCase().includes(q),
-      );
-  }, [guests, filter, side, sentFilter, query, activeTier, showSaveTheDate]);
+      });
+  }, [population, filter, showSaveTheDate]);
+
+  /**
+   * Says which slice the figures are counting, when it isn't everybody.
+   *
+   * "On the list 118" over a filtered list is not wrong, but it reads as the
+   * whole wedding at a glance. Naming the side makes the smaller number
+   * obviously deliberate rather than obviously stale.
+   */
+  const sliceLabel = React.useCallback(
+    (base: string) =>
+      side === "BRIDE"
+        ? `${base} · Chowdhry`
+        : side === "GROOM"
+          ? `${base} · Mehan`
+          : base,
+    [side],
+  );
 
   const toggleSort = React.useCallback((key: SortKey) => {
     setSort((current) => nextSort(current, key));
@@ -347,7 +386,8 @@ export function GuestsWorkspace({
           <div>
             <h1 className="font-script text-[30px] sm:text-[54px] text-ink">Guests</h1>
             <p className="mt-1.5 text-[13.5px] text-ink-muted">
-              {stats.total} people across {stats.households} households
+              <AnimatedNumber value={live.onTheList} startAt={0} /> people across{" "}
+              <AnimatedNumber value={live.households} startAt={0} /> households
               {activeTier === "A" ? (
                 <span className="text-ink-faint"> · the invited list</span>
               ) : (
@@ -477,24 +517,21 @@ export function GuestsWorkspace({
       >
         {showSaveTheDate ? (
           <>
-            <Figure value={saveTheDate.asked} label="On the list" />
-            <Figure
-              value={`${saveTheDate.sent}/${saveTheDate.asked}`}
-              label="Save-the-dates sent"
-            />
-            <Figure value={saveTheDate.yes} label="Said yes" tone="positive" />
-            <Figure value={saveTheDate.awaiting} label="Not yet answered" tone="attention" />
-            <Figure value={saveTheDate.no} label="Said no" />
+            <Figure value={live.onTheList} label={sliceLabel("On the list")} />
+            <Figure value={live.sent} of={live.onTheList} label="Save-the-dates sent" />
+            <Figure value={live.yes} label="Said yes" tone="positive" />
+            <Figure value={live.awaiting} label="Not yet answered" tone="attention" />
+            <Figure value={live.no} label="Said no" />
           </>
         ) : (
           <>
-            <Figure value={stats.invited} label="On the list" />
-            <Figure value={stats.confirmed} label="Coming" tone="positive" />
-            <Figure value={stats.pending} label="Awaiting a reply" tone="attention" />
-            <Figure value={stats.declined} label="Not coming" />
+            <Figure value={live.onTheList} label={sliceLabel("On the list")} />
+            <Figure value={live.confirmed} label="Coming" tone="positive" />
+            <Figure value={live.pending} label="Awaiting a reply" tone="attention" />
+            <Figure value={live.declined} label="Not coming" />
           </>
         )}
-        <Figure value={`${stats.needAccommodation} · ${stats.rooms} rooms`} label="Need a bed" />
+        <Figure value={live.needARoom} rooms={live.rooms} label="Need a bed" />
       </div>
 
       <SegmentBar
@@ -502,15 +539,15 @@ export function GuestsWorkspace({
         segments={
           showSaveTheDate
             ? [
-                { value: saveTheDate.yes, tone: "olive", label: "Said yes" },
-                { value: saveTheDate.awaiting, tone: "amber", label: "Not yet" },
-                { value: saveTheDate.no, tone: "slate", label: "Said no" },
+                { value: live.yes, tone: "olive", label: "Said yes" },
+                { value: live.awaiting, tone: "amber", label: "Not yet" },
+                { value: live.no, tone: "slate", label: "Said no" },
               ]
             : [
-                { value: stats.confirmed, tone: "olive", label: "Coming" },
-                { value: stats.pending, tone: "amber", label: "Awaiting" },
-                { value: stats.declined, tone: "slate", label: "Not coming" },
-                { value: stats.notContacted, tone: "sky", label: "Not invited yet" },
+                { value: live.confirmed, tone: "olive", label: "Coming" },
+                { value: live.pending, tone: "amber", label: "Awaiting" },
+                { value: live.declined, tone: "slate", label: "Not coming" },
+                { value: live.notContacted, tone: "sky", label: "Not invited yet" },
               ]
         }
       />
@@ -1190,10 +1227,28 @@ function SentChip({
   );
 }
 
+/**
+ * One figure above the list.
+ *
+ * Every number counts rather than cuts, because these move now: narrowing to
+ * one side of the family rewrites all of them at once, and five figures
+ * changing silently in the same frame is a page that looks like it reloaded.
+ * The count is what says "this is the same figure, describing less".
+ *
+ * `of` and `rooms` are the two figures that carry a second number. They take it
+ * as a prop rather than a pre-built string so that number can count too — and
+ * so the units stay outside the animation, where "rooms" doesn't flicker.
+ */
 function Figure({
-  value, label, tone,
+  value, of, rooms, label, tone,
 }: {
-  value: React.ReactNode; label: string; tone?: "positive" | "attention";
+  value: number;
+  /** Denominator, as in "12 of 40 sent". */
+  of?: number;
+  /** Rooms the people in this figure need. */
+  rooms?: number;
+  label: string;
+  tone?: "positive" | "attention";
 }) {
   return (
     <div>
@@ -1203,7 +1258,20 @@ function Figure({
           tone === "positive" ? "text-positive" : tone === "attention" ? "text-attention" : "text-ink",
         )}
       >
-        {value}
+        <AnimatedNumber value={value} startAt={0} />
+        {of !== undefined ? (
+          <>
+            <span aria-hidden>/</span>
+            <AnimatedNumber value={of} startAt={0} />
+          </>
+        ) : null}
+        {rooms !== undefined ? (
+          <span className="text-[15px] text-ink-muted">
+            {" · "}
+            <AnimatedNumber value={rooms} startAt={0} />
+            {" rooms"}
+          </span>
+        ) : null}
       </div>
       <div className="mt-1.5 text-[11.5px] text-ink-muted">{label}</div>
     </div>

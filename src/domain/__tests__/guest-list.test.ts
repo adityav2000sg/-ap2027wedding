@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   groupGuestRows,
+  summariseGuestRows,
   matchesSentFilter,
   nextSort,
   sortGuestRows,
@@ -197,5 +198,106 @@ describe("clicking a column heading", () => {
       key: "replied",
       dir: "asc",
     });
+  });
+});
+
+
+function countable(over: Partial<Parameters<typeof summariseGuestRows>[0][number]> = {}) {
+  return {
+    householdId: "household-1",
+    stdResponse: null,
+    saveTheDateSent: true,
+    needsAccommodation: false,
+    rsvp: {},
+    ...over,
+  };
+}
+
+/**
+ * These are the figures above the list, and the whole point of counting them
+ * here is that they follow whatever the caller narrowed to. A count that
+ * describes a different population from the rows underneath it is the bug.
+ */
+describe("counting the list you are looking at", () => {
+  it("counts only the rows it is given", () => {
+    const brideSide = [
+      countable({ stdResponse: "YES" }),
+      countable({ stdResponse: "YES" }),
+      countable({ stdResponse: null }),
+    ];
+    const summary = summariseGuestRows(brideSide, 2);
+    expect(summary.onTheList).toBe(3);
+    expect(summary.yes).toBe(2);
+    expect(summary.awaiting).toBe(1);
+  });
+
+  it("keeps yes, no and awaiting adding up to the list", () => {
+    const rows = [
+      ...Array.from({ length: 30 }, () => countable({ stdResponse: "YES" as const })),
+      ...Array.from({ length: 4 }, () => countable({ stdResponse: "NO" as const })),
+      ...Array.from({ length: 215 }, () => countable()),
+    ];
+    const summary = summariseGuestRows(rows, 2);
+    expect(summary.yes + summary.no + summary.awaiting).toBe(summary.onTheList);
+    expect(summary.onTheList).toBe(249);
+    expect(summary.yes).toBe(30);
+  });
+
+  it("reports an empty list as zeroes rather than dividing by nothing", () => {
+    const summary = summariseGuestRows([], 2);
+    expect(summary.onTheList).toBe(0);
+    expect(summary.awaiting).toBe(0);
+    expect(summary.rooms).toBe(0);
+    for (const value of Object.values(summary)) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
+  it("counts rooms for the slice, rounding a part-share up to a whole room", () => {
+    const rows = Array.from({ length: 5 }, () => countable({ needsAccommodation: true }));
+    expect(summariseGuestRows(rows, 2).rooms).toBe(3);
+    expect(summariseGuestRows(rows, 1).rooms).toBe(5);
+  });
+
+  it("never divides by zero if the wedding says nobody shares a room", () => {
+    const rows = Array.from({ length: 3 }, () => countable({ needsAccommodation: true }));
+    expect(summariseGuestRows(rows, 0).rooms).toBe(3);
+  });
+
+  it("counts households, giving anybody without one a party of their own", () => {
+    const rows = [
+      countable({ householdId: "a" }),
+      countable({ householdId: "a" }),
+      countable({ householdId: "b" }),
+      countable({ householdId: null }),
+      countable({ householdId: null }),
+    ];
+    const summary = summariseGuestRows(rows, 2);
+    expect(summary.households).toBe(4);
+  });
+
+  it("counts the save-the-dates actually sent within the slice", () => {
+    const rows = [
+      countable({ saveTheDateSent: true }),
+      countable({ saveTheDateSent: true }),
+      countable({ saveTheDateSent: false }),
+    ];
+    const summary = summariseGuestRows(rows, 2);
+    expect(summary.sent).toBe(2);
+    expect(summary.onTheList).toBe(3);
+  });
+
+  it("reads per-event answers for the invitation stage", () => {
+    const rows = [
+      countable({ rsvp: { e1: "CONFIRMED", e2: "CONFIRMED" } }),
+      countable({ rsvp: { e1: "DECLINED", e2: "NOT_INVITED" } }),
+      countable({ rsvp: { e1: "PENDING" } }),
+      countable({ rsvp: { e1: "NOT_INVITED", e2: "NOT_INVITED" } }),
+    ];
+    const summary = summariseGuestRows(rows, 2);
+    expect(summary.confirmed).toBe(1);
+    expect(summary.declined).toBe(1);
+    expect(summary.pending).toBe(1);
+    expect(summary.notContacted).toBe(1);
   });
 });
