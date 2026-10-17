@@ -41,14 +41,18 @@ const db = new PrismaClient();
  * page with four names on it; Naimesh answers for himself. Splitting or
  * merging these is the difference between a family filling in one form and
  * four people each wondering whether somebody else already did it.
+ *
+ * Whose list they are on is deliberately absent. Three of these six are on the
+ * bride's and three on the groom's, that is already recorded against them, and
+ * a script about reply windows has no business overwriting it with a guess.
  */
-const GROUPS: { people: string[]; side: "BRIDE" | "GROOM" | "BOTH" }[] = [
-  { people: ["Naimesh Choksi"], side: "GROOM" },
-  { people: ["Sandeep Ghai", "Anu Ghai"], side: "GROOM" },
-  { people: ["Nina Kohli", "Shiv Kohli", "Khyle Kohli", "Sai Kohli"], side: "GROOM" },
-  { people: ["Simran Punjabi"], side: "GROOM" },
-  { people: ["Manie Seehra", "Sue Seehra"], side: "GROOM" },
-  { people: ["Ritu Kapoor", "Shumit Kapoor"], side: "GROOM" },
+const GROUPS: { people: string[] }[] = [
+  { people: ["Naimesh Choksi"] },
+  { people: ["Sandeep Ghai", "Anu Ghai"] },
+  { people: ["Nina Kohli", "Shiv Kohli", "Khyle Kohli", "Sai Kohli"] },
+  { people: ["Simran Punjabi"] },
+  { people: ["Manie Seehra", "Sue Seehra"] },
+  { people: ["Ritu Kapoor", "Shumit Kapoor"] },
 ];
 
 /** Default close for these six. Overridden with --until. */
@@ -167,13 +171,13 @@ async function main() {
     if (apply) {
       await db.household.update({
         where: { id: anchor.id },
-        data: { repliesOpenUntil: until, tier: "A", side: group.side, name: wanted },
+        data: { repliesOpenUntil: until, tier: "A", name: wanted },
       });
       for (const { guest } of people) {
         if (!guest) continue;
         await db.guest.update({
           where: { id: guest.id },
-          data: { householdId: anchor.id, tier: "A", side: group.side, rsvpToken: null },
+          data: { householdId: anchor.id, tier: "A", rsvpToken: null },
         });
       }
     }
