@@ -3,7 +3,7 @@
  *
  *   npm run invitees:late                       # dry run — says what it would do
  *   npm run invitees:late -- --apply            # do it, and print the links
- *   npm run invitees:late -- --until 2026-11-30 # a different closing date
+ *   npm run invitees:late -- --until 2026-11-15 # a different closing date
  *
  * The date on the invitation has passed and the links everybody else holds now
  * open onto a "replies have closed" page. These six need working links anyway,
@@ -56,7 +56,7 @@ const GROUPS: { people: string[] }[] = [
 ];
 
 /** Default close for these six. Overridden with --until. */
-const DEFAULT_UNTIL = "2026-11-30";
+const DEFAULT_UNTIL = "2026-10-30";
 
 function splitName(full: string): { firstName: string; lastName: string } {
   const parts = full.trim().split(/\s+/);
