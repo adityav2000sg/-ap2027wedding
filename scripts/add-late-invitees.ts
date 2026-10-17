@@ -81,110 +81,112 @@ async function main() {
   const wedding = await db.wedding.findFirstOrThrow({ select: { id: true } });
 
   console.log(
-    `\n${apply ? "Adding" : "Would add"} ${GROUPS.length} groups, ` +
-      `replies open to them until ${until.toISOString().slice(0, 10)}.\n`,
+    `\n${apply ? "Opening" : "Would open"} replies for ${GROUPS.length} groups ` +
+      `until ${until.toISOString().slice(0, 10)}.\n`,
   );
 
   for (const group of GROUPS) {
-    const name = householdName(group.people);
+    const wanted = householdName(group.people);
+    console.log(`  ${wanted}`);
 
-    // Match on the exact names given. Anybody already on the list keeps their
-    // record — their notes, their dietary answer, their id — rather than being
-    // duplicated beside themselves.
-    const existing = await Promise.all(
+    const people = await Promise.all(
       group.people.map(async (full) => {
         const { firstName, lastName } = splitName(full);
-        return db.guest.findFirst({
+        const guest = await db.guest.findFirst({
           where: { weddingId: wedding.id, archivedAt: null, firstName, lastName },
           select: {
-            id: true, firstName: true, lastName: true, tier: true,
-            rsvpToken: true, householdId: true,
-            household: { select: { name: true } },
+            id: true, tier: true, rsvpToken: true, stdResponse: true, householdId: true,
+            household: {
+              select: {
+                id: true, name: true, rsvpToken: true, saveTheDateSentAt: true,
+                _count: { select: { guests: { where: { archivedAt: null } } } },
+              },
+            },
           },
         });
+        return { full, guest };
       }),
     );
 
-    const found = existing.filter((g) => g !== null);
-    const missing = group.people.filter((_, i) => existing[i] === null);
-
-    console.log(`  ${name}`);
-    for (const [index, person] of group.people.entries()) {
-      const match = existing[index];
-      console.log(
-        match
-          ? `    reuse  ${person}` +
-              ` (tier ${match.tier}${match.tier !== "A" ? " → A" : ""}` +
-              `${match.rsvpToken ? ", personal link cleared" : ""}` +
-              `${match.household?.name && match.household.name !== name ? `, moving from "${match.household.name}"` : ""})`
-          : `    create ${person}`,
-      );
-    }
-
-    if (!apply) {
-      console.log("");
+    const missing = people.filter((p) => !p.guest);
+    if (missing.length === group.people.length) {
+      console.log(`    nobody here is on the list yet — add them in the portal first\n`);
       continue;
     }
 
-    // One household per group, found by the name this script builds, so a
-    // second run lands on the same row rather than making another. Household
-    // names are not unique in the schema, hence find-then-write rather than an
-    // upsert.
-    const already = await db.household.findFirst({
-      where: { weddingId: wedding.id, name },
-      select: { id: true },
-    });
+    /**
+     * Which existing household this group should settle in.
+     *
+     * Never a new one. Every household here has already had its link sent, and
+     * a new household means a new token — which is a link somebody already has
+     * quietly ceasing to work. So the group moves to whichever household
+     * already holds it, and the others are left exactly as they are.
+     *
+     * Most of the group wins. Where two hold the same number — Sandeep in one
+     * "Ghai" and Anu in another — the tidier one wins: the household where our
+     * people are most of who lives there, because moving into it disturbs the
+     * fewest other replies.
+     */
+    const candidates = new Map<string, { id: string; name: string; rsvpToken: string; sent: boolean; mine: number; total: number }>();
+    for (const { guest } of people) {
+      if (!guest?.household) continue;
+      const seen = candidates.get(guest.household.id);
+      if (seen) {
+        seen.mine += 1;
+        continue;
+      }
+      candidates.set(guest.household.id, {
+        id: guest.household.id,
+        name: guest.household.name,
+        rsvpToken: guest.household.rsvpToken,
+        sent: guest.household.saveTheDateSentAt !== null,
+        mine: 1,
+        total: guest.household._count.guests,
+      });
+    }
 
-    const household = already
-      ? await db.household.update({
-          where: { id: already.id },
-          data: { repliesOpenUntil: until, tier: "A", side: group.side },
-          select: { id: true, name: true, rsvpToken: true },
-        })
-      : await db.household.create({
-          data: {
-            weddingId: wedding.id,
-            name,
-            side: group.side,
-            tier: "A",
-            repliesOpenUntil: until,
-            // The same shape the seed issues: long, random, and never derived
-            // from anything about the household.
-            rsvpToken: randomUUID().replace(/-/g, "") + randomBytes(6).toString("hex"),
-          },
-          select: { id: true, name: true, rsvpToken: true },
-        });
+    const anchor = [...candidates.values()].sort(
+      (a, b) => b.mine - a.mine || b.mine / b.total - a.mine / a.total,
+    )[0];
 
-    for (const [index, person] of group.people.entries()) {
-      const match = existing[index];
-      const { firstName, lastName } = splitName(person);
-      const shared = {
-        householdId: household.id,
-        tier: "A" as const,
-        side: group.side,
-        // A personal token would take them out of the group form. These six
-        // answer together, so the group link has to speak for all of them.
-        rsvpToken: null,
-      };
+    for (const { full, guest } of people) {
+      if (!guest) {
+        console.log(`    MISSING  ${full} — not on the list, add in the portal`);
+        continue;
+      }
+      const moving = guest.householdId !== anchor.id;
+      const notes = [
+        guest.tier !== "A" ? "tier → A" : null,
+        guest.rsvpToken ? "personal link cleared" : null,
+        moving ? `moving from "${guest.household?.name}"` : null,
+        guest.stdResponse ? `already replied ${guest.stdResponse}` : null,
+      ].filter(Boolean);
+      console.log(`    ${moving ? "move " : "keep "}  ${full}${notes.length ? ` (${notes.join(", ")})` : ""}`);
+    }
 
-      if (match) {
-        await db.guest.update({ where: { id: match.id }, data: shared });
-      } else {
-        await db.guest.create({
-          data: { weddingId: wedding.id, firstName, lastName, ...shared },
+    if (apply) {
+      await db.household.update({
+        where: { id: anchor.id },
+        data: { repliesOpenUntil: until, tier: "A", side: group.side, name: wanted },
+      });
+      for (const { guest } of people) {
+        if (!guest) continue;
+        await db.guest.update({
+          where: { id: guest.id },
+          data: { householdId: anchor.id, tier: "A", side: group.side, rsvpToken: null },
         });
       }
     }
 
-    // The readable alias, which is the form every other link in this wedding
-    // takes — a name somebody can read back over the phone, with the private
-    // part still doing the work.
+    // The token is untouched, so this is the link they already have — the name
+    // in it is decoration, and the address resolves on the code at the end.
     console.log(
-      `    link   ${CANONICAL_SITE_ORIGIN}${publicRsvpPath(household.name, household.rsvpToken)}`,
+      `    link   ${CANONICAL_SITE_ORIGIN}${publicRsvpPath(wanted, anchor.rsvpToken)}`,
     );
+    if (anchor.name !== wanted) {
+      console.log(`    (household renamed from "${anchor.name}" — the old link still works)`);
+    }
     console.log("");
-    void found;
-    void missing;
   }
 
   if (!apply) {
