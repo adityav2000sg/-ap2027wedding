@@ -110,6 +110,17 @@ beforeEach(async () => {
     where: { id: weddingId },
     data: { invitationStage: "SAVE_THE_DATE", rsvpEnabled: true },
   });
+
+  // Inside the reply window, always.
+  //
+  // These tests are about which rows a token may speak for, and none of them
+  // is about the date — but every one of them submits a reply, and a reply is
+  // refused once the deadline passes. Run against the wall clock they all
+  // quietly turned red on the 10th of October and stayed that way, reporting
+  // DEADLINE_PASSED for rules that still work perfectly.
+  //
+  // The three tests that *are* about the date set their own time over this.
+  vi.setSystemTime(new Date("2026-09-15T09:00:00.000Z"));
 });
 
 afterEach(() => {
@@ -370,6 +381,69 @@ describe("the reply deadline", () => {
 
     expect(result.ok).toBe(true);
     expect((await ledgerFor(household.rsvpToken))?.outcome).toBe("RECORDED");
+  });
+
+  /**
+   * The exception, exercised through the action rather than the rule it calls.
+   *
+   * The pure function is tested elsewhere; what matters here is that the guard
+   * actually reads the household's own window out of the database. Testing the
+   * rule and trusting the wiring is how a form comes to be shown to somebody
+   * whose answer the server then throws away.
+   */
+  it("takes a late reply from a household that was given longer", async () => {
+    const household = await makeHousehold("Late Invitee Family", [
+      { first: "Naimesh" },
+      { first: "Simran" },
+    ]);
+    await db.household.update({
+      where: { id: household.id },
+      data: { repliesOpenUntil: new Date("2026-11-30T23:59:59.000Z") },
+    });
+    vi.setSystemTime(new Date("2026-10-20T09:00:00.000Z"));
+
+    const result = await submitRsvp({
+      token: household.rsvpToken,
+      people: household.guests.map((guest) => ({ guestId: guest.id, coming: "YES" })),
+    });
+
+    expect(result).toEqual({ ok: true, coming: 2, total: 2 });
+    expect((await ledgerFor(household.rsvpToken))?.outcome).toBe("RECORDED");
+  });
+
+  it("closes that household again once its own window passes", async () => {
+    const household = await makeHousehold("Window Closed Family", [{ first: "Ritu" }]);
+    await db.household.update({
+      where: { id: household.id },
+      data: { repliesOpenUntil: new Date("2026-11-30T23:59:59.000Z") },
+    });
+    vi.setSystemTime(new Date("2026-12-01T09:00:00.000Z"));
+
+    const result = await submitRsvp({
+      token: household.rsvpToken,
+      people: [{ guestId: household.guests[0].id, coming: "YES" }],
+    });
+
+    expect(result.ok).toBe(false);
+    expect((await ledgerFor(household.rsvpToken))?.outcome).toBe("DEADLINE_PASSED");
+  });
+
+  it("gives nobody else longer", async () => {
+    const extended = await makeHousehold("Extended Family", [{ first: "Sandeep" }]);
+    await db.household.update({
+      where: { id: extended.id },
+      data: { repliesOpenUntil: new Date("2026-11-30T23:59:59.000Z") },
+    });
+    const ordinary = await makeHousehold("Ordinary Family", [{ first: "Anu" }]);
+    vi.setSystemTime(new Date("2026-10-20T09:00:00.000Z"));
+
+    const theirs = await submitRsvp({
+      token: ordinary.rsvpToken,
+      people: [{ guestId: ordinary.guests[0].id, coming: "YES" }],
+    });
+
+    expect(theirs.ok).toBe(false);
+    expect((await ledgerFor(ordinary.rsvpToken))?.outcome).toBe("DEADLINE_PASSED");
   });
 
   it("refuses a reply once the date has passed, and keeps their answers", async () => {

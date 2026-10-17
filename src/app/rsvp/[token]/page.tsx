@@ -18,8 +18,8 @@ import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { REPLY_BY, REPLY_BY_LABEL, repliesHaveClosed } from "@/config/rsvp";
-import { formatDateRange, daysBetween } from "@/lib/dates";
+import { REPLY_BY, REPLY_BY_LABEL, repliesOpenForHousehold } from "@/config/rsvp";
+import { formatDateRange, formatLongDate, daysBetween } from "@/lib/dates";
 import { publicRsvpKey, publicRsvpPath } from "@/lib/rsvp-links";
 import { db } from "@/server/db";
 import { noteRsvpOpened } from "@/server/rsvp-ledger";
@@ -50,6 +50,7 @@ async function loadInvitation(token: string) {
       rsvpMessage: true,
       rsvpSubmittedAt: true,
       stdRepliedAt: true,
+      repliesOpenUntil: true,
       guests: {
         // Every live member, with the audience decided afterwards by the same
         // function the reply is checked against. Filtering here as well was
@@ -168,7 +169,9 @@ export default async function RsvpPage({
   // form never stays up past the moment the server would refuse it. Whatever
   // they told us is repeated back — somebody who replied in September opening
   // this in November should be reassured, not left wondering.
-  if (repliesHaveClosed()) {
+  // …unless this household has been given longer. A few people are always
+  // invited late, and the alternative is moving the date for all 249.
+  if (!repliesOpenForHousehold(household.repliesOpenUntil)) {
     const answers = invitedGuests.map((guest) => {
       const status = guest.invitations[0]?.status;
       const answer =
@@ -195,6 +198,18 @@ export default async function RsvpPage({
       />
     );
   }
+
+  /**
+   * The date this household is actually replying by.
+   *
+   * A household given longer must be told its own date. Printing the general
+   * one on a form that is open past it says "replies close on 9th October"
+   * above a working Send button, which reads as a page that has not noticed
+   * the date — and leaves somebody wondering whether their answer will count.
+   */
+  const ownDeadline = household.repliesOpenUntil;
+  const replyByDate = ownDeadline ?? REPLY_BY;
+  const replyByLabel = ownDeadline ? formatLongDate(ownDeadline) : REPLY_BY_LABEL;
 
   const people: RsvpPerson[] = invitedGuests.map((guest) => {
     const status = guest.invitations[0]?.status;
@@ -240,8 +255,8 @@ export default async function RsvpPage({
         people={stdPeople}
         message={personal?.rsvpMessage ?? household.rsvpMessage ?? ""}
         alreadyReplied={personal ? Boolean(stdPeople[0]?.response) : household.stdRepliedAt !== null}
-        rsvpBy={REPLY_BY_LABEL}
-        rsvpByDays={daysBetween(new Date(), REPLY_BY)}
+        rsvpBy={replyByLabel}
+        rsvpByDays={daysBetween(new Date(), replyByDate)}
         partnerA={wedding.partnerAName}
         partnerB={wedding.partnerBName}
         date={formatDateRange(wedding.startDate, wedding.endDate)}

@@ -31,7 +31,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { REPLY_BY_LABEL, repliesHaveClosed } from "@/config/rsvp";
+import { REPLY_BY_LABEL, repliesOpenForHousehold } from "@/config/rsvp";
 import { db } from "@/server/db";
 import { recordSubmission, settleSubmission } from "@/server/rsvp-ledger";
 import { resolveRsvpLink, rsvpAudience } from "@/server/rsvp-link";
@@ -128,6 +128,7 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
           lastName: true,
         },
       },
+      repliesOpenUntil: true,
       wedding: { select: { rsvpEnabled: true, invitationStage: true } },
     },
   });
@@ -183,7 +184,9 @@ export async function submitRsvp(input: unknown): Promise<RsvpResult> {
   //
   // Refused, and recorded as its own thing: a late reply is not a lost one, it
   // is a guest to ring back, and the ledger is where you find them.
-  if (repliesHaveClosed()) {
+  // The same question the page asked, from the same function, so a household
+  // given longer is not shown a form whose answer this would then throw away.
+  if (!repliesOpenForHousehold(household.repliesOpenUntil)) {
     await recordSubmission({
       ...identity,
       outcome: "DEADLINE_PASSED",

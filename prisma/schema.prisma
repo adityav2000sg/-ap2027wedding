@@ -81,36 +81,36 @@ model WeddingMember {
 // ──────────────────────────────────────────────────────────────────── Wedding
 
 model Wedding {
-  id              String    @id @default(cuid())
-  slug            String    @unique
+  id              String          @id @default(cuid())
+  slug            String          @unique
   /// "Avantika" — displayed first in the couple lockup.
   partnerAName    String
   partnerBName    String
-  weddingType     String    @default("North Indian")
-  startDate       DateTime  @db.Date
-  endDate         DateTime  @db.Date
-  baseCurrency    String    @default("INR")
+  weddingType     String          @default("North Indian")
+  startDate       DateTime        @db.Date
+  endDate         DateTime        @db.Date
+  baseCurrency    String          @default("INR")
   /// Planning assumption for guests before RSVPs land.
-  estimatedGuests Int       @default(320)
-  totalBudget     Decimal   @db.Decimal(14, 2)
+  estimatedGuests Int             @default(320)
+  totalBudget     Decimal         @db.Decimal(14, 2)
   /// Percentage of total budget held back as contingency.
-  contingencyPct  Decimal   @default(5) @db.Decimal(5, 2)
-  cities          String[]  @default([])
-  hasPlanner      Boolean   @default(true)
-  rsvpEnabled     Boolean   @default(true)
+  contingencyPct  Decimal         @default(5) @db.Decimal(5, 2)
+  cities          String[]        @default([])
+  hasPlanner      Boolean         @default(true)
+  rsvpEnabled     Boolean         @default(true)
   /// One answer per guest rather than one per function. True for a resort
   /// wedding where anybody who comes is there for the whole week. The per-event
   /// invitations still exist underneath — catering and capacity are computed
   /// from them — they just all move together.
-  singleRsvp      Boolean   @default(true)
+  singleRsvp      Boolean         @default(true)
   /// Which mailing the public link is currently serving.
   invitationStage InvitationStage @default(SAVE_THE_DATE)
   /// Ritual/tradition keys the family actually observes — drives task relevance.
-  traditions      String[]  @default([])
-  guestsPerRoom   Int       @default(2)
+  traditions      String[]        @default([])
+  guestsPerRoom   Int             @default(2)
   onboardedAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   members           WeddingMember[]
   events            Event[]
@@ -147,9 +147,9 @@ model Wedding {
   media             MediaAsset[]
   moodboards        Moodboard[]
   changes           ChangeApplication[]
+  notifications     Notification[]
 
   @@map("weddings")
-  notifications          Notification[]
 }
 
 // ───────────────────────────────────────────────────────────── Venues & events
@@ -302,6 +302,18 @@ model Household {
   rsvpRepliedAt         DateTime?
   /// When they answered the save-the-date, as distinct from the invitation.
   stdRepliedAt          DateTime?
+  /// An extension to the reply deadline, for this household alone.
+  ///
+  /// The date on the invitation is one date for everybody, and rightly so —
+  /// the hotel and the caterer need a number. But a few people are always
+  /// invited late or chased after the fact, and the alternative to this column
+  /// is moving the deadline for all 249 or taking their answer down the phone
+  /// and typing it in as if they had replied themselves.
+  ///
+  /// Null is the ordinary case: the global deadline applies. A date in the
+  /// future keeps this household's link live until it passes, and then the
+  /// link closes itself with no cleanup to remember.
+  repliesOpenUntil      DateTime?
   tier                  GuestTier        @default(A)
   giftReceived          Boolean          @default(false)
   giftNote              String?
@@ -325,29 +337,29 @@ model Household {
 }
 
 model Guest {
-  id                 String            @id @default(cuid())
+  id                 String               @id @default(cuid())
   weddingId          String
   householdId        String?
   firstName          String
   lastName           String
-  side               GuestSide         @default(BOTH)
+  side               GuestSide            @default(BOTH)
   relationship       String?
   phone              String?
   email              String?
   city               String?
-  country            String            @default("India")
-  tags               String[]          @default([])
-  isVIP              Boolean           @default(false)
-  isChild            Boolean           @default(false)
-  isSenior           Boolean           @default(false)
-  dietary            DietaryPreference @default(NOT_SPECIFIED)
+  country            String               @default("India")
+  tags               String[]             @default([])
+  isVIP              Boolean              @default(false)
+  isChild            Boolean              @default(false)
+  isSenior           Boolean              @default(false)
+  dietary            DietaryPreference    @default(NOT_SPECIFIED)
   allergies          String?
   accessibilityNeeds String?
-  needsAccommodation Boolean           @default(false)
-  needsTransport     Boolean           @default(false)
+  needsAccommodation Boolean              @default(false)
+  needsTransport     Boolean              @default(false)
   /// Present only when this person must receive a private link rather than the
   /// link shared by their household/accommodation group.
-  rsvpToken          String?           @unique
+  rsvpToken          String?              @unique
   /// Personal-link replies keep their note and timestamp on the guest so one
   /// partner never overwrites the other's response.
   rsvpMessage        String?
@@ -355,7 +367,7 @@ model Guest {
   /// The same funnel as the household's, for people on a personal link.
   rsvpOpenedAt       DateTime?
   rsvpLastOpenedAt   DateTime?
-  rsvpOpenCount      Int               @default(0)
+  rsvpOpenCount      Int                  @default(0)
   /// Set when this person specifically was sent one, independent of the
   /// household roll-up — most invitations here go to a phone, not a letterbox.
   saveTheDateSentAt  DateTime?
@@ -363,7 +375,7 @@ model Guest {
   /// Which list this person is on. Held per guest rather than per household
   /// because four households genuinely span two tiers — an aunt on the core
   /// list, her adult children considered and not invited.
-  tier               GuestTier @default(A)
+  tier               GuestTier            @default(A)
   /// Their answer to the save-the-date, kept apart from the RSVP proper so a
   /// year-out maybe is never mistaken for a confirmed seat.
   stdResponse        SaveTheDateResponse?
@@ -373,8 +385,8 @@ model Guest {
   attendanceScore    Int?
   notes              String?
   archivedAt         DateTime?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   wedding   Wedding    @relation(fields: [weddingId], references: [id], onDelete: Cascade)
   household Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
@@ -889,12 +901,12 @@ model Task {
   collaborators TaskCollaborator[]
   guestLinks    TaskGuestLink[]
   fittings      Fitting[]
+  notifications Notification[]
 
   @@index([weddingId, status])
   @@index([weddingId, dueDate])
   @@index([eventId])
   @@map("tasks")
-  notifications      Notification[]
 }
 
 model TaskDependency {
@@ -949,25 +961,25 @@ enum NotificationKind {
 /// whole point is to record that *you were told*, which a recomputed list can't
 /// represent once the underlying thing changes.
 model Notification {
-  id         String           @id @default(cuid())
-  weddingId  String
+  id        String           @id @default(cuid())
+  weddingId String
   /// Who it is for.
-  memberId   String
+  memberId  String
   /// Who caused it, when that's meaningful.
-  actorId    String?
-  kind       NotificationKind
-  title      String
-  body       String?
+  actorId   String?
+  kind      NotificationKind
+  title     String
+  body      String?
   /// Where clicking it should go.
-  href       String?
-  taskId     String?
-  readAt     DateTime?
-  createdAt  DateTime         @default(now())
+  href      String?
+  taskId    String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
 
-  wedding Wedding       @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-  member  WeddingMember @relation("NotificationRecipient", fields: [memberId], references: [id], onDelete: Cascade)
+  wedding Wedding        @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  member  WeddingMember  @relation("NotificationRecipient", fields: [memberId], references: [id], onDelete: Cascade)
   actor   WeddingMember? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
-  task    Task?         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task    Task?          @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([memberId, readAt])
   @@index([weddingId, createdAt])
@@ -1508,27 +1520,27 @@ enum RsvpSubmissionOutcome {
 /// snapshotted as text and JSON so the answer is readable, and replayable, even
 /// if every row it pointed at is gone.
 model RsvpSubmission {
-  id             String                @id @default(cuid())
+  id            String                @id @default(cuid())
   /// Null only when the token matched nothing, so there is no wedding to blame.
-  weddingId      String?
+  weddingId     String?
   /// Exactly what arrived in the URL or the form — never normalised.
-  token          String
-  outcome        RsvpSubmissionOutcome
+  token         String
+  outcome       RsvpSubmissionOutcome
   /// Unlinked on purpose: the row survives the household being deleted.
-  householdId    String?
-  householdName  String?
+  householdId   String?
+  householdName String?
   /// Set when a personal link was used.
-  guestId        String?
-  guestName      String?
+  guestId       String?
+  guestName     String?
   /// Which mailing was out at the time; the same link means different things.
-  stage          InvitationStage?
+  stage         InvitationStage?
   /// The answers as submitted, before anything was matched or dropped.
-  payload        Json
+  payload       Json
   /// Names as they were resolved, so the reply reads without a join.
-  summary        String?
+  summary       String?
   /// Why it was refused, when it was.
-  error          String?
-  createdAt      DateTime              @default(now())
+  error         String?
+  createdAt     DateTime              @default(now())
 
   @@index([createdAt])
   @@index([householdId])

@@ -32,3 +32,24 @@ export const REPLY_CLOSES_AT = new Date("2026-10-10T12:00:00.000Z");
 export function repliesHaveClosed(now: Date = new Date()): boolean {
   return now.getTime() >= REPLY_CLOSES_AT.getTime();
 }
+
+/**
+ * Whether this particular household may still reply.
+ *
+ * The deadline above is one date for everybody, which is what makes it useful
+ * to the hotel and the caterer. This is the exception to it, held per
+ * household: a date in the future keeps their link live past the general
+ * close, and null — the ordinary case — leaves the global deadline in charge.
+ *
+ * Both the page that renders the form and the action that accepts the reply
+ * call this, from this one file, for the same reason the deadline itself lives
+ * here: a form shown to somebody whose answer the server will refuse is worse
+ * than no form at all.
+ */
+export function repliesOpenForHousehold(
+  repliesOpenUntil: Date | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (repliesOpenUntil && now.getTime() < repliesOpenUntil.getTime()) return true;
+  return !repliesHaveClosed(now);
+}
